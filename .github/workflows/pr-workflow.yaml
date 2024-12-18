@@ -1,0 +1,61 @@
+name: PR Workflow
+on:
+  pull_request:
+    types: [ synchronize, opened, reopened]
+    branches: [ 'main' ]
+env:
+  TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db:2
+
+jobs:
+  linter:
+    name: Linter
+    runs-on: ubuntu-latest
+    timeout-minutes: 10 # Sets a timeout of 10 minutes for this job (default is 1 minute)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '^1.23'
+          cache: false
+
+      - name: Check Go Formatting
+        run: |
+          files=$(gofmt -l .) && echo $files && [ -z "$files" ]
+
+      - name: Golang CI Lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.61.0 # Specify the golangci-lint version, so we are stable
+          args: --timeout 10m # Increase the timeout to 10 minutes
+
+      - name: Run Trivy vulnerability scanner in repo mode
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          exit-code: '1'
+          ignore-unfixed: true
+          format: 'table'
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '^1.23.0'
+          cache-dependency-path: go.sum
+
+      - name: Setup BATS
+        uses: mig4/setup-bats@v1
+        with:
+          bats-version: 1.10.0
+
+      - name: Run integration tests
+        run: make test_integration
