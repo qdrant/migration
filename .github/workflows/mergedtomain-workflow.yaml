@@ -1,0 +1,27 @@
+name: Merged to Main
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+
+jobs:
+  merged-to-main:
+    name: Merged to Main
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Pull Main Branch
+        uses: actions/checkout@v4
+
+      - name: Update Release Draft
+        uses: release-drafter/release-drafter@v6
+        with:
+          disable-autolabeler: true
+          commitish: main
+          publish: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
