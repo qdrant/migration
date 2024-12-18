@@ -1,7 +1,15 @@
+PLATFORMS=darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64 windows/arm64
+VERSION=0.0.0
+BUILD=dev
+
 ## Location to install dependencies to
 LOCALBIN ?= $(shell pwd)/bin
 $(LOCALBIN):
 	mkdir -p $(LOCALBIN)
+
+DIST_DIR ?= $(shell pwd)/dist
+$(DIST_DIR):
+	mkdir -p $(DIST_DIR)
 
 GCI ?= $(LOCALBIN)/gci
 
@@ -35,3 +43,14 @@ test_integration:
 .PHONY: lint
 lint:
 	golangci-lint run
+
+release: $(PLATFORMS)
+
+temp = $(subst /, ,$@)
+os = $(word 1, $(temp))
+arch = $(word 2, $(temp))
+
+$(PLATFORMS):
+	BUILD_DATE=$(date +%F-%T) GOOS=$(os) GOARCH=$(arch) CGO_ENABLED=0 go build -o $(DIST_DIR)/qdrant-migrate-$(os)-$(arch) \
+		-ldflags "-s -w -extldflags \"-static\" -X 'main.projectVersion=$(VERSION)' -X 'main.projectBuild=$(BUILD)'" main.go
+
