@@ -1,12 +1,11 @@
 package cmd
 
 import (
-	"fmt"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-// unit test for parseConnectionString
 func TestParseConnectionString(t *testing.T) {
 	testCases := []struct {
 		connStr        string
@@ -61,8 +60,7 @@ func TestParseConnectionString(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		testname := fmt.Sprintf("%s", tc.connStr)
-		t.Run(testname, func(t *testing.T) {
+		t.Run(tc.connStr, func(t *testing.T) {
 			connectionType, host, port, collection, tls, apiKey, err := parseConnectionString(tc.connStr)
 			if err != nil {
 				assert.Equal(t, tc.errorMsg, err.Error())
