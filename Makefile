@@ -40,6 +40,10 @@ test: fmt vet lint test_integration
 test_integration:
 	bats integration_tests
 
+.PHONY: test_unit
+test_unit:
+	go test -v -coverprofile cover.out ./...
+
 .PHONY: lint
 lint:
 	golangci-lint run

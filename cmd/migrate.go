@@ -13,12 +13,15 @@ import (
 )
 
 func parseConnectionString(connStr string) (connectionType string, host string, port int, collection string, tls bool, apiKey string, err error) {
-	r, err := regexp.Compile(`^(?P<connectionType>\w+):///(?P<protocol>(http|https))://(?P<host>[\w.]+):(?P<port>\d+)/(?P<collection>[\w.-]+)(\?apiKey=(?P<apiKey>.+))?$`)
+	r, err := regexp.Compile(`^(?P<connectionType>\w+):///(?P<protocol>(http|https))://(?P<host>[\w-.]+):(?P<port>\d+)/(?P<collection>[\w.-]+)(\?apiKey=(?P<apiKey>.+))?$`)
 	if err != nil {
 		return "", "", 0, "", false, "", fmt.Errorf("failed to compile regexp: %w", err)
 	}
 
 	m := r.FindStringSubmatch(connStr)
+	if m == nil {
+		return "", "", 0, "", false, "", fmt.Errorf("failed to parse connection string: %s", connStr)
+	}
 	var protocol, foundPort string
 
 	for i, name := range r.SubexpNames() {

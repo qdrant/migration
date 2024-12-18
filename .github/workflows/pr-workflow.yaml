@@ -40,8 +40,8 @@ jobs:
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
 
-  integration-tests:
-    name: Integration Tests
+  tests:
+    name: Tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -52,10 +52,14 @@ jobs:
           go-version: '^1.23.0'
           cache-dependency-path: go.sum
 
+      - name: Unit tests
+        run: |
+          make test_unit
+
       - name: Setup BATS
         uses: mig4/setup-bats@v1
         with:
           bats-version: 1.10.0
 
-      - name: Run integration tests
+      - name: Integration tests
         run: make test_integration

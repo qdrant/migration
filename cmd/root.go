@@ -12,12 +12,14 @@ var rootCmd = &cobra.Command{
 	Short: "Migrate data to Qdrant from different sources",
 	Long:  `A tool to migrate vectorized data to Qdrant from different sources.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// Do Stuff Here
+		err := cmd.Help()
+		if err != nil {
+			panic(err)
+		}
 	},
 }
 
 func Execute(projectVersion, projectBuild string) {
-	rootCmd.Version = projectVersion
 	rootCmd.AddCommand(&cobra.Command{
 		Use:   "version",
 		Short: "Print the version number of qdrant-migration",
