@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - 'releases/**'
+
+jobs:
+  Release:
+    name: Release Workflow
+    runs-on: ubuntu-latest
+    permissions:
+      # write permission is required to create a github release
+      contents: write
+      pull-requests: write
+      id-token: write # needed for cosign keyless signing with OIDC
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract build info
+        id: extract_build_info
+        run: |
+          echo "tag=${GITHUB_REF##*/}" >> $GITHUB_OUTPUT
+          echo "commit_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '^1.23'
+          cache: false
+
+      - name: Build Binaries
+        run: |
+          make release VERSION="${{ steps.extract_build_info.outputs.tag }}" BUILD="${{ steps.extract_build_info.outputs.commit_short }}"
+
+      - name: Tag Release
+        shell: bash
+        run: |
+          git tag ${{ steps.extract_build_info.outputs.tag }}
+          git push origin ${{ steps.extract_build_info.outputs.tag }}
+
+      - name: Publish Release Notes
+        uses: release-drafter/release-drafter@v6
+        with:
+          disable-autolabeler: true
+          commitish: ${{ github.ref }}
+          tag: ${{ steps.extract_build_info.outputs.tag }}
+          publish: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Release Artifacts
+        run: |
+          for file in dist/*; do
+              gh release upload --clobber ${{ steps.extract_build_info.outputs.tag }} $file
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
