@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/qdrant/go-client/qdrant"
+	"github.com/schollz/progressbar/v3"
 )
 
 func parseConnectionString(connStr string) (connectionType string, host string, port int, collection string, tls bool, apiKey string, err error) {
@@ -103,21 +105,60 @@ var migrateCmd = &cobra.Command{
 
 		fmt.Printf("Migrating data from %s %s:%d/%s to %s %s:%d/%s\n", sourceType, sourceHost, sourcePort, sourceCollection, targetType, targetHost, targetPort, targetCollection)
 
+		startTime := time.Now()
+
+		exactPointCount := true
+
 		sourcePointCount, err := sourceClient.Count(ctx, &qdrant.CountPoints{
 			CollectionName: sourceCollection,
+			Exact:          &exactPointCount,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to count points in source: %w", err)
 		}
 
-		fmt.Printf("Source collection has approximately %d points\n", sourcePointCount)
+		fmt.Printf("Source collection has %d points\n", sourcePointCount)
+
+		createTargetCollection, _ := cmd.Flags().GetBool("create-target-collection")
+
+		if createTargetCollection {
+			sourceCollectionInfo, err := sourceClient.GetCollectionInfo(ctx, sourceCollection)
+			if err != nil {
+				return fmt.Errorf("failed to get source colleciton info: %w", err)
+			}
+
+			targetCollectionExists, err := targetClient.CollectionExists(ctx, targetCollection)
+
+			if targetCollectionExists {
+				fmt.Printf("Target collection already exists: %s. Skipping creation.\n", targetCollection)
+			} else {
+				err = targetClient.CreateCollection(ctx, &qdrant.CreateCollection{
+					CollectionName:         targetCollection,
+					HnswConfig:             sourceCollectionInfo.Config.GetHnswConfig(),
+					WalConfig:              sourceCollectionInfo.Config.GetWalConfig(),
+					OptimizersConfig:       sourceCollectionInfo.Config.GetOptimizerConfig(),
+					ShardNumber:            &sourceCollectionInfo.Config.GetParams().ShardNumber,
+					OnDiskPayload:          &sourceCollectionInfo.Config.GetParams().OnDiskPayload,
+					VectorsConfig:          sourceCollectionInfo.Config.GetParams().VectorsConfig,
+					ReplicationFactor:      sourceCollectionInfo.Config.GetParams().ReplicationFactor,
+					WriteConsistencyFactor: sourceCollectionInfo.Config.GetParams().WriteConsistencyFactor,
+					QuantizationConfig:     sourceCollectionInfo.Config.GetQuantizationConfig(),
+					ShardingMethod:         sourceCollectionInfo.Config.GetParams().ShardingMethod,
+					SparseVectorsConfig:    sourceCollectionInfo.Config.GetParams().SparseVectorsConfig,
+					StrictModeConfig:       sourceCollectionInfo.Config.GetStrictModeConfig(),
+				})
+				if err != nil {
+					return fmt.Errorf("failed to create target collection: %w", err)
+				}
+			}
+		}
 
 		limit, _ := cmd.Flags().GetUint32("batch-size")
 		var offset *qdrant.PointId
 
-		for {
-			fmt.Printf("Scrolling data from source starting with %s\n", offset)
+		bar := progressbar.Default(int64(sourcePointCount))
 
+		for {
 			resp, err := sourceClient.GetPointsClient().Scroll(ctx, &qdrant.ScrollPoints{
 				CollectionName: sourceCollection,
 				Offset:         offset,
@@ -151,8 +192,22 @@ var migrateCmd = &cobra.Command{
 				return fmt.Errorf("failed to insert data into target: %w", err)
 			}
 
+			_ = bar.Add(int(limit))
+
 			if offset == nil {
 				break
+			}
+
+			// if one minute elapsed get updated sourcePointCount
+			if time.Since(startTime) > time.Minute {
+				sourcePointCount, err = sourceClient.Count(ctx, &qdrant.CountPoints{
+					CollectionName: sourceCollection,
+					Exact:          &exactPointCount,
+				})
+				if err != nil {
+					return fmt.Errorf("failed to count points in source: %w", err)
+				}
+				bar.ChangeMax64(int64(sourcePointCount))
 			}
 		}
 
@@ -160,12 +215,13 @@ var migrateCmd = &cobra.Command{
 
 		targetPointCount, err := targetClient.Count(ctx, &qdrant.CountPoints{
 			CollectionName: targetCollection,
+			Exact:          &exactPointCount,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to count points in target: %w", err)
 		}
 
-		fmt.Printf("Target collection has approximately %d points\n", targetPointCount)
+		fmt.Printf("Target collection has %d points\n", targetPointCount)
 
 		return nil
 	},
@@ -182,5 +238,6 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-	migrateCmd.Flags().Uint32P("batch-size", "b", 100, "Batch size")
+	migrateCmd.Flags().Uint32P("batch-size", "b", 500, "Batch size")
+	migrateCmd.Flags().BoolP("create-target-collection", "c", false, "Create the target collection if it does not exist")
 }
