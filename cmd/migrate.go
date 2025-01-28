@@ -124,10 +124,14 @@ var migrateCmd = &cobra.Command{
 		if createTargetCollection {
 			sourceCollectionInfo, err := sourceClient.GetCollectionInfo(ctx, sourceCollection)
 			if err != nil {
-				return fmt.Errorf("failed to get source colleciton info: %w", err)
+				return fmt.Errorf("failed to get source collection info: %w", err)
 			}
 
 			targetCollectionExists, err := targetClient.CollectionExists(ctx, targetCollection)
+
+			if err != nil {
+				return fmt.Errorf("failed to check if collection exists: %w", err)
+			}
 
 			if targetCollectionExists {
 				fmt.Printf("Target collection already exists: %s. Skipping creation.\n", targetCollection)
