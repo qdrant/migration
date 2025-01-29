@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/schollz/progressbar/v3"
 	"github.com/spf13/cobra"
 
 	"github.com/qdrant/go-client/qdrant"
-	"github.com/schollz/progressbar/v3"
 )
 
 func parseConnectionString(connStr string) (connectionType string, host string, port int, collection string, tls bool, apiKey string, err error) {
