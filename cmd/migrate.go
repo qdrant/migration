@@ -201,10 +201,25 @@ var migrateCmd = &cobra.Command{
 			return fmt.Errorf("failed creating index on source collection %w", err)
 		}
 
+		sourceNonMigratedPointCount, err := sourceClient.Count(ctx, &qdrant.CountPoints{
+			CollectionName: sourceCollection,
+			Exact:          &exactPointCount,
+			Filter: &qdrant.Filter{
+				MustNot: []*qdrant.Condition{
+					qdrant.NewMatchKeyword("migrationMarker", migrationMarker),
+				},
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("failed to count points in source: %w", err)
+		}
+
+		fmt.Printf("%d points have not been migrated yet\n", sourceNonMigratedPointCount)
+
 		limit, _ := cmd.Flags().GetUint32("batch-size")
 		var offset *qdrant.PointId
 
-		bar := progressbar.Default(int64(sourcePointCount))
+		bar := progressbar.Default(int64(sourceNonMigratedPointCount))
 
 		for {
 			resp, err := sourceClient.GetPointsClient().Scroll(ctx, &qdrant.ScrollPoints{
