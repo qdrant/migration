@@ -12,6 +12,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/qdrant/go-client/qdrant"
+
+	"github.com/qdrant/migration/pkg/refs"
 )
 
 func parseConnectionString(connStr string) (connectionType string, host string, port int, collection string, tls bool, apiKey string, err error) {
@@ -105,6 +107,14 @@ var migrateCmd = &cobra.Command{
 
 		fmt.Printf("Migrating data from %s %s:%d/%s to %s %s:%d/%s\n", sourceType, sourceHost, sourcePort, sourceCollection, targetType, targetHost, targetPort, targetCollection)
 
+		migrationMarker, _ := cmd.Flags().GetString("migration-marker")
+
+		if migrationMarker == "" {
+			migrationMarker = "migration-" + time.Now().Format(time.RFC3339)
+		}
+
+		fmt.Printf("The migration marker is %s. To resume the migration, add this marker to the command.\n", migrationMarker)
+
 		startTime := time.Now()
 
 		exactPointCount := true
@@ -157,6 +167,40 @@ var migrateCmd = &cobra.Command{
 			}
 		}
 
+		// get current indexing threshold
+		targetCollectionInfo, err := targetClient.GetCollectionInfo(ctx, targetCollection)
+		if err != nil {
+			return fmt.Errorf("failed to get target collection information: %w", err)
+		}
+
+		existingIndexingThreshold := targetCollectionInfo.Config.OptimizerConfig.IndexingThreshold
+
+		// set indexing threshold to 0 to disable indexing
+		err = targetClient.UpdateCollection(ctx, &qdrant.UpdateCollection{
+			CollectionName: targetCollection,
+			OptimizersConfig: &qdrant.OptimizersConfigDiff{
+				IndexingThreshold: refs.NewPointer(uint64(0)),
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("failed disable indexing in target collection %w", err)
+		}
+
+		// if the threshold is 0, set it to default afterwards
+		if existingIndexingThreshold == nil || *existingIndexingThreshold == uint64(0) {
+			existingIndexingThreshold = refs.NewPointer(uint64(20_000))
+		}
+
+		// add payload index for migration marker to source collection
+		_, err = sourceClient.CreateFieldIndex(context.Background(), &qdrant.CreateFieldIndexCollection{
+			CollectionName: sourceCollection,
+			FieldName:      "migrationMarker",
+			FieldType:      qdrant.FieldType_FieldTypeKeyword.Enum(),
+		})
+		if err != nil {
+			return fmt.Errorf("failed creating index on source collection %w", err)
+		}
+
 		limit, _ := cmd.Flags().GetUint32("batch-size")
 		var offset *qdrant.PointId
 
@@ -169,6 +213,11 @@ var migrateCmd = &cobra.Command{
 				Limit:          &limit,
 				WithPayload:    qdrant.NewWithPayload(true),
 				WithVectors:    qdrant.NewWithVectors(true),
+				Filter: &qdrant.Filter{
+					MustNot: []*qdrant.Condition{
+						qdrant.NewMatchKeyword("migrationMarker", migrationMarker),
+					},
+				},
 			})
 			if err != nil {
 				return fmt.Errorf("failed to scroll date from source: %w", err)
@@ -178,6 +227,7 @@ var migrateCmd = &cobra.Command{
 			offset = resp.GetNextPageOffset()
 
 			var targetPoints []*qdrant.PointStruct
+			var pointIds []*qdrant.PointId
 
 			for _, point := range points {
 				targetPoints = append(targetPoints, &qdrant.PointStruct{
@@ -185,6 +235,8 @@ var migrateCmd = &cobra.Command{
 					Payload: point.Payload,
 					Vectors: point.Vectors,
 				})
+				pointIds = append(pointIds, point.Id)
+
 			}
 
 			_, err = targetClient.Upsert(ctx, &qdrant.UpsertPoints{
@@ -194,6 +246,18 @@ var migrateCmd = &cobra.Command{
 
 			if err != nil {
 				return fmt.Errorf("failed to insert data into target: %w", err)
+			}
+
+			_, err = sourceClient.SetPayload(ctx, &qdrant.SetPayloadPoints{
+				CollectionName: sourceCollection,
+				Payload: qdrant.NewValueMap(map[string]any{
+					"migrationMarker": migrationMarker,
+				}),
+				PointsSelector: qdrant.NewPointsSelectorIDs(pointIds),
+			})
+
+			if err != nil {
+				return fmt.Errorf("failed to add migration marker: %w", err)
 			}
 
 			_ = bar.Add(int(limit))
@@ -225,6 +289,17 @@ var migrateCmd = &cobra.Command{
 			return fmt.Errorf("failed to count points in target: %w", err)
 		}
 
+		// reset indexing threshold to enable indexing again
+		err = targetClient.UpdateCollection(ctx, &qdrant.UpdateCollection{
+			CollectionName: targetCollection,
+			OptimizersConfig: &qdrant.OptimizersConfigDiff{
+				IndexingThreshold: existingIndexingThreshold,
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("failed disable indexing in target collection %w", err)
+		}
+
 		fmt.Printf("Target collection has %d points\n", targetPointCount)
 
 		return nil
@@ -244,4 +319,5 @@ func init() {
 	}
 	migrateCmd.Flags().Uint32P("batch-size", "b", 500, "Batch size")
 	migrateCmd.Flags().BoolP("create-target-collection", "c", false, "Create the target collection if it does not exist")
+	migrateCmd.Flags().StringP("migration-marker", "m", "", "Migration marker to resume the migration")
 }
