@@ -332,7 +332,7 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-	migrateCmd.Flags().Uint32P("batch-size", "b", 500, "Batch size")
+	migrateCmd.Flags().Uint32P("batch-size", "b", 50, "Batch size")
 	migrateCmd.Flags().BoolP("create-target-collection", "c", false, "Create the target collection if it does not exist")
 	migrateCmd.Flags().StringP("migration-marker", "m", "", "Migration marker to resume the migration")
 }
