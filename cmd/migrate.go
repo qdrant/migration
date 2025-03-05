@@ -8,7 +8,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/pterm/pterm"
+	"google.golang.org/grpc"
 
 	"github.com/qdrant/go-client/qdrant"
 
@@ -69,8 +71,29 @@ func (r *MigrateCmd) Validate() error {
 	return nil
 }
 
-func (r *MigrateCmd) Run() error {
+func (r *MigrateCmd) Run(globals *Globals) error {
 	pterm.DefaultHeader.WithFullWidth().Println("Qdrant Data Migration")
+
+	debugLogger := logging.LoggerFunc(func(ctx context.Context, lvl logging.Level, msg string, fields ...any) {
+		pterm.Debug.Printf(msg, fields...)
+	})
+
+	var grpcOptions []grpc.DialOption
+
+	if globals.Trace {
+		pterm.EnableDebugMessages()
+		loggingOptions := logging.WithLogOnEvents(logging.StartCall, logging.FinishCall, logging.PayloadSent, logging.PayloadReceived)
+		grpcOptions = append(grpcOptions, grpc.WithChainUnaryInterceptor(logging.UnaryClientInterceptor(debugLogger, loggingOptions)))
+		grpcOptions = append(grpcOptions, grpc.WithChainStreamInterceptor(logging.StreamClientInterceptor(debugLogger, loggingOptions)))
+	}
+	if globals.Debug {
+		pterm.EnableDebugMessages()
+		loggingOptions := logging.WithLogOnEvents(logging.StartCall, logging.FinishCall)
+		grpcOptions = append(grpcOptions, grpc.WithChainUnaryInterceptor(logging.UnaryClientInterceptor(debugLogger, loggingOptions)))
+		grpcOptions = append(grpcOptions, grpc.WithChainStreamInterceptor(logging.StreamClientInterceptor(debugLogger, loggingOptions)))
+	}
+
+	pterm.Debug.Printf("test")
 
 	ctx := context.Background()
 
@@ -95,22 +118,24 @@ func (r *MigrateCmd) Run() error {
 	}
 
 	sourceClient, err := qdrant.NewClient(&qdrant.Config{
-		Host:      sourceHost,
-		Port:      sourcePort,
-		APIKey:    sourceAPIKey,
-		UseTLS:    sourceTLS,
-		TLSConfig: &tlsConfig,
+		Host:        sourceHost,
+		Port:        sourcePort,
+		APIKey:      sourceAPIKey,
+		UseTLS:      sourceTLS,
+		TLSConfig:   &tlsConfig,
+		GrpcOptions: grpcOptions,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create source client: %w", err)
 	}
 
 	targetClient, err := qdrant.NewClient(&qdrant.Config{
-		Host:      targetHost,
-		Port:      targetPort,
-		APIKey:    targetAPIKey,
-		UseTLS:    targetTLS,
-		TLSConfig: &tlsConfig,
+		Host:        targetHost,
+		Port:        targetPort,
+		APIKey:      targetAPIKey,
+		UseTLS:      targetTLS,
+		TLSConfig:   &tlsConfig,
+		GrpcOptions: grpcOptions,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create target client: %w", err)

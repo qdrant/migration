@@ -2,12 +2,14 @@ package cmd
 
 import (
 	"fmt"
+
 	"github.com/alecthomas/kong"
 	"github.com/pterm/pterm"
 )
 
 type Globals struct {
 	Debug   bool        `help:"Enable debug mode."`
+	Trace   bool        `help:"Enable trace mode."`
 	Version VersionFlag `name:"version" help:"Print version information and quit"`
 }
 
@@ -25,11 +27,6 @@ func (v VersionFlag) BeforeApply(app *kong.Kong, vars kong.Vars) error {
 	fmt.Println(vars["version"])
 	app.Exit(0)
 	return nil
-}
-
-type Context struct {
-	Debug   bool
-	Version VersionFlag `name:"version" help:"Print version information and quit"`
 }
 
 func Execute(projectVersion, projectBuild string) {
