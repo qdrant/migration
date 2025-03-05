@@ -328,6 +328,7 @@ func (r *MigrateCmd) Run(globals *Globals) error {
 			if err != nil {
 				return fmt.Errorf("failed to count points in source: %w", err)
 			}
+			bar.Total = int(sourcePointCount)
 		}
 	}
 
