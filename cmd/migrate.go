@@ -4,8 +4,11 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"os"
+	"os/signal"
 	"regexp"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
@@ -95,7 +98,8 @@ func (r *MigrateCmd) Run(globals *Globals) error {
 
 	pterm.Debug.Printf("test")
 
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	sourceType, sourceHost, sourcePort, sourceCollection, sourceTLS, sourceAPIKey, err := parseConnectionString(r.Source)
 	if err != nil {
