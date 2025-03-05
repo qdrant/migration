@@ -2,41 +2,55 @@ package cmd
 
 import (
 	"fmt"
-	"os"
-
-	"github.com/spf13/cobra"
+	"github.com/alecthomas/kong"
+	"github.com/pterm/pterm"
 )
 
-var rootCmd = &cobra.Command{
-	Use:   "qdrant-migration",
-	Short: "Migrate data to Qdrant from different sources",
-	Long:  `A tool to migrate vectorized data to Qdrant from different sources.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		err := cmd.Help()
-		if err != nil {
-			panic(err)
-		}
-	},
+type Globals struct {
+	Debug   bool        `help:"Enable debug mode."`
+	Version VersionFlag `name:"version" help:"Print version information and quit"`
+}
+
+type CLI struct {
+	Globals
+
+	Migrate MigrateCmd `cmd:"" help:"Migrate data to Qdrant from different sources."`
+}
+
+type VersionFlag string
+
+func (v VersionFlag) Decode(_ *kong.DecodeContext) error { return nil }
+func (v VersionFlag) IsBool() bool                       { return true }
+func (v VersionFlag) BeforeApply(app *kong.Kong, vars kong.Vars) error {
+	fmt.Println(vars["version"])
+	app.Exit(0)
+	return nil
+}
+
+type Context struct {
+	Debug   bool
+	Version VersionFlag `name:"version" help:"Print version information and quit"`
 }
 
 func Execute(projectVersion, projectBuild string) {
-	rootCmd.AddCommand(&cobra.Command{
-		Use:   "version",
-		Short: "Print the version number of qdrant-migration",
-		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Printf("qdrant-migration %s (%s)\n", projectVersion, projectBuild)
+	version := fmt.Sprintf("Version: %s, Build: %s", projectVersion, projectBuild)
+	cli := CLI{
+		Globals: Globals{
+			Version: VersionFlag(version),
 		},
-	},
-	)
-	if err := rootCmd.Execute(); err != nil {
-		_, err := fmt.Fprintln(os.Stderr, err)
-		if err != nil {
-			panic(err)
-		}
-		os.Exit(1)
 	}
-}
+	ctx := kong.Parse(&cli,
+		kong.Name("migration"),
+		kong.Description("Migrate data to Qdrant from different sources."),
+		kong.Vars{
+			"version": version,
+		})
 
-func init() {
-	rootCmd.AddCommand(migrateCmd)
+	err := ctx.Run(&cli.Globals)
+
+	if err != nil {
+		fmt.Print("\n")
+		pterm.Error.Println(err)
+		ctx.Exit(1)
+	}
 }
