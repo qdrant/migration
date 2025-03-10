@@ -39,6 +39,20 @@ type MigrateFromQdrantCmd struct {
 	targetTLS  bool
 }
 
+func getPort(u *url.URL) (int, error) {
+	if u.Port() != "" {
+		sourcePort, err := strconv.Atoi(u.Port())
+		if err != nil {
+			return 0, fmt.Errorf("failed to parse source port: %w", err)
+		}
+		return sourcePort, nil
+	} else if u.Scheme == "https" {
+		return 443, nil
+	}
+
+	return 80, nil
+}
+
 func (r *MigrateFromQdrantCmd) Parse() error {
 	sourceUrl, err := url.Parse(r.SourceUrl)
 	if err != nil {
@@ -47,16 +61,7 @@ func (r *MigrateFromQdrantCmd) Parse() error {
 
 	r.sourceHost = sourceUrl.Hostname()
 	r.sourceTLS = sourceUrl.Scheme == "https"
-	if sourceUrl.Port() != "" {
-		r.sourcePort, err = strconv.Atoi(sourceUrl.Port())
-		if err != nil {
-			return fmt.Errorf("failed to parse source port: %w", err)
-		}
-	} else if r.sourceTLS {
-		r.sourcePort = 443
-	} else {
-		r.sourcePort = 80
-	}
+	r.sourcePort, err = getPort(sourceUrl)
 
 	targetUrl, err := url.Parse(r.TargetUrl)
 	if err != nil {
@@ -65,16 +70,7 @@ func (r *MigrateFromQdrantCmd) Parse() error {
 
 	r.targetHost = targetUrl.Hostname()
 	r.targetTLS = targetUrl.Scheme == "https"
-	if targetUrl.Port() != "" {
-		r.targetPort, err = strconv.Atoi(targetUrl.Port())
-		if err != nil {
-			return fmt.Errorf("failed to parse target port: %w", err)
-		}
-	} else if r.targetTLS {
-		r.targetPort = 443
-	} else {
-		r.targetPort = 80
-	}
+	r.targetPort, err = getPort(targetUrl)
 
 	return nil
 }
@@ -98,9 +94,13 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	sourceClient, targetClient, err := r.connect(globals)
+	sourceClient, err := r.connect(globals, r.sourceHost, r.sourcePort, r.SourceAPIKey, r.sourceTLS)
 	if err != nil {
-		return fmt.Errorf("failed to connect to source or target: %w", err)
+		return fmt.Errorf("failed to connect to source: %w", err)
+	}
+	targetClient, err := r.connect(globals, r.targetHost, r.targetPort, r.TargetAPIKey, r.targetTLS)
+	if err != nil {
+		return fmt.Errorf("failed to connect to target: %w", err)
 	}
 
 	sourcePointCount, err := sourceClient.Count(ctx, &qdrant.CountPoints{
@@ -166,7 +166,7 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 	return nil
 }
 
-func (r *MigrateFromQdrantCmd) connect(globals *Globals) (*qdrant.Client, *qdrant.Client, error) {
+func (r *MigrateFromQdrantCmd) connect(globals *Globals, host string, port int, apiKey string, useTLS bool) (*qdrant.Client, error) {
 	debugLogger := logging.LoggerFunc(func(ctx context.Context, lvl logging.Level, msg string, fields ...any) {
 		pterm.Debug.Printf(msg, fields...)
 	})
@@ -190,31 +190,19 @@ func (r *MigrateFromQdrantCmd) connect(globals *Globals) (*qdrant.Client, *qdran
 		InsecureSkipVerify: true,
 	}
 
-	sourceClient, err := qdrant.NewClient(&qdrant.Config{
-		Host:        r.sourceHost,
-		Port:        r.sourcePort,
-		APIKey:      r.SourceAPIKey,
-		UseTLS:      r.sourceTLS,
+	client, err := qdrant.NewClient(&qdrant.Config{
+		Host:        host,
+		Port:        port,
+		APIKey:      apiKey,
+		UseTLS:      useTLS,
 		TLSConfig:   &tlsConfig,
 		GrpcOptions: grpcOptions,
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create source client: %w", err)
+		return nil, fmt.Errorf("failed to create client: %w", err)
 	}
 
-	targetClient, err := qdrant.NewClient(&qdrant.Config{
-		Host:        r.targetHost,
-		Port:        r.targetPort,
-		APIKey:      r.TargetAPIKey,
-		UseTLS:      r.targetTLS,
-		TLSConfig:   &tlsConfig,
-		GrpcOptions: grpcOptions,
-	})
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create target client: %w", err)
-	}
-
-	return sourceClient, targetClient, nil
+	return client, nil
 }
 
 func (r *MigrateFromQdrantCmd) perpareTargetCollection(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string) (error, *uint64) {
