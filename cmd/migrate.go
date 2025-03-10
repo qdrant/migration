@@ -4,9 +4,9 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"net/url"
 	"os"
 	"os/signal"
-	"regexp"
 	"strconv"
 	"syscall"
 	"time"
@@ -20,50 +20,63 @@ import (
 	"github.com/qdrant/migration/pkg/refs"
 )
 
-func parseConnectionString(connStr string) (connectionType string, host string, port int, collection string, tls bool, apiKey string, err error) {
-	r, err := regexp.Compile(`^(?P<connectionType>\w+):///(?P<protocol>(http|https))://(?P<host>[\w-.]+):(?P<port>\d+)/(?P<collection>[\w.-]+)(\?apiKey=(?P<apiKey>.+))?$`)
-	if err != nil {
-		return "", "", 0, "", false, "", fmt.Errorf("failed to compile regexp: %w", err)
-	}
-
-	m := r.FindStringSubmatch(connStr)
-	if m == nil {
-		return "", "", 0, "", false, "", fmt.Errorf("failed to parse connection string: %s", connStr)
-	}
-	var protocol, foundPort string
-
-	for i, name := range r.SubexpNames() {
-		switch name {
-		case "connectionType":
-			connectionType = m[i]
-		case "protocol":
-			protocol = m[i]
-		case "host":
-			host = m[i]
-		case "port":
-			foundPort = m[i]
-		case "collection":
-			collection = m[i]
-		case "apiKey":
-			apiKey = m[i]
-		}
-	}
-
-	port, err = strconv.Atoi(foundPort)
-
-	if err != nil {
-		return "", "", 0, "", false, "", fmt.Errorf("failed to parse port: %s: %w", foundPort, err)
-	}
-
-	return connectionType, host, port, collection, protocol == "https", apiKey, nil
-}
-
 type MigrateCmd struct {
-	Source                 string `short:"s" help:"Source collection" required:"true"`
-	Target                 string `short:"t" help:"Target collection" required:"true"`
+	SourceUrl              string `help:"Source GRPC URL, e.g. https://your-qdrant-hostname:6334" required:"true"`
+	SourceCollection       string `help:"Source collection" required:"true"`
+	SourceAPIKey           string `help:"Source API key"`
+	TargetUrl              string `help:"Target GRPC URL, e.g. https://your-qdrant-hostname:6334" required:"true"`
+	TargetCollection       string `help:"Target collection" required:"true"`
+	TargetAPIKey           string `help:"Target API key"`
 	BatchSize              uint32 `short:"b" help:"Batch size" default:"50"`
 	CreateTargetCollection bool   `short:"c" help:"Create the target collection if it does not exist" default:"false"`
 	MigrationMarker        string `short:"m" help:"Migration marker to resume the migration" optional:"true"`
+
+	sourceHost string
+	sourcePort int
+	sourceTLS  bool
+	targetHost string
+	targetPort int
+	targetTLS  bool
+}
+
+func (r *MigrateCmd) Parse() error {
+	sourceUrl, err := url.Parse(r.SourceUrl)
+	if err != nil {
+		return fmt.Errorf("failed to parse source URL: %w", err)
+	}
+
+	r.sourceHost = sourceUrl.Hostname()
+	r.sourceTLS = sourceUrl.Scheme == "https"
+	if sourceUrl.Port() != "" {
+		r.sourcePort, err = strconv.Atoi(sourceUrl.Port())
+		if err != nil {
+			return fmt.Errorf("failed to parse source port: %w", err)
+		}
+	} else if r.sourceTLS {
+		r.sourcePort = 443
+	} else {
+		r.sourcePort = 80
+	}
+
+	targetUrl, err := url.Parse(r.TargetUrl)
+	if err != nil {
+		return fmt.Errorf("failed to parse target URL: %w", err)
+	}
+
+	r.targetHost = targetUrl.Hostname()
+	r.targetTLS = targetUrl.Scheme == "https"
+	if targetUrl.Port() != "" {
+		r.targetPort, err = strconv.Atoi(targetUrl.Port())
+		if err != nil {
+			return fmt.Errorf("failed to parse target port: %w", err)
+		}
+	} else if r.targetTLS {
+		r.targetPort = 443
+	} else {
+		r.targetPort = 80
+	}
+
+	return nil
 }
 
 func (r *MigrateCmd) Validate() error {
@@ -77,6 +90,83 @@ func (r *MigrateCmd) Validate() error {
 func (r *MigrateCmd) Run(globals *Globals) error {
 	pterm.DefaultHeader.WithFullWidth().Println("Qdrant Data Migration")
 
+	err := r.Parse()
+	if err != nil {
+		return fmt.Errorf("failed to parse input: %w", err)
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	sourceClient, targetClient, err := r.connect(globals)
+	if err != nil {
+		return fmt.Errorf("failed to connect to source or target: %w", err)
+	}
+
+	sourcePointCount, err := sourceClient.Count(ctx, &qdrant.CountPoints{
+		CollectionName: r.SourceCollection,
+		Exact:          refs.NewPointer(true),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to count points in source: %w", err)
+	}
+
+	err, existingIndexingThreshold := r.perpareTargetCollection(ctx, sourceClient, r.SourceCollection, targetClient, r.TargetCollection)
+	if err != nil {
+		return fmt.Errorf("error preparing target collection: %w", err)
+	}
+
+	sourceNonMigratedPointCount, err := sourceClient.Count(ctx, &qdrant.CountPoints{
+		CollectionName: r.SourceCollection,
+		Exact:          refs.NewPointer(true),
+		Filter: &qdrant.Filter{
+			MustNot: []*qdrant.Condition{
+				qdrant.NewMatchKeyword("migrationMarker", r.getMigrationMarker()),
+			},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to count points in source: %w", err)
+	}
+
+	pterm.DefaultSection.Println("Starting data migration")
+
+	_ = pterm.DefaultTable.WithHasHeader().WithData(pterm.TableData{
+		{"", "Type", "Host", "Collection", "Points"},
+		{"Source", "qdrant", r.sourceHost, r.SourceCollection, strconv.FormatUint(sourcePointCount, 10)},
+		{"Target", "qdrant", r.targetHost, r.TargetCollection, strconv.FormatUint(sourceNonMigratedPointCount, 10)},
+	}).Render()
+
+	err = r.migrateData(ctx, sourceClient, r.SourceCollection, targetClient, r.TargetCollection, int(sourceNonMigratedPointCount))
+	if err != nil {
+		return fmt.Errorf("failed to migrate data: %w", err)
+	}
+
+	targetPointCount, err := targetClient.Count(ctx, &qdrant.CountPoints{
+		CollectionName: r.TargetCollection,
+		Exact:          refs.NewPointer(true),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to count points in target: %w", err)
+	}
+
+	// reset indexing threshold to enable indexing again
+	err = targetClient.UpdateCollection(ctx, &qdrant.UpdateCollection{
+		CollectionName: r.TargetCollection,
+		OptimizersConfig: &qdrant.OptimizersConfigDiff{
+			IndexingThreshold: existingIndexingThreshold,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed disable indexing in target collection %w", err)
+	}
+
+	pterm.Info.Printfln("Target collection has %d points\n", targetPointCount)
+
+	return nil
+}
+
+func (r *MigrateCmd) connect(globals *Globals) (*qdrant.Client, *qdrant.Client, error) {
 	debugLogger := logging.LoggerFunc(func(ctx context.Context, lvl logging.Level, msg string, fields ...any) {
 		pterm.Debug.Printf(msg, fields...)
 	})
@@ -96,81 +186,47 @@ func (r *MigrateCmd) Run(globals *Globals) error {
 		grpcOptions = append(grpcOptions, grpc.WithChainStreamInterceptor(logging.StreamClientInterceptor(debugLogger, loggingOptions)))
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	sourceType, sourceHost, sourcePort, sourceCollection, sourceTLS, sourceAPIKey, err := parseConnectionString(r.Source)
-	if err != nil {
-		return fmt.Errorf("failed to parse source connection string: %w", err)
-	}
-	targetType, targetHost, targetPort, targetCollection, targetTLS, targetAPIKey, err := parseConnectionString(r.Target)
-	if err != nil {
-		return fmt.Errorf("failed to parse target connection string: %w", err)
-	}
-
-	if sourceType != "qdrant" {
-		return fmt.Errorf("unsupported source type: %s", sourceType)
-	}
-	if targetType != "qdrant" {
-		return fmt.Errorf("unsupported target type: %s", targetType)
-	}
-
 	tlsConfig := tls.Config{
 		InsecureSkipVerify: true,
 	}
 
 	sourceClient, err := qdrant.NewClient(&qdrant.Config{
-		Host:        sourceHost,
-		Port:        sourcePort,
-		APIKey:      sourceAPIKey,
-		UseTLS:      sourceTLS,
+		Host:        r.sourceHost,
+		Port:        r.sourcePort,
+		APIKey:      r.SourceAPIKey,
+		UseTLS:      r.sourceTLS,
 		TLSConfig:   &tlsConfig,
 		GrpcOptions: grpcOptions,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to create source client: %w", err)
+		return nil, nil, fmt.Errorf("failed to create source client: %w", err)
 	}
 
 	targetClient, err := qdrant.NewClient(&qdrant.Config{
-		Host:        targetHost,
-		Port:        targetPort,
-		APIKey:      targetAPIKey,
-		UseTLS:      targetTLS,
+		Host:        r.targetHost,
+		Port:        r.targetPort,
+		APIKey:      r.TargetAPIKey,
+		UseTLS:      r.targetTLS,
 		TLSConfig:   &tlsConfig,
 		GrpcOptions: grpcOptions,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to create target client: %w", err)
+		return nil, nil, fmt.Errorf("failed to create target client: %w", err)
 	}
 
-	migrationMarker := r.MigrationMarker
+	return sourceClient, targetClient, nil
+}
 
-	if migrationMarker == "" {
-		migrationMarker = "migration-" + time.Now().Format(time.RFC3339)
-	}
-
-	startTime := time.Now()
-
-	exactPointCount := true
-
-	sourcePointCount, err := sourceClient.Count(ctx, &qdrant.CountPoints{
-		CollectionName: sourceCollection,
-		Exact:          &exactPointCount,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to count points in source: %w", err)
-	}
-
+func (r *MigrateCmd) perpareTargetCollection(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string) (error, *uint64) {
 	if r.CreateTargetCollection {
 		sourceCollectionInfo, err := sourceClient.GetCollectionInfo(ctx, sourceCollection)
 		if err != nil {
-			return fmt.Errorf("failed to get source collection info: %w", err)
+			return fmt.Errorf("failed to get source collection info: %w", err), nil
 		}
 
 		targetCollectionExists, err := targetClient.CollectionExists(ctx, targetCollection)
-
 		if err != nil {
-			return fmt.Errorf("failed to check if collection exists: %w", err)
+			return fmt.Errorf("failed to check if collection exists: %w", err), nil
 		}
 
 		if targetCollectionExists {
@@ -193,7 +249,7 @@ func (r *MigrateCmd) Run(globals *Globals) error {
 				StrictModeConfig:       sourceCollectionInfo.Config.GetStrictModeConfig(),
 			})
 			if err != nil {
-				return fmt.Errorf("failed to create target collection: %w", err)
+				return fmt.Errorf("failed to create target collection: %w", err), nil
 			}
 		}
 	}
@@ -201,7 +257,7 @@ func (r *MigrateCmd) Run(globals *Globals) error {
 	// get current indexing threshold
 	targetCollectionInfo, err := targetClient.GetCollectionInfo(ctx, targetCollection)
 	if err != nil {
-		return fmt.Errorf("failed to get target collection information: %w", err)
+		return fmt.Errorf("failed to get target collection information: %w", err), nil
 	}
 
 	existingIndexingThreshold := targetCollectionInfo.Config.OptimizerConfig.IndexingThreshold
@@ -214,7 +270,7 @@ func (r *MigrateCmd) Run(globals *Globals) error {
 		},
 	})
 	if err != nil {
-		return fmt.Errorf("failed disable indexing in target collection %w", err)
+		return fmt.Errorf("failed disable indexing in target collection %w", err), nil
 	}
 
 	// if the threshold is 0, set it to default after wards
@@ -229,37 +285,21 @@ func (r *MigrateCmd) Run(globals *Globals) error {
 		FieldType:      qdrant.FieldType_FieldTypeKeyword.Enum(),
 	})
 	if err != nil {
-		return fmt.Errorf("failed creating index on source collection %w", err)
+		return fmt.Errorf("failed creating index on source collection %w", err), nil
 	}
+	return nil, existingIndexingThreshold
+}
 
-	sourceNonMigratedPointCount, err := sourceClient.Count(ctx, &qdrant.CountPoints{
-		CollectionName: sourceCollection,
-		Exact:          &exactPointCount,
-		Filter: &qdrant.Filter{
-			MustNot: []*qdrant.Condition{
-				qdrant.NewMatchKeyword("migrationMarker", migrationMarker),
-			},
-		},
-	})
-	if err != nil {
-		return fmt.Errorf("failed to count points in source: %w", err)
-	}
-
-	limit := r.BatchSize
-
-	var offset *qdrant.PointId
-
-	pterm.DefaultSection.Println("Starting data migration")
-
-	bar, _ := pterm.DefaultProgressbar.WithTotal(int(sourceNonMigratedPointCount)).Start()
-
-	_ = pterm.DefaultTable.WithHasHeader().WithData(pterm.TableData{
-		{"", "Type", "Host", "Collection", "Points"},
-		{"Source", sourceType, sourceHost, sourceCollection, strconv.FormatUint(sourcePointCount, 10)},
-		{"Target", sourceType, targetHost, targetCollection, strconv.FormatUint(sourceNonMigratedPointCount, 10)},
-	}).Render()
+func (r *MigrateCmd) migrateData(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string, sourceNonMigratedPointCount int) error {
+	migrationMarker := r.getMigrationMarker()
 
 	pterm.Info.Printfln("The migration marker value is %s. To resume the migration, add '-m %s' to the command.\n", migrationMarker, migrationMarker)
+
+	startTime := time.Now()
+	limit := r.BatchSize
+	var offset *qdrant.PointId
+
+	bar, _ := pterm.DefaultProgressbar.WithTotal(sourceNonMigratedPointCount).Start()
 
 	for {
 		resp, err := sourceClient.GetPointsClient().Scroll(ctx, &qdrant.ScrollPoints{
@@ -323,9 +363,9 @@ func (r *MigrateCmd) Run(globals *Globals) error {
 
 		// if one minute elapsed get updated sourcePointCount
 		if time.Since(startTime) > time.Minute {
-			sourcePointCount, err = sourceClient.Count(ctx, &qdrant.CountPoints{
+			sourcePointCount, err := sourceClient.Count(ctx, &qdrant.CountPoints{
 				CollectionName: sourceCollection,
-				Exact:          &exactPointCount,
+				Exact:          refs.NewPointer(true),
 			})
 			if err != nil {
 				return fmt.Errorf("failed to count points in source: %w", err)
@@ -336,26 +376,15 @@ func (r *MigrateCmd) Run(globals *Globals) error {
 
 	pterm.Success.Printfln("Data migration finished successfully")
 
-	targetPointCount, err := targetClient.Count(ctx, &qdrant.CountPoints{
-		CollectionName: targetCollection,
-		Exact:          &exactPointCount,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to count points in target: %w", err)
-	}
-
-	// reset indexing threshold to enable indexing again
-	err = targetClient.UpdateCollection(ctx, &qdrant.UpdateCollection{
-		CollectionName: targetCollection,
-		OptimizersConfig: &qdrant.OptimizersConfigDiff{
-			IndexingThreshold: existingIndexingThreshold,
-		},
-	})
-	if err != nil {
-		return fmt.Errorf("failed disable indexing in target collection %w", err)
-	}
-
-	pterm.Info.Printfln("Target collection has %d points\n", targetPointCount)
-
 	return nil
+}
+
+func (r *MigrateCmd) getMigrationMarker() string {
+	migrationMarker := r.MigrationMarker
+
+	if migrationMarker == "" {
+		migrationMarker = "migration-" + time.Now().Format(time.RFC3339)
+	}
+
+	return migrationMarker
 }
