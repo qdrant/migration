@@ -20,7 +20,7 @@ import (
 	"github.com/qdrant/migration/pkg/refs"
 )
 
-type MigrateCmd struct {
+type MigrateFromQdrantCmd struct {
 	SourceUrl              string `help:"Source GRPC URL, e.g. https://your-qdrant-hostname:6334" required:"true"`
 	SourceCollection       string `help:"Source collection" required:"true"`
 	SourceAPIKey           string `help:"Source API key"`
@@ -39,7 +39,7 @@ type MigrateCmd struct {
 	targetTLS  bool
 }
 
-func (r *MigrateCmd) Parse() error {
+func (r *MigrateFromQdrantCmd) Parse() error {
 	sourceUrl, err := url.Parse(r.SourceUrl)
 	if err != nil {
 		return fmt.Errorf("failed to parse source URL: %w", err)
@@ -79,7 +79,7 @@ func (r *MigrateCmd) Parse() error {
 	return nil
 }
 
-func (r *MigrateCmd) Validate() error {
+func (r *MigrateFromQdrantCmd) Validate() error {
 	if r.BatchSize < 1 {
 		return fmt.Errorf("batch size must be greater than 0")
 	}
@@ -87,7 +87,7 @@ func (r *MigrateCmd) Validate() error {
 	return nil
 }
 
-func (r *MigrateCmd) Run(globals *Globals) error {
+func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 	pterm.DefaultHeader.WithFullWidth().Println("Qdrant Data Migration")
 
 	err := r.Parse()
@@ -166,7 +166,7 @@ func (r *MigrateCmd) Run(globals *Globals) error {
 	return nil
 }
 
-func (r *MigrateCmd) connect(globals *Globals) (*qdrant.Client, *qdrant.Client, error) {
+func (r *MigrateFromQdrantCmd) connect(globals *Globals) (*qdrant.Client, *qdrant.Client, error) {
 	debugLogger := logging.LoggerFunc(func(ctx context.Context, lvl logging.Level, msg string, fields ...any) {
 		pterm.Debug.Printf(msg, fields...)
 	})
@@ -217,7 +217,7 @@ func (r *MigrateCmd) connect(globals *Globals) (*qdrant.Client, *qdrant.Client, 
 	return sourceClient, targetClient, nil
 }
 
-func (r *MigrateCmd) perpareTargetCollection(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string) (error, *uint64) {
+func (r *MigrateFromQdrantCmd) perpareTargetCollection(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string) (error, *uint64) {
 	if r.CreateTargetCollection {
 		sourceCollectionInfo, err := sourceClient.GetCollectionInfo(ctx, sourceCollection)
 		if err != nil {
@@ -290,7 +290,7 @@ func (r *MigrateCmd) perpareTargetCollection(ctx context.Context, sourceClient *
 	return nil, existingIndexingThreshold
 }
 
-func (r *MigrateCmd) migrateData(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string, sourceNonMigratedPointCount int) error {
+func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string, sourceNonMigratedPointCount int) error {
 	migrationMarker := r.getMigrationMarker()
 
 	pterm.Info.Printfln("The migration marker value is %s. To resume the migration, add '-m %s' to the command.\n", migrationMarker, migrationMarker)
@@ -379,7 +379,7 @@ func (r *MigrateCmd) migrateData(ctx context.Context, sourceClient *qdrant.Clien
 	return nil
 }
 
-func (r *MigrateCmd) getMigrationMarker() string {
+func (r *MigrateFromQdrantCmd) getMigrationMarker() string {
 	migrationMarker := r.MigrationMarker
 
 	if migrationMarker == "" {
