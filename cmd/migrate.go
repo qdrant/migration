@@ -96,8 +96,6 @@ func (r *MigrateCmd) Run(globals *Globals) error {
 		grpcOptions = append(grpcOptions, grpc.WithChainStreamInterceptor(logging.StreamClientInterceptor(debugLogger, loggingOptions)))
 	}
 
-	pterm.Debug.Printf("test")
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -261,7 +259,7 @@ func (r *MigrateCmd) Run(globals *Globals) error {
 		{"Target", sourceType, targetHost, targetCollection, strconv.FormatUint(sourceNonMigratedPointCount, 10)},
 	}).Render()
 
-pterm.Info.Printfln("The migration marker value is %s. To resume the migration, add '-m %s' to the command.\n", migrationMarker, migrationMarker)
+	pterm.Info.Printfln("The migration marker value is %s. To resume the migration, add '-m %s' to the command.\n", migrationMarker, migrationMarker)
 
 	for {
 		resp, err := sourceClient.GetPointsClient().Scroll(ctx, &qdrant.ScrollPoints{
