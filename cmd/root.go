@@ -16,7 +16,7 @@ type Globals struct {
 type CLI struct {
 	Globals
 
-	Migrate MigrateCmd `cmd:"" help:"Migrate data to Qdrant from different sources."`
+	Migrate MigrateCmd `cmd:"" help:"Migrate data to Qdrant from other sources."`
 }
 
 type VersionFlag string
@@ -38,7 +38,7 @@ func Execute(projectVersion, projectBuild string) {
 	}
 	ctx := kong.Parse(&cli,
 		kong.Name("migration"),
-		kong.Description("Migrate data to Qdrant from different sources."),
+		kong.Description("Migrate data to Qdrant from other sources."),
 		kong.Vars{
 			"version": version,
 		})
