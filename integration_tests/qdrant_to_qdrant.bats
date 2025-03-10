@@ -47,7 +47,7 @@
 
   echo $source_result
 
-  run go run main.go migrate --source-url http://localhost:7334 --source-collection source_collection --target-url http://localhost:8334 --target-collection target_collection --batch-size 1
+  run go run main.go qdrant --source-url http://localhost:7334 --source-collection source_collection --target-url http://localhost:8334 --target-collection target_collection --batch-size 1
   [ $status -eq 0 ]
 
   run curl -s -X POST http://localhost:8333/collections/target_collection/points/scroll \
