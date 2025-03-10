@@ -1,6 +1,6 @@
 # qdrant-migration
 
-This tool helps to migrate data to Qdrant from different sources.
+This tool helps to migrate data to Qdrant from other sources.
 
 Supported sources:
 
