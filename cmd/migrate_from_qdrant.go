@@ -20,6 +20,8 @@ import (
 	"github.com/qdrant/migration/pkg/refs"
 )
 
+const HTTPS = "https"
+
 type MigrateFromQdrantCmd struct {
 	SourceUrl              string `help:"Source GRPC URL, e.g. https://your-qdrant-hostname:6334" required:"true"`
 	SourceCollection       string `help:"Source collection" required:"true"`
@@ -46,7 +48,7 @@ func getPort(u *url.URL) (int, error) {
 			return 0, fmt.Errorf("failed to parse source port: %w", err)
 		}
 		return sourcePort, nil
-	} else if u.Scheme == "https" {
+	} else if u.Scheme == HTTPS {
 		return 443, nil
 	}
 
@@ -60,8 +62,11 @@ func (r *MigrateFromQdrantCmd) Parse() error {
 	}
 
 	r.sourceHost = sourceUrl.Hostname()
-	r.sourceTLS = sourceUrl.Scheme == "https"
+	r.sourceTLS = sourceUrl.Scheme == HTTPS
 	r.sourcePort, err = getPort(sourceUrl)
+	if err != nil {
+		return fmt.Errorf("failed to parse source port: %w", err)
+	}
 
 	targetUrl, err := url.Parse(r.TargetUrl)
 	if err != nil {
@@ -69,8 +74,11 @@ func (r *MigrateFromQdrantCmd) Parse() error {
 	}
 
 	r.targetHost = targetUrl.Hostname()
-	r.targetTLS = targetUrl.Scheme == "https"
+	r.targetTLS = targetUrl.Scheme == HTTPS
 	r.targetPort, err = getPort(targetUrl)
+	if err != nil {
+		return fmt.Errorf("failed to parse source port: %w", err)
+	}
 
 	return nil
 }
