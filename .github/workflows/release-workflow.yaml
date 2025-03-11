@@ -33,6 +33,48 @@ jobs:
         run: |
           make release VERSION="${{ steps.extract_build_info.outputs.tag }}" BUILD="${{ steps.extract_build_info.outputs.commit_short }}"
 
+      - name: Login to registry.cloud.qdrant.io
+        uses: docker/login-action@v3
+        with:
+          registry: registry.cloud.qdrant.io
+          username: ${{ secrets.HARBOR_USERNAME }}
+          password: ${{ secrets.HARBOR_TOKEN }}
+
+      - name: Set Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            registry.cloud.qdrant.io/library/qdrant-migration
+          tags: |
+            type=raw,value=${{ steps.extract_build_info.outputs.tag }}
+            type=raw,value=latest
+
+      - name: Build and push container image
+        uses: docker/build-push-action@v6
+        id: build-and-push
+        with:
+          context: .
+          push: true
+          sbom: true
+          provenance: true
+          platforms: linux/amd64,linux/arm64
+          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: |
+            VERSION=${{ steps.extract_build_info.outputs.tag }}
+            BUILD=${{ steps.extract_build_info.outputs.commit_short }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3.8.1
+
+      - name: Sign container image at registry.cloud.qdrant.io
+        run: |
+          cosign sign --yes "${TAGS}@${DIGEST}"
+        env:
+          TAGS: registry.cloud.qdrant.io/library/qdrant-migration:${{ steps.extract_build_info.outputs.tag }}
+          DIGEST: ${{ steps.build-and-push.outputs.digest }}
+
       - name: Tag Release
         shell: bash
         run: |
