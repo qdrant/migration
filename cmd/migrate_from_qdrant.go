@@ -25,10 +25,10 @@ const HTTPS = "https"
 type MigrateFromQdrantCmd struct {
 	SourceUrl              string `help:"Source GRPC URL, e.g. https://your-qdrant-hostname:6334" required:"true"`
 	SourceCollection       string `help:"Source collection" required:"true"`
-	SourceAPIKey           string `help:"Source API key"`
+	SourceAPIKey           string `help:"Source API key" env:"SOURCE_API_KEY"`
 	TargetUrl              string `help:"Target GRPC URL, e.g. https://your-qdrant-hostname:6334" required:"true"`
 	TargetCollection       string `help:"Target collection" required:"true"`
-	TargetAPIKey           string `help:"Target API key"`
+	TargetAPIKey           string `help:"Target API key" env:"TARGET_API_KEY"`
 	BatchSize              uint32 `short:"b" help:"Batch size" default:"50"`
 	CreateTargetCollection bool   `short:"c" help:"Create the target collection if it does not exist" default:"false"`
 	MigrationMarker        string `short:"m" help:"Migration marker to resume the migration" optional:"true"`
@@ -102,11 +102,11 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	sourceClient, err := r.connect(globals, r.sourceHost, r.sourcePort, r.getSourceAPIKey(), r.sourceTLS)
+	sourceClient, err := r.connect(globals, r.sourceHost, r.sourcePort, r.SourceAPIKey, r.sourceTLS)
 	if err != nil {
 		return fmt.Errorf("failed to connect to source: %w", err)
 	}
-	targetClient, err := r.connect(globals, r.targetHost, r.targetPort, r.getTargetAPIKey(), r.targetTLS)
+	targetClient, err := r.connect(globals, r.targetHost, r.targetPort, r.TargetAPIKey, r.targetTLS)
 	if err != nil {
 		return fmt.Errorf("failed to connect to target: %w", err)
 	}
@@ -383,20 +383,4 @@ func (r *MigrateFromQdrantCmd) getMigrationMarker() string {
 	}
 
 	return migrationMarker
-}
-
-func (r *MigrateFromQdrantCmd) getSourceAPIKey() string {
-	if r.SourceAPIKey == "" {
-		return os.Getenv("SOURCE_API_KEY")
-	}
-
-	return r.SourceAPIKey
-}
-
-func (r *MigrateFromQdrantCmd) getTargetAPIKey() string {
-	if r.TargetAPIKey == "" {
-		return os.Getenv("TARGET_API_KEY")
-	}
-
-	return r.TargetAPIKey
 }
