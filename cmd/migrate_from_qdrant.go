@@ -102,11 +102,11 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	sourceClient, err := r.connect(globals, r.sourceHost, r.sourcePort, r.SourceAPIKey, r.sourceTLS)
+	sourceClient, err := r.connect(globals, r.sourceHost, r.sourcePort, r.getSourceAPIKey(), r.sourceTLS)
 	if err != nil {
 		return fmt.Errorf("failed to connect to source: %w", err)
 	}
-	targetClient, err := r.connect(globals, r.targetHost, r.targetPort, r.TargetAPIKey, r.targetTLS)
+	targetClient, err := r.connect(globals, r.targetHost, r.targetPort, r.getTargetAPIKey(), r.targetTLS)
 	if err != nil {
 		return fmt.Errorf("failed to connect to target: %w", err)
 	}
@@ -383,4 +383,20 @@ func (r *MigrateFromQdrantCmd) getMigrationMarker() string {
 	}
 
 	return migrationMarker
+}
+
+func (r *MigrateFromQdrantCmd) getSourceAPIKey() string {
+	if r.SourceAPIKey == "" {
+		return os.Getenv("SOURCE_API_KEY")
+	}
+
+	return r.SourceAPIKey
+}
+
+func (r *MigrateFromQdrantCmd) getTargetAPIKey() string {
+	if r.TargetAPIKey == "" {
+		return os.Getenv("TARGET_API_KEY")
+	}
+
+	return r.TargetAPIKey
 }
