@@ -8,9 +8,10 @@ import (
 )
 
 type Globals struct {
-	Debug   bool             `help:"Enable debug mode."`
-	Trace   bool             `help:"Enable trace mode."`
-	Version kong.VersionFlag `name:"version" help:"Print version information and quit"`
+	Debug               bool             `help:"Enable debug mode."`
+	Trace               bool             `help:"Enable trace mode."`
+	SkipTlsVerification bool             `help:"Skip TLS verification."`
+	Version             kong.VersionFlag `name:"version" help:"Print version information and quit"`
 }
 
 type CLI struct {

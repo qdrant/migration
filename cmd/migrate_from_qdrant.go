@@ -195,7 +195,7 @@ func (r *MigrateFromQdrantCmd) connect(globals *Globals, host string, port int, 
 	}
 
 	tlsConfig := tls.Config{
-		InsecureSkipVerify: true,
+		InsecureSkipVerify: globals.SkipTlsVerification,
 	}
 
 	client, err := qdrant.NewClient(&qdrant.Config{
