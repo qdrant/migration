@@ -3,7 +3,7 @@ module github.com/qdrant/migration
 go 1.23
 
 require (
-	github.com/alecthomas/kong v1.8.1
+	github.com/alecthomas/kong v1.9.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.1
 	github.com/pterm/pterm v0.12.80
 	github.com/qdrant/go-client v1.12.0
