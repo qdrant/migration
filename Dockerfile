@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 ARG BUILDKIT_SBOM_SCAN_CONTEXT=true
 ARG BUILDKIT_SBOM_SCAN_STAGE=builder
-FROM --platform=${BUILDPLATFORM:-linux/amd64} registry.suse.com/bci/golang:1.23 AS builder
+FROM --platform=${BUILDPLATFORM:-linux/amd64} registry.suse.com/bci/golang:1.24 AS builder
 
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM
