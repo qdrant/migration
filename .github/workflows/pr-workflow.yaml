@@ -17,7 +17,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '^1.23'
+          go-version: '1.24'
           cache: false
 
       - name: Check Go Formatting
@@ -27,7 +27,7 @@ jobs:
       - name: Golang CI Lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.61.0 # Specify the golangci-lint version, so we are stable
+          version: v1.64.7 # Specify the golangci-lint version, so we are stable
           args: --timeout 10m # Increase the timeout to 10 minutes
 
       - name: Run Trivy vulnerability scanner in repo mode
@@ -49,7 +49,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '^1.23.0'
+          go-version: '1.24'
           cache-dependency-path: go.sum
 
       - name: Unit tests
@@ -59,7 +59,7 @@ jobs:
       - name: Setup BATS
         uses: mig4/setup-bats@v1
         with:
-          bats-version: 1.10.0
+          bats-version: 1.11.1
 
       - name: Integration tests
         run: make test_integration
