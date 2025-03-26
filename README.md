@@ -1,5 +1,7 @@
 # qdrant-migration
 
+**Note: This project is in beta. The API may change in future releases.**
+
 This tool helps to migrate data to Qdrant from other sources. It will stream all vectors from a collection in the source Qdrant instance to the target Qdrant instance.
 
 The target collection can have a different replication or sharding configuration.
@@ -81,6 +83,16 @@ $ docker run --rm -it registry.cloud.qdrant.io/library/qdrant-migration qdrant \
     --target-collection 'target-collection' \
     --migration-marker 'migration-2025-02-14T19:18:30+01:00'
 ```
+
+### Migration considerations
+
+The migration tool will stream all vectors from the source collection to the target collection. If the target collection exists before starting the migration, its configuration regarding vector size and dimensions must match. The replication factor, shard configuration or on_disk settings can be different. If the target collection does not exist, you can create it by passing the `--create-target-collection` flag.
+
+Existing vectors  in the target collection with the same ids as in the source collection will be overwritten. If you want to keep the existing vectors, you should create a new collection and migrate the vectors there.
+
+The batch size can be adjusted with the `--batch-size` flag. The default batch size is 50, which is a good starting point for most use cases. If you experience performance issues, you can try to increase the batch size. Ideally a batch should be around 32MiB in size including vectors and payloads.
+
+The Qdrant version of the source and target databases should be the same minor version. Differences in the patch version are fine.
 
 ## Development
 
