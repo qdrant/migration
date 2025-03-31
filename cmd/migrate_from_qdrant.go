@@ -319,12 +319,56 @@ func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qd
 
 		var targetPoints []*qdrant.PointStruct
 		var pointIds []*qdrant.PointId
-
+		getVector := func(vector *qdrant.VectorOutput) *qdrant.Vector {
+			if vector == nil {
+				return nil
+			}
+			return &qdrant.Vector{
+				Data:         vector.GetData(),
+				Indices:      vector.GetIndices(),
+				VectorsCount: vector.VectorsCount,
+			}
+		}
+		getNamedVectors := func(vectors map[string]*qdrant.VectorOutput) map[string]*qdrant.Vector {
+			result := make(map[string]*qdrant.Vector, len(vectors))
+			for k, v := range vectors {
+				result[k] = getVector(v)
+			}
+			return result
+		}
+		getVectors := func(vectors *qdrant.NamedVectorsOutput) *qdrant.NamedVectors {
+			if vectors == nil {
+				return nil
+			}
+			return &qdrant.NamedVectors{
+				Vectors: getNamedVectors(vectors.GetVectors()),
+			}
+		}
+		getVectorsFromPoint := func(point *qdrant.RetrievedPoint) *qdrant.Vectors {
+			if point.Vectors == nil {
+				return nil
+			}
+			if vector := point.Vectors.GetVector(); vector != nil {
+				return &qdrant.Vectors{
+					VectorsOptions: &qdrant.Vectors_Vector{
+						Vector: getVector(vector),
+					},
+				}
+			}
+			if vectors := point.Vectors.GetVectors(); vectors != nil {
+				return &qdrant.Vectors{
+					VectorsOptions: &qdrant.Vectors_Vectors{
+						Vectors: getVectors(vectors),
+					},
+				}
+			}
+			return nil
+		}
 		for _, point := range points {
 			targetPoints = append(targetPoints, &qdrant.PointStruct{
 				Id:      point.Id,
 				Payload: point.Payload,
-				Vectors: point.Vectors,
+				Vectors: getVectorsFromPoint(point),
 			})
 			pointIds = append(pointIds, point.Id)
 
