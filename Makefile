@@ -38,7 +38,7 @@ test: fmt vet lint test_integration
 
 .PHONY: test_integration
 test_integration:
-	bats integration_tests
+	bats --print-output-on-failure integration_tests
 
 .PHONY: test_unit
 test_unit:

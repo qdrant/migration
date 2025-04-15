@@ -89,6 +89,10 @@ func (r *MigrateFromQdrantCmd) Validate() error {
 		return fmt.Errorf("batch size must be greater than 0")
 	}
 
+	return nil
+}
+
+func (r *MigrateFromQdrantCmd) ValidateParsedValues() error {
 	if r.sourceHost == r.targetHost && r.sourcePort == r.targetPort && r.SourceCollection == r.TargetCollection {
 		return fmt.Errorf("source and target collections must be different")
 	}
@@ -102,6 +106,10 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 	err := r.Parse()
 	if err != nil {
 		return fmt.Errorf("failed to parse input: %w", err)
+	}
+	err = r.ValidateParsedValues()
+	if err != nil {
+		return fmt.Errorf("failed to validate input: %w", err)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
