@@ -31,6 +31,7 @@ type MigrateFromQdrantCmd struct {
 	TargetAPIKey           string `help:"Target API key" env:"TARGET_API_KEY"`
 	BatchSize              uint32 `short:"b" help:"Batch size" default:"50"`
 	CreateTargetCollection bool   `short:"c" help:"Create the target collection if it does not exist" default:"false"`
+	EnsurePayloadIndexes   bool   `help:"Ensure payload indexes are created" default:"true"`
 	MigrationMarker        string `short:"m" help:"Migration marker to resume the migration" optional:"true"`
 
 	sourceHost string
@@ -88,6 +89,10 @@ func (r *MigrateFromQdrantCmd) Validate() error {
 		return fmt.Errorf("batch size must be greater than 0")
 	}
 
+	if r.sourceHost == r.targetHost && r.sourcePort == r.targetPort && r.SourceCollection == r.TargetCollection {
+		return fmt.Errorf("source and target collections must be different")
+	}
+
 	return nil
 }
 
@@ -119,7 +124,7 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 		return fmt.Errorf("failed to count points in source: %w", err)
 	}
 
-	err, existingIndexingThreshold := r.perpareTargetCollection(ctx, sourceClient, r.SourceCollection, targetClient, r.TargetCollection)
+	err, existingM := r.perpareTargetCollection(ctx, sourceClient, r.SourceCollection, targetClient, r.TargetCollection)
 	if err != nil {
 		return fmt.Errorf("error preparing target collection: %w", err)
 	}
@@ -158,11 +163,11 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 		return fmt.Errorf("failed to count points in target: %w", err)
 	}
 
-	// reset indexing threshold to enable indexing again
+	// reset m to enable indexing again
 	err = targetClient.UpdateCollection(ctx, &qdrant.UpdateCollection{
 		CollectionName: r.TargetCollection,
-		OptimizersConfig: &qdrant.OptimizersConfigDiff{
-			IndexingThreshold: existingIndexingThreshold,
+		HnswConfig: &qdrant.HnswConfigDiff{
+			M: existingM,
 		},
 	})
 	if err != nil {
@@ -214,12 +219,12 @@ func (r *MigrateFromQdrantCmd) connect(globals *Globals, host string, port int, 
 }
 
 func (r *MigrateFromQdrantCmd) perpareTargetCollection(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string) (error, *uint64) {
-	if r.CreateTargetCollection {
-		sourceCollectionInfo, err := sourceClient.GetCollectionInfo(ctx, sourceCollection)
-		if err != nil {
-			return fmt.Errorf("failed to get source collection info: %w", err), nil
-		}
+	sourceCollectionInfo, err := sourceClient.GetCollectionInfo(ctx, sourceCollection)
+	if err != nil {
+		return fmt.Errorf("failed to get source collection info: %w", err), nil
+	}
 
+	if r.CreateTargetCollection {
 		targetCollectionExists, err := targetClient.CollectionExists(ctx, targetCollection)
 		if err != nil {
 			return fmt.Errorf("failed to check if collection exists: %w", err), nil
@@ -250,28 +255,27 @@ func (r *MigrateFromQdrantCmd) perpareTargetCollection(ctx context.Context, sour
 		}
 	}
 
-	// get current indexing threshold
+	// get current m
 	targetCollectionInfo, err := targetClient.GetCollectionInfo(ctx, targetCollection)
 	if err != nil {
 		return fmt.Errorf("failed to get target collection information: %w", err), nil
 	}
+	existingM := targetCollectionInfo.Config.HnswConfig.M
 
-	existingIndexingThreshold := targetCollectionInfo.Config.OptimizerConfig.IndexingThreshold
-
-	// set indexing threshold to 0 to disable indexing
+	// set m to 0 to disable indexing
 	err = targetClient.UpdateCollection(ctx, &qdrant.UpdateCollection{
 		CollectionName: targetCollection,
-		OptimizersConfig: &qdrant.OptimizersConfigDiff{
-			IndexingThreshold: refs.NewPointer(uint64(0)),
+		HnswConfig: &qdrant.HnswConfigDiff{
+			M: refs.NewPointer(uint64(0)),
 		},
 	})
 	if err != nil {
 		return fmt.Errorf("failed disable indexing in target collection %w", err), nil
 	}
 
-	// if the threshold is 0, set it to default after wards
-	if existingIndexingThreshold == nil || *existingIndexingThreshold == uint64(0) {
-		existingIndexingThreshold = refs.NewPointer(uint64(20_000))
+	// if m is 0, set it to default after wards
+	if existingM == nil || *existingM == uint64(0) {
+		existingM = refs.NewPointer(uint64(16))
 	}
 
 	// add payload index for migration marker to source collection
@@ -283,7 +287,58 @@ func (r *MigrateFromQdrantCmd) perpareTargetCollection(ctx context.Context, sour
 	if err != nil {
 		return fmt.Errorf("failed creating index on source collection %w", err), nil
 	}
-	return nil, existingIndexingThreshold
+
+	if r.EnsurePayloadIndexes {
+		for name, schemaInfo := range sourceCollectionInfo.GetPayloadSchema() {
+			fieldType := getFieldType(schemaInfo.GetDataType())
+			if fieldType == nil {
+				continue
+			}
+
+			// if there is already an index in the target collection, skip
+			if _, ok := targetCollectionInfo.GetPayloadSchema()[name]; ok {
+				continue
+			}
+
+			_, err = targetClient.CreateFieldIndex(
+				ctx,
+				&qdrant.CreateFieldIndexCollection{
+					CollectionName:   r.TargetCollection,
+					FieldName:        name,
+					FieldType:        fieldType,
+					FieldIndexParams: schemaInfo.GetParams(),
+					Wait:             refs.NewPointer(true),
+				},
+			)
+			if err != nil {
+				return fmt.Errorf("failed creating index on tagrget collection %w", err), nil
+			}
+		}
+	}
+
+	return nil, existingM
+}
+
+func getFieldType(dataType qdrant.PayloadSchemaType) *qdrant.FieldType {
+	switch dataType {
+	case qdrant.PayloadSchemaType_Keyword:
+		return refs.NewPointer(qdrant.FieldType_FieldTypeKeyword)
+	case qdrant.PayloadSchemaType_Integer:
+		return refs.NewPointer(qdrant.FieldType_FieldTypeInteger)
+	case qdrant.PayloadSchemaType_Float:
+		return refs.NewPointer(qdrant.FieldType_FieldTypeFloat)
+	case qdrant.PayloadSchemaType_Geo:
+		return refs.NewPointer(qdrant.FieldType_FieldTypeGeo)
+	case qdrant.PayloadSchemaType_Text:
+		return refs.NewPointer(qdrant.FieldType_FieldTypeText)
+	case qdrant.PayloadSchemaType_Bool:
+		return refs.NewPointer(qdrant.FieldType_FieldTypeBool)
+	case qdrant.PayloadSchemaType_Datetime:
+		return refs.NewPointer(qdrant.FieldType_FieldTypeDatetime)
+	case qdrant.PayloadSchemaType_Uuid:
+		return refs.NewPointer(qdrant.FieldType_FieldTypeUuid)
+	}
+	return nil
 }
 
 func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string, sourceNonMigratedPointCount int) error {
@@ -377,6 +432,7 @@ func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qd
 		_, err = targetClient.Upsert(ctx, &qdrant.UpsertPoints{
 			CollectionName: targetCollection,
 			Points:         targetPoints,
+			Wait:           refs.NewPointer(true),
 		})
 
 		if err != nil {

@@ -4,7 +4,7 @@
 
 This tool helps to migrate data to Qdrant from other sources. It will stream all vectors from a collection in the source Qdrant instance to the target Qdrant instance.
 
-The target collection can have a different replication or sharding configuration.
+The target collection can have a different replication or sharding configuration, expect the vector size and distance need to be the same.
 
 Supported sources:
 
@@ -27,7 +27,7 @@ In addtion, every release providies precompiled binaries for all major OS and CP
 To migrate from one Qdrant instance to another, you can provide the following parameters:
 
 ```bash
-$ docker run --rm -it registry.cloud.qdrant.io/library/qdrant-migration qdrant --help
+$ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration qdrant --help
 Usage: migration qdrant --source-url=STRING --source-collection=STRING --target-url=STRING --target-collection=STRING [flags]
 
 Migrate data from a Qdrant database to Qdrant.
@@ -53,7 +53,7 @@ Flags:
 Example:
 
 ```bash
-$ docker run --rm -it registry.cloud.qdrant.io/library/qdrant-migration qdrant \
+$ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration qdrant \
     --source-url 'https://source-qdrant-hostname:6334' \
     --source-collection 'source-collection' \
     --target-url 'https://target-qdrant-hostname:6334' \
@@ -63,7 +63,7 @@ $ docker run --rm -it registry.cloud.qdrant.io/library/qdrant-migration qdrant \
 You can provide the API keys either as command line arguments or as environment variables:
 
 ```bash
-$ docker run --rm -it \
+$ docker run --net=host --rm -it \
     -e SOURCE_API_KEY='xyz' \ 
     registry.cloud.qdrant.io/library/qdrant-migration qdrant \
     --source-url 'https://source-qdrant-hostname:6334' \
@@ -76,7 +76,7 @@ $ docker run --rm -it \
 If you want to resume a cancelled migration, or if you want to migrate vectors that may have been added after the last migration run, you can pass the migration marker as a flag, which is printed out at the beginning of the migration process:
 
 ```bash
-$ docker run --rm -it registry.cloud.qdrant.io/library/qdrant-migration qdrant \
+$ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration qdrant \
     --source-url 'https://source-qdrant-hostname:6334' \
     --source-collection 'source-collection' \
     --target-url 'https://target-qdrant-hostname:6334' \
