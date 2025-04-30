@@ -406,7 +406,6 @@ func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qd
 		offset = resp.GetNextPageOffset()
 
 		var targetPoints []*qdrant.PointStruct
-		var pointIds []*qdrant.PointId
 		getVector := func(vector *qdrant.VectorOutput) *qdrant.Vector {
 			if vector == nil {
 				return nil
@@ -458,7 +457,6 @@ func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qd
 				Payload: point.Payload,
 				Vectors: getVectorsFromPoint(point),
 			})
-			pointIds = append(pointIds, point.Id)
 
 		}
 
@@ -574,6 +572,9 @@ func (r *MigrateFromQdrantCmd) StoreOffset(ctx context.Context, sourceClient *qd
 	}
 
 	point, err := r.getOffsetPoint(ctx, sourceClient)
+	if err != nil {
+		return fmt.Errorf("failed to get offset point: %w", err)
+	}
 
 	var payload map[string]*qdrant.Value
 
