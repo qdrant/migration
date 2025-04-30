@@ -62,6 +62,29 @@
   [ "$source_result" = "$target_result" ]
 }
 
+@test "Migrating to the same collection should fail" {
+  run curl -X PUT http://localhost:7333/collections/source_collection \
+    -H 'Content-Type: application/json' \
+    --data-raw '{
+      "vectors": {
+        "size": 3,
+        "distance": "Cosine"
+      }
+    }'
+  [ $status -eq 0 ]
+
+
+  run go run main.go qdrant --source-url http://localhost:7334 --source-collection source_collection --target-url http://localhost:7334 --target-collection source_collection --batch-size 1
+  [ $status -ne 0 ]
+  [[ "$output" =~ "source and target collections must be different" ]]
+}
+
+@test "Migrating with invalid port should fail" {
+  run go run main.go qdrant --source-url http://localhost:invalid --source-collection source_collection --target-url http://localhost:8334 --target-collection source_collection --batch-size 1
+  [ $status -ne 0 ]
+  [[ "$output" =~ "invalid port \":invalid\" after host" ]]
+}
+
 setup() {
   docker compose -f integration_tests/compose_files/qdrant_to_qdrant.yaml up -d --wait
 }
