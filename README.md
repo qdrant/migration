@@ -33,21 +33,23 @@ Usage: migration qdrant --source-url=STRING --source-collection=STRING --target-
 Migrate data from a Qdrant database to Qdrant.
 
 Flags:
-  -h, --help                        Show context-sensitive help.
-      --debug                       Enable debug mode.
-      --trace                       Enable trace mode.
-      --skip-tls-verification       Skip TLS verification.
-      --version                     Print version information and quit
+  -h, --help                                                      Show context-sensitive help.
+      --debug                                                     Enable debug mode.
+      --trace                                                     Enable trace mode.
+      --skip-tls-verification                                     Skip TLS verification.
+      --version                                                   Print version information and quit
 
-      --source-url=STRING           Source GRPC URL, e.g. https://your-qdrant-hostname:6334
-      --source-collection=STRING    Source collection
-      --source-api-key=STRING       Source API key ($SOURCE_API_KEY)
-      --target-url=STRING           Target GRPC URL, e.g. https://your-qdrant-hostname:6334
-      --target-collection=STRING    Target collection
-      --target-api-key=STRING       Target API key ($TARGET_API_KEY)
-  -b, --batch-size=50               Batch size
-  -c, --create-target-collection    Create the target collection if it does not exist
-  -m, --migration-marker=STRING     Migration marker to resume the migration
+      --source-url=STRING                                         Source GRPC URL, e.g. https://your-qdrant-hostname:6334
+      --source-collection=STRING                                  Source collection
+      --source-api-key=STRING                                     Source API key ($SOURCE_API_KEY)
+      --target-url=STRING                                         Target GRPC URL, e.g. https://your-qdrant-hostname:6334
+      --target-collection=STRING                                  Target collection
+      --target-api-key=STRING                                     Target API key ($TARGET_API_KEY)
+  -b, --batch-size=50                                             Batch size
+  -c, --create-target-collection                                  Create the target collection if it does not exist
+      --ensure-payload-indexes                                    Ensure payload indexes are created
+      --migration-offsets-collection-name="_migration_offsets"    Collection where the current migration offset should be stored
+      --restart-migration                                         Restart the migration and do not continue from last offset
 ```
 
 Example:
@@ -73,7 +75,7 @@ $ docker run --net=host --rm -it \
     --target-api-key 'abc'
 ```
 
-If you want to resume a cancelled migration, or if you want to migrate vectors that may have been added after the last migration run, you can pass the migration marker as a flag, which is printed out at the beginning of the migration process:
+The migration tool keeps track of a running migration. If you cancel a migration, it will be automatically resumed if you start it next. To restart a migration, run:
 
 ```bash
 $ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration qdrant \
@@ -81,12 +83,12 @@ $ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migrati
     --source-collection 'source-collection' \
     --target-url 'https://target-qdrant-hostname:6334' \
     --target-collection 'target-collection' \
-    --migration-marker 'migration-2025-02-14T19:18:30+01:00'
+    --restart-migration  
 ```
 
 ### Migration considerations
 
-The migration tool will stream all vectors from the source collection to the target collection. If the target collection exists before starting the migration, its configuration regarding vector size and dimensions must match. The replication factor, shard configuration or on_disk settings can be different. If the target collection does not exist, you can create it by passing the `--create-target-collection` flag.
+The migration tool will stream all vectors from the source collection to the target collection. If the target collection exists before starting the migration, its configuration regarding vector size and dimensions must match. The replication factor, shard configuration or on_disk settings can be different. If the target collection does not exist, you can create it by passing the `--create-target-collection` flag. When a collection is created, the payload indexes from the source are created in the target by default.
 
 Existing vectors  in the target collection with the same ids as in the source collection will be overwritten. If you want to keep the existing vectors, you should create a new collection and migrate the vectors there.
 
