@@ -138,7 +138,7 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 		return fmt.Errorf("failed to count points in source: %w", err)
 	}
 
-	err, existingM := r.perpareTargetCollection(ctx, sourceClient, r.SourceCollection, targetClient, r.TargetCollection)
+	existingM, err := r.perpareTargetCollection(ctx, sourceClient, r.SourceCollection, targetClient, r.TargetCollection)
 	if err != nil {
 		return fmt.Errorf("error preparing target collection: %w", err)
 	}
@@ -249,16 +249,16 @@ func (r *MigrateFromQdrantCmd) prepareMigrationOffsetsCollection(ctx context.Con
 	})
 }
 
-func (r *MigrateFromQdrantCmd) perpareTargetCollection(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string) (error, *uint64) {
+func (r *MigrateFromQdrantCmd) perpareTargetCollection(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string) (*uint64, error) {
 	sourceCollectionInfo, err := sourceClient.GetCollectionInfo(ctx, sourceCollection)
 	if err != nil {
-		return fmt.Errorf("failed to get source collection info: %w", err), nil
+		return nil, fmt.Errorf("failed to get source collection info: %w", err)
 	}
 
 	if r.CreateTargetCollection {
 		targetCollectionExists, err := targetClient.CollectionExists(ctx, targetCollection)
 		if err != nil {
-			return fmt.Errorf("failed to check if collection exists: %w", err), nil
+			return nil, fmt.Errorf("failed to check if collection exists: %w", err)
 		}
 
 		if targetCollectionExists {
@@ -281,7 +281,7 @@ func (r *MigrateFromQdrantCmd) perpareTargetCollection(ctx context.Context, sour
 				StrictModeConfig:       sourceCollectionInfo.Config.GetStrictModeConfig(),
 			})
 			if err != nil {
-				return fmt.Errorf("failed to create target collection: %w", err), nil
+				return nil, fmt.Errorf("failed to create target collection: %w", err)
 			}
 		}
 	}
@@ -289,7 +289,7 @@ func (r *MigrateFromQdrantCmd) perpareTargetCollection(ctx context.Context, sour
 	// get current m
 	targetCollectionInfo, err := targetClient.GetCollectionInfo(ctx, targetCollection)
 	if err != nil {
-		return fmt.Errorf("failed to get target collection information: %w", err), nil
+		return nil, fmt.Errorf("failed to get target collection information: %w", err)
 	}
 	existingM := targetCollectionInfo.Config.HnswConfig.M
 
@@ -301,7 +301,7 @@ func (r *MigrateFromQdrantCmd) perpareTargetCollection(ctx context.Context, sour
 		},
 	})
 	if err != nil {
-		return fmt.Errorf("failed disable indexing in target collection %w", err), nil
+		return nil, fmt.Errorf("failed disable indexing in target collection %w", err)
 	}
 
 	// if m is 0, set it to default after wards
@@ -316,7 +316,7 @@ func (r *MigrateFromQdrantCmd) perpareTargetCollection(ctx context.Context, sour
 		FieldType:      qdrant.FieldType_FieldTypeKeyword.Enum(),
 	})
 	if err != nil {
-		return fmt.Errorf("failed creating index on source collection %w", err), nil
+		return nil, fmt.Errorf("failed creating index on source collection %w", err)
 	}
 
 	if r.EnsurePayloadIndexes {
@@ -342,12 +342,12 @@ func (r *MigrateFromQdrantCmd) perpareTargetCollection(ctx context.Context, sour
 				},
 			)
 			if err != nil {
-				return fmt.Errorf("failed creating index on tagrget collection %w", err), nil
+				return nil, fmt.Errorf("failed creating index on tagrget collection %w", err)
 			}
 		}
 	}
 
-	return nil, existingM
+	return existingM, nil
 }
 
 func getFieldType(dataType qdrant.PayloadSchemaType) *qdrant.FieldType {
