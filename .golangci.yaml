@@ -1,35 +1,52 @@
-run:
-  timeout: 10m
-issues:
-  exclude-files:
-    - "generated.*\\.go$"
+version: "2"
 linters:
   enable:
-    - gci
-    - goconst
-    - gofmt
-    - goimports
-    - unparam
-    - importas
     - bodyclose
     - containedctx
     - contextcheck
     - errorlint
+    - goconst
+    - godot
+    - importas
     - nilerr
     - promlinter
+    - revive
     - sloglint
     - testifylint
     - unparam
     - usestdlibvars
-    - revive
-    - godot
-linters-settings:
-  gci:
-    sections:
-      - standard # Standard section: captures all standard packages.
-      - default # Default section: contains all imports that could not be matched to another section type.
-      - prefix(github.com/qdrant) # Custom section: groups all imports with the specified Prefix (our company, but our own component).
-      - prefix(github.com/qdrant/migration/) # Custom section: groups all imports with the specified Prefix (this component).
-  revive:
-    rules:
-      - name: exported
+  settings:
+    revive:
+      rules:
+        - name: exported
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - generated.*\.go$
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - goimports
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/qdrant)
+        - prefix(github.com/qdrant/migration/)
+  exclusions:
+    generated: lax
+    paths:
+      - generated.*\.go$
+      - third_party$
+      - builtin$
+      - examples$
