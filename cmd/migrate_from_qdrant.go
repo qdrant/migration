@@ -153,9 +153,9 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 	pterm.DefaultSection.Println("Starting data migration")
 
 	_ = pterm.DefaultTable.WithHasHeader().WithData(pterm.TableData{
-		{"", "Type", "Host", "Collection", "Points"},
-		{"Source", "qdrant", r.sourceHost, r.SourceCollection, strconv.FormatUint(sourcePointCount, 10)},
-		{"Target", "qdrant", r.targetHost, r.TargetCollection, strconv.FormatUint(targetPointCount, 10)},
+		{"Type", "Provider", "Collection", "Points"},
+		{"Source", "qdrant", r.SourceCollection, strconv.FormatUint(sourcePointCount, 10)},
+		{"Target", "qdrant", r.TargetCollection, strconv.FormatUint(targetPointCount, 10)},
 	}).Render()
 
 	err = r.migrateData(ctx, sourceClient, r.SourceCollection, targetClient, r.TargetCollection, sourcePointCount)
@@ -260,7 +260,7 @@ func (r *MigrateFromQdrantCmd) perpareTargetCollection(ctx context.Context, sour
 
 		if targetCollectionExists {
 			fmt.Print("\n")
-			pterm.Info.Printfln("Target collection already exists: %s. Skipping creation.", targetCollection)
+			pterm.Info.Printfln("Target collection '%s' already exists. Skipping creation.", targetCollection)
 		} else {
 			err = targetClient.CreateCollection(ctx, &qdrant.CreateCollection{
 				CollectionName:         targetCollection,
