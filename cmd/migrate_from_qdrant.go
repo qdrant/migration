@@ -17,8 +17,6 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/qdrant/go-client/qdrant"
-
-	"github.com/qdrant/migration/pkg/refs"
 )
 
 const HTTPS = "https"
@@ -133,7 +131,7 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 
 	sourcePointCount, err := sourceClient.Count(ctx, &qdrant.CountPoints{
 		CollectionName: r.SourceCollection,
-		Exact:          refs.NewPointer(true),
+		Exact:          qdrant.PtrOf(true),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to count points in source: %w", err)
@@ -146,7 +144,7 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 
 	targetPointCount, err := targetClient.Count(ctx, &qdrant.CountPoints{
 		CollectionName: r.TargetCollection,
-		Exact:          refs.NewPointer(true),
+		Exact:          qdrant.PtrOf(true),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to count points in target: %w", err)
@@ -167,7 +165,7 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 
 	targetPointCount, err = targetClient.Count(ctx, &qdrant.CountPoints{
 		CollectionName: r.TargetCollection,
-		Exact:          refs.NewPointer(true),
+		Exact:          qdrant.PtrOf(true),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to count points in target: %w", err)
@@ -239,11 +237,11 @@ func (r *MigrateFromQdrantCmd) prepareMigrationOffsetsCollection(ctx context.Con
 	}
 	return targetClient.CreateCollection(ctx, &qdrant.CreateCollection{
 		CollectionName:    r.MigrationOffsetsCollectionName,
-		ReplicationFactor: refs.NewPointer(uint32(1)),
-		ShardNumber:       refs.NewPointer(uint32(1)),
+		ReplicationFactor: qdrant.PtrOf(uint32(1)),
+		ShardNumber:       qdrant.PtrOf(uint32(1)),
 		VectorsConfig:     qdrant.NewVectorsConfigMap(map[string]*qdrant.VectorParams{}),
 		StrictModeConfig: &qdrant.StrictModeConfig{
-			Enabled: refs.NewPointer(false),
+			Enabled: qdrant.PtrOf(false),
 		},
 	})
 }
@@ -296,7 +294,7 @@ func (r *MigrateFromQdrantCmd) perpareTargetCollection(ctx context.Context, sour
 	err = targetClient.UpdateCollection(ctx, &qdrant.UpdateCollection{
 		CollectionName: targetCollection,
 		HnswConfig: &qdrant.HnswConfigDiff{
-			M: refs.NewPointer(uint64(0)),
+			M: qdrant.PtrOf(uint64(0)),
 		},
 	})
 	if err != nil {
@@ -305,7 +303,7 @@ func (r *MigrateFromQdrantCmd) perpareTargetCollection(ctx context.Context, sour
 
 	// if m is 0, set it to default after wards
 	if existingM == nil || *existingM == uint64(0) {
-		existingM = refs.NewPointer(uint64(16))
+		existingM = qdrant.PtrOf(uint64(16))
 	}
 
 	// add payload index for migration marker to source collection
@@ -337,7 +335,7 @@ func (r *MigrateFromQdrantCmd) perpareTargetCollection(ctx context.Context, sour
 					FieldName:        name,
 					FieldType:        fieldType,
 					FieldIndexParams: schemaInfo.GetParams(),
-					Wait:             refs.NewPointer(true),
+					Wait:             qdrant.PtrOf(true),
 				},
 			)
 			if err != nil {
@@ -352,21 +350,21 @@ func (r *MigrateFromQdrantCmd) perpareTargetCollection(ctx context.Context, sour
 func getFieldType(dataType qdrant.PayloadSchemaType) *qdrant.FieldType {
 	switch dataType {
 	case qdrant.PayloadSchemaType_Keyword:
-		return refs.NewPointer(qdrant.FieldType_FieldTypeKeyword)
+		return qdrant.PtrOf(qdrant.FieldType_FieldTypeKeyword)
 	case qdrant.PayloadSchemaType_Integer:
-		return refs.NewPointer(qdrant.FieldType_FieldTypeInteger)
+		return qdrant.PtrOf(qdrant.FieldType_FieldTypeInteger)
 	case qdrant.PayloadSchemaType_Float:
-		return refs.NewPointer(qdrant.FieldType_FieldTypeFloat)
+		return qdrant.PtrOf(qdrant.FieldType_FieldTypeFloat)
 	case qdrant.PayloadSchemaType_Geo:
-		return refs.NewPointer(qdrant.FieldType_FieldTypeGeo)
+		return qdrant.PtrOf(qdrant.FieldType_FieldTypeGeo)
 	case qdrant.PayloadSchemaType_Text:
-		return refs.NewPointer(qdrant.FieldType_FieldTypeText)
+		return qdrant.PtrOf(qdrant.FieldType_FieldTypeText)
 	case qdrant.PayloadSchemaType_Bool:
-		return refs.NewPointer(qdrant.FieldType_FieldTypeBool)
+		return qdrant.PtrOf(qdrant.FieldType_FieldTypeBool)
 	case qdrant.PayloadSchemaType_Datetime:
-		return refs.NewPointer(qdrant.FieldType_FieldTypeDatetime)
+		return qdrant.PtrOf(qdrant.FieldType_FieldTypeDatetime)
 	case qdrant.PayloadSchemaType_Uuid:
-		return refs.NewPointer(qdrant.FieldType_FieldTypeUuid)
+		return qdrant.PtrOf(qdrant.FieldType_FieldTypeUuid)
 	}
 	return nil
 }
@@ -462,7 +460,7 @@ func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qd
 		_, err = targetClient.Upsert(ctx, &qdrant.UpsertPoints{
 			CollectionName: targetCollection,
 			Points:         targetPoints,
-			Wait:           refs.NewPointer(true),
+			Wait:           qdrant.PtrOf(true),
 		})
 
 		if err != nil {
@@ -486,7 +484,7 @@ func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qd
 		if time.Since(startTime) > time.Minute {
 			sourcePointCount, err := sourceClient.Count(ctx, &qdrant.CountPoints{
 				CollectionName: sourceCollection,
-				Exact:          refs.NewPointer(true),
+				Exact:          qdrant.PtrOf(true),
 			})
 			if err != nil {
 				return fmt.Errorf("failed to count points in source: %w", err)
