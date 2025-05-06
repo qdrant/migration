@@ -19,13 +19,8 @@ func PrepareMigrationOffsetsCollection(ctx context.Context, migrationOffsetsColl
 		return nil
 	}
 	return targetClient.CreateCollection(ctx, &qdrant.CreateCollection{
-		CollectionName:    migrationOffsetsCollectionName,
-		ReplicationFactor: qdrant.PtrOf(uint32(1)),
-		ShardNumber:       qdrant.PtrOf(uint32(1)),
-		VectorsConfig:     qdrant.NewVectorsConfigMap(map[string]*qdrant.VectorParams{}),
-		StrictModeConfig: &qdrant.StrictModeConfig{
-			Enabled: qdrant.PtrOf(false),
-		},
+		CollectionName: migrationOffsetsCollectionName,
+		VectorsConfig:  qdrant.NewVectorsConfigMap(map[string]*qdrant.VectorParams{}),
 	})
 }
 
@@ -67,7 +62,7 @@ func GetStartOffset(ctx context.Context, migrationOffsetsCollectionName string, 
 	return nil, 0, nil
 }
 
-func getPointID(offset *qdrant.PointId) (interface{}, error) {
+func getOffsetIdAsValue(offset *qdrant.PointId) (interface{}, error) {
 	switch pointID := offset.GetPointIdOptions().(type) {
 	case *qdrant.PointId_Num:
 		return pointID.Num, nil
@@ -82,7 +77,7 @@ func StoreStartOffset(ctx context.Context, migrationOffsetsCollectionName string
 	if offset == nil {
 		return nil
 	}
-	offsetId, err := getPointID(offset)
+	offsetId, err := getOffsetIdAsValue(offset)
 	if err != nil {
 		return err
 	}
