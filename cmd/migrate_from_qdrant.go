@@ -553,15 +553,13 @@ func (r *MigrateFromQdrantCmd) storeStartOffset(ctx context.Context, targetClien
 	}
 	offsetId, err := getPointID(offset)
 	if err != nil {
-		return fmt.Errorf("unsupported offset ID: %T", offsetId)
+		return err
 	}
-
-	t := time.Now()
 
 	payload := qdrant.NewValueMap(map[string]any{
 		sourceCollection + "_offset":       offsetId,
 		sourceCollection + "_offsetCount":  offsetCount,
-		sourceCollection + "_lastUpsertAt": t.Format("2006-01-02 15:04:05"),
+		sourceCollection + "_lastUpsertAt": time.Now().Format("2006-01-02 15:04:05"),
 	})
 
 	_, err = targetClient.Upsert(ctx, &qdrant.UpsertPoints{
