@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/pterm/pterm"
 	"google.golang.org/grpc"
@@ -125,7 +126,7 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 		return fmt.Errorf("failed to connect to target: %w", err)
 	}
 
-	err = r.prepareMigrationOffsetsCollection(ctx, sourceClient)
+	err = r.prepareMigrationOffsetsCollection(ctx, targetClient)
 	if err != nil {
 		return fmt.Errorf("failed to prepare migration marker collection: %w", err)
 	}
@@ -213,12 +214,13 @@ func (r *MigrateFromQdrantCmd) connect(globals *Globals, host string, port int, 
 	}
 
 	client, err := qdrant.NewClient(&qdrant.Config{
-		Host:        host,
-		Port:        port,
-		APIKey:      apiKey,
-		UseTLS:      useTLS,
-		TLSConfig:   &tlsConfig,
-		GrpcOptions: grpcOptions,
+		Host:                   host,
+		Port:                   port,
+		APIKey:                 apiKey,
+		UseTLS:                 useTLS,
+		TLSConfig:              &tlsConfig,
+		GrpcOptions:            grpcOptions,
+		SkipCompatibilityCheck: true,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client: %w", err)
@@ -227,22 +229,19 @@ func (r *MigrateFromQdrantCmd) connect(globals *Globals, host string, port int, 
 	return client, nil
 }
 
-func (r *MigrateFromQdrantCmd) prepareMigrationOffsetsCollection(ctx context.Context, sourceClient *qdrant.Client) error {
-	migrationOffsetCollectionExists, err := sourceClient.CollectionExists(ctx, r.MigrationOffsetsCollectionName)
+func (r *MigrateFromQdrantCmd) prepareMigrationOffsetsCollection(ctx context.Context, targetClient *qdrant.Client) error {
+	migrationOffsetCollectionExists, err := targetClient.CollectionExists(ctx, r.MigrationOffsetsCollectionName)
 	if err != nil {
 		return fmt.Errorf("failed to check if collection exists: %w", err)
 	}
 	if migrationOffsetCollectionExists {
 		return nil
 	}
-	return sourceClient.CreateCollection(ctx, &qdrant.CreateCollection{
+	return targetClient.CreateCollection(ctx, &qdrant.CreateCollection{
 		CollectionName:    r.MigrationOffsetsCollectionName,
 		ReplicationFactor: refs.NewPointer(uint32(1)),
 		ShardNumber:       refs.NewPointer(uint32(1)),
-		VectorsConfig: qdrant.NewVectorsConfig(&qdrant.VectorParams{
-			Size:     uint64(1),
-			Distance: qdrant.Distance_Cosine,
-		}),
+		VectorsConfig:     qdrant.NewVectorsConfigMap(map[string]*qdrant.VectorParams{}),
 		StrictModeConfig: &qdrant.StrictModeConfig{
 			Enabled: refs.NewPointer(false),
 		},
@@ -375,20 +374,20 @@ func getFieldType(dataType qdrant.PayloadSchemaType) *qdrant.FieldType {
 func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string, sourcePointCount uint64) error {
 	startTime := time.Now()
 	limit := r.BatchSize
-	offset, offsetCount, err := r.getStartOffset(ctx, sourceClient, sourceCollection)
+	offset, offsetCount, err := r.getStartOffset(ctx, targetClient, sourceCollection)
 	if err != nil {
 		return fmt.Errorf("failed to get start offset: %w", err)
 	}
 
+	bar, _ := pterm.DefaultProgressbar.WithTotal(int(sourcePointCount)).Start()
 	if offset != nil {
 		pterm.Info.Printfln("Starting from offset %s (%d)", offset, offsetCount)
+		bar.Add(int(offsetCount))
 	} else {
 		pterm.Info.Printfln("Starting from beginning")
 	}
 
 	fmt.Print("\n")
-
-	bar, _ := pterm.DefaultProgressbar.WithTotal(int(sourcePointCount - offsetCount)).Start()
 
 	for {
 		resp, err := sourceClient.GetPointsClient().Scroll(ctx, &qdrant.ScrollPoints{
@@ -472,12 +471,12 @@ func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qd
 
 		offsetCount += uint64(len(points))
 
-		err = r.StoreOffset(ctx, sourceClient, sourceCollection, offset, offsetCount)
+		err = r.StoreStartOffset(ctx, targetClient, sourceCollection, offset, offsetCount)
 		if err != nil {
 			return fmt.Errorf("failed to store offset: %w", err)
 		}
 
-		_ = bar.Add(len(points))
+		bar.Add(len(points))
 
 		if offset == nil {
 			break
@@ -501,11 +500,11 @@ func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qd
 	return nil
 }
 
-func (r *MigrateFromQdrantCmd) getStartOffset(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string) (*qdrant.PointId, uint64, error) {
+func (r *MigrateFromQdrantCmd) getStartOffset(ctx context.Context, targetClient *qdrant.Client, sourceCollection string) (*qdrant.PointId, uint64, error) {
 	if r.RestartMigration {
 		return nil, 0, nil
 	}
-	point, err := r.getOffsetPoint(ctx, sourceClient)
+	point, err := r.getOffsetPoint(ctx, targetClient, sourceCollection)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get start offset point: %w", err)
 	}
@@ -539,25 +538,26 @@ func (r *MigrateFromQdrantCmd) getStartOffset(ctx context.Context, sourceClient 
 	return nil, 0, nil
 }
 
-func (r *MigrateFromQdrantCmd) StoreOffset(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, offset *qdrant.PointId, offsetCount uint64) error {
+func (r *MigrateFromQdrantCmd) StoreStartOffset(ctx context.Context, targetClient *qdrant.Client, sourceCollection string, offset *qdrant.PointId, offsetCount uint64) error {
 	if offset == nil {
 		return nil
 	}
 	var offsetValue *qdrant.Value
 	var err error
 
-	if pointNum, ok := offset.GetPointIdOptions().(*qdrant.PointId_Num); ok {
-		offsetValue, err = qdrant.NewValue(pointNum.Num)
+	switch pointID := offset.GetPointIdOptions().(type) {
+	case *qdrant.PointId_Num:
+		offsetValue, err = qdrant.NewValue(pointID.Num)
 		if err != nil {
 			return fmt.Errorf("failed to create value from point id: %w", err)
 		}
-	} else if pointUUID, ok := offset.GetPointIdOptions().(*qdrant.PointId_Uuid); ok {
-		offsetValue, err = qdrant.NewValue(pointUUID.Uuid)
+	case *qdrant.PointId_Uuid:
+		offsetValue, err = qdrant.NewValue(pointID.Uuid)
 		if err != nil {
 			return fmt.Errorf("failed to create value from point id: %w", err)
 		}
-	} else {
-		return fmt.Errorf("unsupported offset type: %T", offset.GetPointIdOptions())
+	default:
+		return fmt.Errorf("unsupported offset type: %T", pointID)
 	}
 
 	offsetCountValue, err := qdrant.NewValue(offsetCount)
@@ -571,7 +571,7 @@ func (r *MigrateFromQdrantCmd) StoreOffset(ctx context.Context, sourceClient *qd
 		return fmt.Errorf("failed to create value from current datetime: %w", err)
 	}
 
-	point, err := r.getOffsetPoint(ctx, sourceClient)
+	point, err := r.getOffsetPoint(ctx, targetClient, sourceCollection)
 	if err != nil {
 		return fmt.Errorf("failed to get offset point: %w", err)
 	}
@@ -591,13 +591,13 @@ func (r *MigrateFromQdrantCmd) StoreOffset(ctx context.Context, sourceClient *qd
 
 	payload[sourceCollection+"_lastUpsert"] = lastUpsertValue
 
-	_, err = sourceClient.Upsert(ctx, &qdrant.UpsertPoints{
+	_, err = targetClient.Upsert(ctx, &qdrant.UpsertPoints{
 		CollectionName: r.MigrationOffsetsCollectionName,
 		Points: []*qdrant.PointStruct{
 			{
-				Id:      r.getOffsetPointId(),
+				Id:      r.getOffsetPointId(sourceCollection),
 				Payload: payload,
-				Vectors: qdrant.NewVectors(float32(1)),
+				Vectors: qdrant.NewVectorsMap(map[string]*qdrant.Vector{}),
 			},
 		},
 	})
@@ -608,10 +608,10 @@ func (r *MigrateFromQdrantCmd) StoreOffset(ctx context.Context, sourceClient *qd
 	return nil
 }
 
-func (r *MigrateFromQdrantCmd) getOffsetPoint(ctx context.Context, sourceClient *qdrant.Client) (*qdrant.RetrievedPoint, error) {
-	points, err := sourceClient.Get(ctx, &qdrant.GetPoints{
+func (r *MigrateFromQdrantCmd) getOffsetPoint(ctx context.Context, targetClient *qdrant.Client, sourceCollection string) (*qdrant.RetrievedPoint, error) {
+	points, err := targetClient.Get(ctx, &qdrant.GetPoints{
 		CollectionName: r.MigrationOffsetsCollectionName,
-		Ids:            []*qdrant.PointId{r.getOffsetPointId()},
+		Ids:            []*qdrant.PointId{r.getOffsetPointId(sourceCollection)},
 		WithPayload:    qdrant.NewWithPayload(true),
 	})
 	if err != nil {
@@ -624,6 +624,8 @@ func (r *MigrateFromQdrantCmd) getOffsetPoint(ctx context.Context, sourceClient 
 	return points[0], nil
 }
 
-func (r *MigrateFromQdrantCmd) getOffsetPointId() *qdrant.PointId {
-	return qdrant.NewIDNum(1)
+func (r *MigrateFromQdrantCmd) getOffsetPointId(sourceCollection string) *qdrant.PointId {
+	deterministicUUID := uuid.NewSHA1(uuid.NameSpaceURL, []byte(sourceCollection))
+
+	return qdrant.NewIDUUID(deterministicUUID.String())
 }
