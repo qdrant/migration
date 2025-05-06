@@ -22,10 +22,10 @@ import (
 const HTTPS = "https"
 
 type MigrateFromQdrantCmd struct {
-	SourceUrl                      string `help:"Source GRPC URL, e.g. https://your-qdrant-hostname:6334" required:"true"`
+	SourceUrl                      string `help:"Source gRPC URL, e.g. https://your-qdrant-hostname:6334" required:"true"`
 	SourceCollection               string `help:"Source collection" required:"true"`
 	SourceAPIKey                   string `help:"Source API key" env:"SOURCE_API_KEY"`
-	TargetUrl                      string `help:"Target GRPC URL, e.g. https://your-qdrant-hostname:6334" required:"true"`
+	TargetUrl                      string `help:"Target gRPC URL, e.g. https://your-qdrant-hostname:6334" required:"true"`
 	TargetCollection               string `help:"Target collection" required:"true"`
 	TargetAPIKey                   string `help:"Target API key" env:"TARGET_API_KEY"`
 	BatchSize                      uint32 `short:"b" help:"Batch size" default:"50"`

@@ -39,10 +39,10 @@ Flags:
       --skip-tls-verification                                     Skip TLS verification.
       --version                                                   Print version information and quit
 
-      --source-url=STRING                                         Source GRPC URL, e.g. https://your-qdrant-hostname:6334
+      --source-url=STRING                                         Source gRPC URL, e.g. https://your-qdrant-hostname:6334
       --source-collection=STRING                                  Source collection
       --source-api-key=STRING                                     Source API key ($SOURCE_API_KEY)
-      --target-url=STRING                                         Target GRPC URL, e.g. https://your-qdrant-hostname:6334
+      --target-url=STRING                                         Target gRPC URL, e.g. https://your-qdrant-hostname:6334
       --target-collection=STRING                                  Target collection
       --target-api-key=STRING                                     Target API key ($TARGET_API_KEY)
   -b, --batch-size=50                                             Batch size
