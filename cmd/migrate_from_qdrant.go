@@ -480,7 +480,8 @@ func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qd
 			break
 		}
 
-		// if one minute elapsed get updated sourcePointCount
+		// If one minute elapsed get updated sourcePointCount.
+		// Useful if any new points were added to the source during migration.
 		if time.Since(startTime) > time.Minute {
 			sourcePointCount, err := sourceClient.Count(ctx, &qdrant.CountPoints{
 				CollectionName: sourceCollection,
