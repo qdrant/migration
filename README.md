@@ -36,7 +36,7 @@ docker pull registry.cloud.qdrant.io/library/qdrant-migration
 
 Migrate data from a **Milvus** database to **Qdrant**:
 
-### 📥 Command Example
+### 📥 Example
 
 ```bash
 migration milvus \
@@ -57,15 +57,7 @@ With Docker:
 ```bash
 docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration milvus \
     --milvus.url 'https://example.gcp-us-west1.cloud.zilliz.com' \
-    --milvus.enable-tls-auth \
-    --milvus.collection 'example-collection' \
-    --milvus.db-name 'optional-db-name'
-    --milvus.server-version 'optional-server-version'
-    --milvus.api-key 'optional-milvus-api-key' \
-    --qdrant.url 'https://example.cloud-region.cloud-provider.cloud.qdrant.io:6334' \
-    --qdrant.api-key 'optional-qdrant-api-key' \
-    --qdrant.collection 'target-collection' \
-    --migration.batch-size 64
+    ...
 ```
 
 #### Milvus Options
@@ -89,15 +81,7 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.collection` | Target collection name                                     |
 | `--qdrant.api-key`    | Qdrant API key                                             |
 
-#### Migration Options
-
-| Flag                                                  | Description                                    |
-| ----------------------------------------------------- | ---------------------------------------------- |
-| `-b`, `--migration.batch-size=50`                     | Set batch size                                 |
-| `--migration.restart`                                 | Restart migration without resuming from offset |
-| `-c`, `--migration.create-collection`                 | Create the collection if it doesn't exist      |
-| `--migration.ensure-payload-indexes`                  | Ensure payload indexes exist                   |
-| `--migration.offsets-collection="_migration_offsets"` | Collection to store migration offset           |
+See [Shared Migration Options](#shared-migration-options) for shared parameters.
 
 </details>
 <details>
@@ -105,7 +89,7 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 
 Migrate data from one **Qdrant** instance to another.
 
-### 📥 Command Example
+### 📥 Example
 
 ```bash
 migration qdrant \
@@ -122,11 +106,7 @@ With Docker:
 ```bash
 docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration qdrant \
     --source.url 'http://localhost:6334' \
-    --source.collection 'source-collection' \
-    --target.url 'https://example.cloud-region.cloud-provider.cloud.qdrant.io:6334' \
-    --target.api-key 'qdrant-key' \
-    --target.collection 'target-collection' \
-    --migration.batch-size 64
+    ...
 ```
 
 NOTE: If the target collection already exists, its vector size and dimensions must match the source. Other settings like replication, shards can differ.
@@ -147,7 +127,13 @@ NOTE: If the target collection already exists, its vector size and dimensions mu
 | `--target.collection` | Target collection name                                     |
 | `--target.api-key`    | API key for target instance                                |
 
-#### Migration Options
+See [Shared Migration Options](#shared-migration-options) for shared parameters.
+
+</details>
+
+### Shared Migration Options
+
+These options apply to all migrations, regardless of the source.
 
 | Flag                                                  | Description                                    |
 | ----------------------------------------------------- | ---------------------------------------------- |
@@ -156,5 +142,3 @@ NOTE: If the target collection already exists, its vector size and dimensions mu
 | `-c`, `--migration.create-collection`                 | Create the collection if it doesn't exist      |
 | `--migration.ensure-payload-indexes`                  | Ensure payload indexes exist                   |
 | `--migration.offsets-collection="_migration_offsets"` | Collection to store migration offset           |
-
-</details>
