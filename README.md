@@ -12,7 +12,7 @@ CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for res
 
 ## Installation
 
-You can run this tool on any machine with connectivity to both the **source** and the Qdrant database. For best performance, use a machine with a fast network and minimal latency to both endpoints.
+You can run this tool on any machine with connectivity to both the source and the Qdrant database. For best performance, use a machine with a fast network and minimal latency to both endpoints.
 
 #### Binaries
 
