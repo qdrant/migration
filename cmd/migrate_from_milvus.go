@@ -131,7 +131,7 @@ func (r *MigrateFromMilvusCmd) Run(globals *Globals) error {
 		return fmt.Errorf("failed to count points in target: %w", err)
 	}
 
-	pterm.Info.Printfln("Target collection has %d points\n", targetPointCount)
+	pterm.Info.Printfln("Target collection has %d points", targetPointCount)
 
 	return nil
 }
@@ -241,8 +241,6 @@ func (r *MigrateFromMilvusCmd) migrateData(ctx context.Context, sourceClient *mi
 	} else {
 		pterm.Info.Printfln("Starting from beginning")
 	}
-
-	fmt.Print("\n")
 
 	schema, err := sourceClient.DescribeCollection(ctx, milvusclient.NewDescribeCollectionOption(r.SourceCollection))
 	if err != nil {
