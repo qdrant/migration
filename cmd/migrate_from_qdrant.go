@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"net/url"
 	"os"
@@ -11,16 +10,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/pterm/pterm"
-	"google.golang.org/grpc"
 
 	"github.com/qdrant/go-client/qdrant"
 
 	"github.com/qdrant/migration/pkg/commons"
 )
-
-const HTTPS = "https"
 
 type MigrateFromQdrantCmd struct {
 	SourceUrl                      string `help:"Source gRPC URL, e.g. https://your-qdrant-hostname:6334" required:"true"`
@@ -41,20 +36,6 @@ type MigrateFromQdrantCmd struct {
 	targetHost string
 	targetPort int
 	targetTLS  bool
-}
-
-func getPort(u *url.URL) (int, error) {
-	if u.Port() != "" {
-		sourcePort, err := strconv.Atoi(u.Port())
-		if err != nil {
-			return 0, fmt.Errorf("failed to parse source port: %w", err)
-		}
-		return sourcePort, nil
-	} else if u.Scheme == HTTPS {
-		return 443, nil
-	}
-
-	return 80, nil
 }
 
 func (r *MigrateFromQdrantCmd) Parse() error {
@@ -116,11 +97,11 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	sourceClient, err := r.connect(globals, r.sourceHost, r.sourcePort, r.SourceAPIKey, r.sourceTLS)
+	sourceClient, err := connectToQdrant(globals, r.sourceHost, r.sourcePort, r.SourceAPIKey, r.sourceTLS)
 	if err != nil {
 		return fmt.Errorf("failed to connect to source: %w", err)
 	}
-	targetClient, err := r.connect(globals, r.targetHost, r.targetPort, r.TargetAPIKey, r.targetTLS)
+	targetClient, err := connectToQdrant(globals, r.targetHost, r.targetPort, r.TargetAPIKey, r.targetTLS)
 	if err != nil {
 		return fmt.Errorf("failed to connect to target: %w", err)
 	}
@@ -175,46 +156,6 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 	pterm.Info.Printfln("Target collection has %d points\n", targetPointCount)
 
 	return nil
-}
-
-func (r *MigrateFromQdrantCmd) connect(globals *Globals, host string, port int, apiKey string, useTLS bool) (*qdrant.Client, error) {
-	debugLogger := logging.LoggerFunc(func(ctx context.Context, lvl logging.Level, msg string, fields ...any) {
-		pterm.Debug.Printf(msg, fields...)
-	})
-
-	var grpcOptions []grpc.DialOption
-
-	if globals.Trace {
-		pterm.EnableDebugMessages()
-		loggingOptions := logging.WithLogOnEvents(logging.StartCall, logging.FinishCall, logging.PayloadSent, logging.PayloadReceived)
-		grpcOptions = append(grpcOptions, grpc.WithChainUnaryInterceptor(logging.UnaryClientInterceptor(debugLogger, loggingOptions)))
-		grpcOptions = append(grpcOptions, grpc.WithChainStreamInterceptor(logging.StreamClientInterceptor(debugLogger, loggingOptions)))
-	}
-	if globals.Debug {
-		pterm.EnableDebugMessages()
-		loggingOptions := logging.WithLogOnEvents(logging.StartCall, logging.FinishCall)
-		grpcOptions = append(grpcOptions, grpc.WithChainUnaryInterceptor(logging.UnaryClientInterceptor(debugLogger, loggingOptions)))
-		grpcOptions = append(grpcOptions, grpc.WithChainStreamInterceptor(logging.StreamClientInterceptor(debugLogger, loggingOptions)))
-	}
-
-	tlsConfig := tls.Config{
-		InsecureSkipVerify: globals.SkipTlsVerification,
-	}
-
-	client, err := qdrant.NewClient(&qdrant.Config{
-		Host:                   host,
-		Port:                   port,
-		APIKey:                 apiKey,
-		UseTLS:                 useTLS,
-		TLSConfig:              &tlsConfig,
-		GrpcOptions:            grpcOptions,
-		SkipCompatibilityCheck: true,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create client: %w", err)
-	}
-
-	return client, nil
 }
 
 func (r *MigrateFromQdrantCmd) perpareTargetCollection(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string) error {
