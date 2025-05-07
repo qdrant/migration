@@ -10,7 +10,7 @@ import (
 	"github.com/qdrant/go-client/qdrant"
 )
 
-func PrepareMigrationOffsetsCollection(ctx context.Context, migrationOffsetsCollectionName string, targetClient *qdrant.Client) error {
+func PrepareOffsetsCollection(ctx context.Context, migrationOffsetsCollectionName string, targetClient *qdrant.Client) error {
 	migrationOffsetCollectionExists, err := targetClient.CollectionExists(ctx, migrationOffsetsCollectionName)
 	if err != nil {
 		return fmt.Errorf("failed to check if collection exists: %w", err)
