@@ -11,12 +11,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/pterm/pterm"
 	"google.golang.org/grpc"
 
 	"github.com/qdrant/go-client/qdrant"
+
+	"github.com/qdrant/migration/pkg/commons"
 )
 
 const HTTPS = "https"
@@ -124,7 +125,7 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 		return fmt.Errorf("failed to connect to target: %w", err)
 	}
 
-	err = r.prepareMigrationOffsetsCollection(ctx, targetClient)
+	err = commons.PrepareMigrationOffsetsCollection(ctx, r.MigrationOffsetsCollectionName, targetClient)
 	if err != nil {
 		return fmt.Errorf("failed to prepare migration marker collection: %w", err)
 	}
@@ -137,7 +138,7 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 		return fmt.Errorf("failed to count points in source: %w", err)
 	}
 
-	existingM, err := r.perpareTargetCollection(ctx, sourceClient, r.SourceCollection, targetClient, r.TargetCollection)
+	err = r.perpareTargetCollection(ctx, sourceClient, r.SourceCollection, targetClient, r.TargetCollection)
 	if err != nil {
 		return fmt.Errorf("error preparing target collection: %w", err)
 	}
@@ -169,17 +170,6 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 	})
 	if err != nil {
 		return fmt.Errorf("failed to count points in target: %w", err)
-	}
-
-	// reset m to enable indexing again
-	err = targetClient.UpdateCollection(ctx, &qdrant.UpdateCollection{
-		CollectionName: r.TargetCollection,
-		HnswConfig: &qdrant.HnswConfigDiff{
-			M: existingM,
-		},
-	})
-	if err != nil {
-		return fmt.Errorf("failed disable indexing in target collection %w", err)
 	}
 
 	pterm.Info.Printfln("Target collection has %d points\n", targetPointCount)
@@ -227,35 +217,16 @@ func (r *MigrateFromQdrantCmd) connect(globals *Globals, host string, port int, 
 	return client, nil
 }
 
-func (r *MigrateFromQdrantCmd) prepareMigrationOffsetsCollection(ctx context.Context, targetClient *qdrant.Client) error {
-	migrationOffsetCollectionExists, err := targetClient.CollectionExists(ctx, r.MigrationOffsetsCollectionName)
-	if err != nil {
-		return fmt.Errorf("failed to check if collection exists: %w", err)
-	}
-	if migrationOffsetCollectionExists {
-		return nil
-	}
-	return targetClient.CreateCollection(ctx, &qdrant.CreateCollection{
-		CollectionName:    r.MigrationOffsetsCollectionName,
-		ReplicationFactor: qdrant.PtrOf(uint32(1)),
-		ShardNumber:       qdrant.PtrOf(uint32(1)),
-		VectorsConfig:     qdrant.NewVectorsConfigMap(map[string]*qdrant.VectorParams{}),
-		StrictModeConfig: &qdrant.StrictModeConfig{
-			Enabled: qdrant.PtrOf(false),
-		},
-	})
-}
-
-func (r *MigrateFromQdrantCmd) perpareTargetCollection(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string) (*uint64, error) {
+func (r *MigrateFromQdrantCmd) perpareTargetCollection(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string) error {
 	sourceCollectionInfo, err := sourceClient.GetCollectionInfo(ctx, sourceCollection)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get source collection info: %w", err)
+		return fmt.Errorf("failed to get source collection info: %w", err)
 	}
 
 	if r.CreateTargetCollection {
 		targetCollectionExists, err := targetClient.CollectionExists(ctx, targetCollection)
 		if err != nil {
-			return nil, fmt.Errorf("failed to check if collection exists: %w", err)
+			return fmt.Errorf("failed to check if collection exists: %w", err)
 		}
 
 		if targetCollectionExists {
@@ -278,42 +249,14 @@ func (r *MigrateFromQdrantCmd) perpareTargetCollection(ctx context.Context, sour
 				StrictModeConfig:       sourceCollectionInfo.Config.GetStrictModeConfig(),
 			})
 			if err != nil {
-				return nil, fmt.Errorf("failed to create target collection: %w", err)
+				return fmt.Errorf("failed to create target collection: %w", err)
 			}
 		}
 	}
 
-	// get current m
 	targetCollectionInfo, err := targetClient.GetCollectionInfo(ctx, targetCollection)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get target collection information: %w", err)
-	}
-	existingM := targetCollectionInfo.Config.HnswConfig.M
-
-	// set m to 0 to disable indexing
-	err = targetClient.UpdateCollection(ctx, &qdrant.UpdateCollection{
-		CollectionName: targetCollection,
-		HnswConfig: &qdrant.HnswConfigDiff{
-			M: qdrant.PtrOf(uint64(0)),
-		},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed disable indexing in target collection %w", err)
-	}
-
-	// if m is 0, set it to default after wards
-	if existingM == nil || *existingM == uint64(0) {
-		existingM = qdrant.PtrOf(uint64(16))
-	}
-
-	// add payload index for migration marker to source collection
-	_, err = sourceClient.CreateFieldIndex(ctx, &qdrant.CreateFieldIndexCollection{
-		CollectionName: sourceCollection,
-		FieldName:      "migrationMarker",
-		FieldType:      qdrant.FieldType_FieldTypeKeyword.Enum(),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed creating index on source collection %w", err)
+		return fmt.Errorf("failed to get target collection information: %w", err)
 	}
 
 	if r.EnsurePayloadIndexes {
@@ -339,12 +282,12 @@ func (r *MigrateFromQdrantCmd) perpareTargetCollection(ctx context.Context, sour
 				},
 			)
 			if err != nil {
-				return nil, fmt.Errorf("failed creating index on tagrget collection %w", err)
+				return fmt.Errorf("failed creating index on tagrget collection %w", err)
 			}
 		}
 	}
 
-	return existingM, nil
+	return nil
 }
 
 func getFieldType(dataType qdrant.PayloadSchemaType) *qdrant.FieldType {
@@ -372,7 +315,7 @@ func getFieldType(dataType qdrant.PayloadSchemaType) *qdrant.FieldType {
 func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string, sourcePointCount uint64) error {
 	startTime := time.Now()
 	limit := r.BatchSize
-	offset, offsetCount, err := r.getStartOffset(ctx, targetClient, sourceCollection)
+	offset, offsetCount, err := commons.GetStartOffset(ctx, r.MigrationOffsetsCollectionName, targetClient, sourceCollection, r.RestartMigration)
 	if err != nil {
 		return fmt.Errorf("failed to get start offset: %w", err)
 	}
@@ -469,7 +412,7 @@ func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qd
 
 		offsetCount += uint64(len(points))
 
-		err = r.storeStartOffset(ctx, targetClient, sourceCollection, offset, offsetCount)
+		err = commons.StoreStartOffset(ctx, r.MigrationOffsetsCollectionName, targetClient, sourceCollection, offset, offsetCount)
 		if err != nil {
 			return fmt.Errorf("failed to store offset: %w", err)
 		}
@@ -497,107 +440,4 @@ func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qd
 	pterm.Success.Printfln("Data migration finished successfully")
 
 	return nil
-}
-
-func (r *MigrateFromQdrantCmd) getStartOffset(ctx context.Context, targetClient *qdrant.Client, sourceCollection string) (*qdrant.PointId, uint64, error) {
-	if r.RestartMigration {
-		return nil, 0, nil
-	}
-	point, err := r.getOffsetPoint(ctx, targetClient, sourceCollection)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get start offset point: %w", err)
-	}
-	if point == nil {
-		return nil, 0, nil
-	}
-	offset, ok := point.Payload[sourceCollection+"_offset"]
-	if !ok {
-		return nil, 0, nil
-	}
-	offsetCount, ok := point.Payload[sourceCollection+"_offsetCount"]
-	if !ok {
-		return nil, 0, nil
-	}
-
-	offsetCountValue, ok := offsetCount.GetKind().(*qdrant.Value_IntegerValue)
-	if !ok {
-		return nil, 0, fmt.Errorf("failed to get offset count: %w", err)
-	}
-
-	offsetIntegerValue, ok := offset.GetKind().(*qdrant.Value_IntegerValue)
-	if ok {
-		return qdrant.NewIDNum(uint64(offsetIntegerValue.IntegerValue)), uint64(offsetCountValue.IntegerValue), nil
-	}
-
-	offsetStringValue, ok := offset.GetKind().(*qdrant.Value_StringValue)
-	if ok {
-		return qdrant.NewIDUUID(offsetStringValue.StringValue), uint64(offsetCountValue.IntegerValue), nil
-	}
-
-	return nil, 0, nil
-}
-
-func getPointID(offset *qdrant.PointId) (interface{}, error) {
-	switch pointID := offset.GetPointIdOptions().(type) {
-	case *qdrant.PointId_Num:
-		return pointID.Num, nil
-	case *qdrant.PointId_Uuid:
-		return pointID.Uuid, nil
-	default:
-		return nil, fmt.Errorf("unsupported offset type: %T", pointID)
-	}
-}
-
-func (r *MigrateFromQdrantCmd) storeStartOffset(ctx context.Context, targetClient *qdrant.Client, sourceCollection string, offset *qdrant.PointId, offsetCount uint64) error {
-	if offset == nil {
-		return nil
-	}
-	offsetId, err := getPointID(offset)
-	if err != nil {
-		return err
-	}
-
-	payload := qdrant.NewValueMap(map[string]any{
-		sourceCollection + "_offset":       offsetId,
-		sourceCollection + "_offsetCount":  offsetCount,
-		sourceCollection + "_lastUpsertAt": time.Now().Format("2006-01-02 15:04:05"),
-	})
-
-	_, err = targetClient.Upsert(ctx, &qdrant.UpsertPoints{
-		CollectionName: r.MigrationOffsetsCollectionName,
-		Points: []*qdrant.PointStruct{
-			{
-				Id:      r.getOffsetPointId(sourceCollection),
-				Payload: payload,
-				Vectors: qdrant.NewVectorsMap(map[string]*qdrant.Vector{}),
-			},
-		},
-	})
-
-	if err != nil {
-		return fmt.Errorf("failed to store offset: %w", err)
-	}
-	return nil
-}
-
-func (r *MigrateFromQdrantCmd) getOffsetPoint(ctx context.Context, targetClient *qdrant.Client, sourceCollection string) (*qdrant.RetrievedPoint, error) {
-	points, err := targetClient.Get(ctx, &qdrant.GetPoints{
-		CollectionName: r.MigrationOffsetsCollectionName,
-		Ids:            []*qdrant.PointId{r.getOffsetPointId(sourceCollection)},
-		WithPayload:    qdrant.NewWithPayload(true),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get start offset: %w", err)
-	}
-	if len(points) == 0 {
-		return nil, nil
-	}
-
-	return points[0], nil
-}
-
-func (r *MigrateFromQdrantCmd) getOffsetPointId(sourceCollection string) *qdrant.PointId {
-	deterministicUUID := uuid.NewSHA1(uuid.NameSpaceURL, []byte(sourceCollection))
-
-	return qdrant.NewIDUUID(deterministicUUID.String())
 }
