@@ -142,7 +142,7 @@ func (r *MigrateFromMilvusCmd) prepareTargetCollection(ctx context.Context, sour
 	}
 
 	if targetCollectionExists {
-		pterm.Info.Printfln("Target collection '%s' already exists. Skipping creation.", r.Qdrant.Collection)
+		pterm.Info.Printfln("Target collection %q already exists. Skipping creation.", r.Qdrant.Collection)
 		return nil
 	}
 
@@ -177,7 +177,7 @@ func (r *MigrateFromMilvusCmd) prepareTargetCollection(ctx context.Context, sour
 		return fmt.Errorf("failed to create target collection: %w", err)
 	}
 
-	pterm.Success.Printfln("Created target collection '%s'", r.Qdrant.Collection)
+	pterm.Success.Printfln("Created target collection %q", r.Qdrant.Collection)
 	return nil
 }
 
@@ -190,12 +190,12 @@ func (r *MigrateFromMilvusCmd) migrateData(ctx context.Context, sourceClient *mi
 	var err error
 
 	if !r.Migration.Restart {
-		offsetId, offsetStored, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.Milvus.Collection, r.Migration.Restart)
+		id, count, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.Milvus.Collection)
 		if err != nil {
 			return fmt.Errorf("failed to get start offset: %w", err)
 		}
-		offsetCount = offsetStored
-		lastID = offsetId
+		offsetCount = count
+		lastID = id
 	}
 
 	bar, _ := pterm.DefaultProgressbar.WithTotal(int(sourcePointCount)).Start()
