@@ -3,10 +3,8 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -31,39 +29,22 @@ type MigrateFromQdrantCmd struct {
 }
 
 func (r *MigrateFromQdrantCmd) Parse() error {
-	sourceUrl, err := url.Parse(r.Source.Url)
+	var err error
+	r.sourceHost, r.sourcePort, r.sourceTLS, err = parseQdrantUrl(r.Source.Url)
 	if err != nil {
 		return fmt.Errorf("failed to parse source URL: %w", err)
 	}
 
-	r.sourceHost = sourceUrl.Hostname()
-	r.sourceTLS = sourceUrl.Scheme == HTTPS
-	r.sourcePort, err = getPort(sourceUrl)
-	if err != nil {
-		return fmt.Errorf("failed to parse source port: %w", err)
-	}
-
-	targetUrl, err := url.Parse(r.Target.Url)
+	r.targetHost, r.targetPort, r.targetTLS, err = parseQdrantUrl(r.Target.Url)
 	if err != nil {
 		return fmt.Errorf("failed to parse target URL: %w", err)
-	}
-
-	r.targetHost = targetUrl.Hostname()
-	r.targetTLS = targetUrl.Scheme == HTTPS
-	r.targetPort, err = getPort(targetUrl)
-	if err != nil {
-		return fmt.Errorf("failed to parse source port: %w", err)
 	}
 
 	return nil
 }
 
 func (r *MigrateFromQdrantCmd) Validate() error {
-	if r.Migration.BatchSize < 1 {
-		return fmt.Errorf("batch size must be greater than 0")
-	}
-
-	return nil
+	return validateBatchSize(r.Migration.BatchSize)
 }
 
 func (r *MigrateFromQdrantCmd) ValidateParsedValues() error {
@@ -116,28 +97,14 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 		return fmt.Errorf("error preparing target collection: %w", err)
 	}
 
-	targetPointCount, err := targetClient.Count(ctx, &qdrant.CountPoints{
-		CollectionName: r.Target.Collection,
-		Exact:          qdrant.PtrOf(true),
-	})
-	if err != nil {
-		return fmt.Errorf("failed to count points in target: %w", err)
-	}
-
-	pterm.DefaultSection.Println("Starting data migration")
-
-	_ = pterm.DefaultTable.WithHasHeader().WithData(pterm.TableData{
-		{"Type", "Provider", "Collection", "Points"},
-		{"Source", "qdrant", r.Source.Collection, strconv.FormatUint(sourcePointCount, 10)},
-		{"Target", "qdrant", r.Target.Collection, strconv.FormatUint(targetPointCount, 10)},
-	}).Render()
+	displayMigrationStart("qdrant", r.Source.Collection, r.Target.Collection)
 
 	err = r.migrateData(ctx, sourceClient, r.Source.Collection, targetClient, r.Target.Collection, sourcePointCount)
 	if err != nil {
 		return fmt.Errorf("failed to migrate data: %w", err)
 	}
 
-	targetPointCount, err = targetClient.Count(ctx, &qdrant.CountPoints{
+	targetPointCount, err := targetClient.Count(ctx, &qdrant.CountPoints{
 		CollectionName: r.Target.Collection,
 		Exact:          qdrant.PtrOf(true),
 	})
@@ -248,25 +215,26 @@ func getFieldType(dataType qdrant.PayloadSchemaType) *qdrant.FieldType {
 func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string, sourcePointCount uint64) error {
 	startTime := time.Now()
 	limit := uint32(r.Migration.BatchSize)
-	offset, offsetCount, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, sourceCollection, r.Migration.Restart)
-	if err != nil {
-		return fmt.Errorf("failed to get start offset: %w", err)
+
+	var offsetId *qdrant.PointId
+	offsetCount := uint64(0)
+
+	if !r.Migration.Restart {
+		id, count, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, sourceCollection)
+		if err != nil {
+			return fmt.Errorf("failed to get start offset: %w", err)
+		}
+		offsetId = id
+		offsetCount = count
 	}
 
 	bar, _ := pterm.DefaultProgressbar.WithTotal(int(sourcePointCount)).Start()
-	if offset != nil {
-		pterm.Info.Printfln("Starting from offset %s (%d)", offset, offsetCount)
-		bar.Add(int(offsetCount))
-	} else {
-		pterm.Info.Printfln("Starting from beginning")
-	}
-
-	fmt.Print("\n")
+	displayMigrationProgress(bar, offsetCount)
 
 	for {
 		resp, err := sourceClient.GetPointsClient().Scroll(ctx, &qdrant.ScrollPoints{
 			CollectionName: sourceCollection,
-			Offset:         offset,
+			Offset:         offsetId,
 			Limit:          &limit,
 			WithPayload:    qdrant.NewWithPayload(true),
 			WithVectors:    qdrant.NewWithVectors(true),
@@ -276,7 +244,7 @@ func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qd
 		}
 
 		points := resp.GetResult()
-		offset = resp.GetNextPageOffset()
+		offsetId = resp.GetNextPageOffset()
 
 		var targetPoints []*qdrant.PointStruct
 		getVector := func(vector *qdrant.VectorOutput) *qdrant.Vector {
@@ -330,7 +298,6 @@ func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qd
 				Payload: point.Payload,
 				Vectors: getVectorsFromPoint(point),
 			})
-
 		}
 
 		_, err = targetClient.Upsert(ctx, &qdrant.UpsertPoints{
@@ -345,14 +312,14 @@ func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qd
 
 		offsetCount += uint64(len(points))
 
-		err = commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, sourceCollection, offset, offsetCount)
+		err = commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, sourceCollection, offsetId, offsetCount)
 		if err != nil {
 			return fmt.Errorf("failed to store offset: %w", err)
 		}
 
 		bar.Add(len(points))
 
-		if offset == nil {
+		if offsetId == nil {
 			break
 		}
 
