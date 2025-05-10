@@ -215,9 +215,17 @@ func getFieldType(dataType qdrant.PayloadSchemaType) *qdrant.FieldType {
 func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string, sourcePointCount uint64) error {
 	startTime := time.Now()
 	limit := uint32(r.Migration.BatchSize)
-	offset, offsetCount, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, sourceCollection, r.Migration.Restart)
-	if err != nil {
-		return fmt.Errorf("failed to get start offset: %w", err)
+
+	var offsetId *qdrant.PointId
+	offsetCount := uint64(0)
+
+	if !r.Migration.Restart {
+		id, count, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, sourceCollection)
+		if err != nil {
+			return fmt.Errorf("failed to get start offset: %w", err)
+		}
+		offsetId = id
+		offsetCount = count
 	}
 
 	bar, _ := pterm.DefaultProgressbar.WithTotal(int(sourcePointCount)).Start()
@@ -226,7 +234,7 @@ func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qd
 	for {
 		resp, err := sourceClient.GetPointsClient().Scroll(ctx, &qdrant.ScrollPoints{
 			CollectionName: sourceCollection,
-			Offset:         offset,
+			Offset:         offsetId,
 			Limit:          &limit,
 			WithPayload:    qdrant.NewWithPayload(true),
 			WithVectors:    qdrant.NewWithVectors(true),
@@ -236,7 +244,7 @@ func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qd
 		}
 
 		points := resp.GetResult()
-		offset = resp.GetNextPageOffset()
+		offsetId = resp.GetNextPageOffset()
 
 		var targetPoints []*qdrant.PointStruct
 		getVector := func(vector *qdrant.VectorOutput) *qdrant.Vector {
@@ -304,14 +312,14 @@ func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qd
 
 		offsetCount += uint64(len(points))
 
-		err = commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, sourceCollection, offset, offsetCount)
+		err = commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, sourceCollection, offsetId, offsetCount)
 		if err != nil {
 			return fmt.Errorf("failed to store offset: %w", err)
 		}
 
 		bar.Add(len(points))
 
-		if offset == nil {
+		if offsetId == nil {
 			break
 		}
 

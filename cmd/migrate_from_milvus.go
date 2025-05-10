@@ -185,7 +185,7 @@ func (r *MigrateFromMilvusCmd) migrateData(ctx context.Context, sourceClient *mi
 	startTime := time.Now()
 	batchSize := r.Migration.BatchSize
 
-	var lastID *qdrant.PointId
+	var offsetID *qdrant.PointId
 	offsetCount := uint64(0)
 	var err error
 
@@ -195,7 +195,7 @@ func (r *MigrateFromMilvusCmd) migrateData(ctx context.Context, sourceClient *mi
 			return fmt.Errorf("failed to get start offset: %w", err)
 		}
 		offsetCount = count
-		lastID = id
+		offsetID = id
 	}
 
 	bar, _ := pterm.DefaultProgressbar.WithTotal(int(sourcePointCount)).Start()
@@ -212,12 +212,12 @@ func (r *MigrateFromMilvusCmd) migrateData(ctx context.Context, sourceClient *mi
 
 	for {
 		filter := ""
-		if lastID != nil {
+		if offsetID != nil {
 			switch pkType {
 			case entity.FieldTypeInt64:
-				filter = fmt.Sprintf("%s > %d", pkName, lastID.GetNum())
+				filter = fmt.Sprintf("%s > %d", pkName, offsetID.GetNum())
 			case entity.FieldTypeVarChar:
-				filter = fmt.Sprintf("%s > '%s'", pkName, lastID.GetUuid())
+				filter = fmt.Sprintf("%s > '%s'", pkName, offsetID.GetUuid())
 			}
 		}
 
@@ -250,12 +250,12 @@ func (r *MigrateFromMilvusCmd) migrateData(ctx context.Context, sourceClient *mi
 					switch col.Type() {
 					case entity.FieldTypeVarChar:
 						uuid := value.(string)
-						lastID = qdrant.NewID(uuid)
-						point.Id = lastID
+						offsetID = qdrant.NewID(uuid)
+						point.Id = offsetID
 					case entity.FieldTypeInt64:
 						num := value.(int64)
-						lastID = qdrant.NewIDNum(uint64(num))
-						point.Id = lastID
+						offsetID = qdrant.NewIDNum(uint64(num))
+						point.Id = offsetID
 					}
 					continue
 				}
@@ -287,7 +287,7 @@ func (r *MigrateFromMilvusCmd) migrateData(ctx context.Context, sourceClient *mi
 		}
 
 		offsetCount += uint64(len(targetPoints))
-		err = commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.Milvus.Collection, lastID, offsetCount)
+		err = commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.Milvus.Collection, offsetID, offsetCount)
 		if err != nil {
 			return fmt.Errorf("failed to store offset: %w", err)
 		}
