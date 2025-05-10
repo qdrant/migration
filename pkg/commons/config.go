@@ -24,3 +24,9 @@ type MilvusConfig struct {
 	DBName        string `help:"Milvus database name"`
 	ServerVersion string `help:"Milvus server version"`
 }
+
+type PineconeConfig struct {
+	APIKey    string `required:"true" help:"Pinecone API key for authentication"`
+	Host      string `required:"true" help:"Pinecone index host URL (e.g., https://example-index-12345.svc.region.pinecone.io)"`
+	IndexName string `required:"true" help:"Name of the Pinecone index to migrate"`
+}
