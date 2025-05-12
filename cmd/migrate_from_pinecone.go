@@ -17,10 +17,6 @@ import (
 	"github.com/qdrant/migration/pkg/commons"
 )
 
-const DENSE_VECTOR_NAME string = "dense_vector"
-const SPARSE_VECTOR_NAME string = "sparse_vector"
-const PINECONE_ID_KEY string = "___id__"
-
 type MigrateFromPineconeCmd struct {
 	Pinecone  commons.PineconeConfig  `embed:"" prefix:"pinecone."`
 	Qdrant    commons.QdrantConfig    `embed:"" prefix:"qdrant."`
@@ -174,7 +170,7 @@ func (r *MigrateFromPineconeCmd) prepareTargetCollection(ctx context.Context, so
 		createReq = &qdrant.CreateCollection{
 			CollectionName: r.Qdrant.Collection,
 			VectorsConfig: qdrant.NewVectorsConfigMap(map[string]*qdrant.VectorParams{
-				DENSE_VECTOR_NAME: {
+				r.Pinecone.DenseVectorName: {
 					Size:     uint64(*foundIndex.Dimension),
 					Distance: distanceMapping[foundIndex.Metric],
 				},
@@ -184,7 +180,7 @@ func (r *MigrateFromPineconeCmd) prepareTargetCollection(ctx context.Context, so
 		createReq = &qdrant.CreateCollection{
 			CollectionName: r.Qdrant.Collection,
 			SparseVectorsConfig: qdrant.NewSparseVectorsConfig(map[string]*qdrant.SparseVectorParams{
-				SPARSE_VECTOR_NAME: {},
+				r.Pinecone.SparseVectorName: {},
 			}),
 		}
 	default:
@@ -259,11 +255,11 @@ func (r *MigrateFromPineconeCmd) migrateData(ctx context.Context, sourceIndexCon
 			vectorMap := make(map[string]*qdrant.Vector)
 
 			if vec.Values != nil {
-				vectorMap[DENSE_VECTOR_NAME] = qdrant.NewVectorDense(*vec.Values)
+				vectorMap[r.Pinecone.DenseVectorName] = qdrant.NewVectorDense(*vec.Values)
 			}
 
 			if vec.SparseValues != nil {
-				vectorMap[SPARSE_VECTOR_NAME] = qdrant.NewVectorSparse(vec.SparseValues.Indices, vec.SparseValues.Values)
+				vectorMap[r.Pinecone.SparseVectorName] = qdrant.NewVectorSparse(vec.SparseValues.Indices, vec.SparseValues.Values)
 			}
 
 			if len(vectorMap) > 0 {
@@ -274,7 +270,7 @@ func (r *MigrateFromPineconeCmd) migrateData(ctx context.Context, sourceIndexCon
 			if vec.Metadata != nil {
 				payload = qdrant.NewValueMap(vec.Metadata.AsMap())
 			}
-			payload[PINECONE_ID_KEY] = qdrant.NewValueString(id)
+			payload[r.Pinecone.IdField] = qdrant.NewValueString(id)
 			point.Payload = payload
 
 			targetPoints = append(targetPoints, point)
