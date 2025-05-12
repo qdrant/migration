@@ -32,6 +32,56 @@ docker pull registry.cloud.qdrant.io/library/qdrant-migration
 
 <details>
 
+<summary><h3>From Pinecone</h3></summary>
+
+Migrate data from a **Pinecone** database to **Qdrant**:
+
+### 📥 Example
+
+```bash
+migration pinecone \
+    --pinecone.api-key 'optional-pinecone-api-key' \
+    --pinecone.host 'https://example-index-12345.svc.region.pinecone.io' \
+    --pinecone.index-name 'example-index' \
+    --pinecone.namespace 'optional-namespace' \
+    --qdrant.url 'https://example.cloud-region.cloud-provider.cloud.qdrant.io:6334' \
+    --qdrant.api-key 'optional-qdrant-api-key' \
+    --qdrant.collection 'target-collection' \
+    --migration.batch-size 64
+````
+
+With Docker:
+
+```bash
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration pinecone \
+    --pinecone.api-key 'optional-pinecone-api-key' \
+    --pinecone.host 'https://example-index-12345.svc.region.pinecone.io' \
+    ...
+```
+
+#### Pinecone Options
+
+| Flag                    | Description                                                 |
+| ----------------------- | ----------------------------------------------------------- |
+| `--pinecone.api-key`    | Pinecone API key for authentication                         |
+| `--pinecone.host`       | Pinecone index host URL (e.g., `https://your-pinecone-url`) |
+| `--pinecone.index-name` | Name of the Pinecone index to migrate                       |
+| `--pinecone.namespace`  | Namespace of the partition to migrate                       |
+
+#### Qdrant Options
+
+| Flag                  | Description                                                |
+| --------------------- | ---------------------------------------------------------- |
+| `--qdrant.url`        | Qdrant gRPC URL (e.g. `https://your-qdrant-hostname:6334`) |
+| `--qdrant.collection` | Target collection name                                     |
+| `--qdrant.api-key`    | Qdrant API key                                             |
+
+See [Shared Migration Options](#shared-migration-options) for shared parameters.
+
+</details>
+
+<details>
+
 <summary><h3>From Milvus</h3></summary>
 
 Migrate data from a **Milvus** database to **Qdrant**:
