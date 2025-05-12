@@ -7,6 +7,7 @@ CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for res
 
 ## Supported Sources
 
+* [Pinecone](https://www.pinecone.io/)
 * [Milvus](https://milvus.io)
 * Another [Qdrant](http://qdrant.tech) instance
 
