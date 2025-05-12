@@ -36,6 +36,9 @@ docker pull registry.cloud.qdrant.io/library/qdrant-migration
 
 Migrate data from a **Pinecone** database to **Qdrant**:
 
+> IMPORTANT ⚠️
+> Only Pinecone serverless indexes support listing all vectors for migration. [Reference](https://docs.pinecone.io/reference/api/2025-01/data-plane/list)
+
 ### 📥 Example
 
 ```bash
