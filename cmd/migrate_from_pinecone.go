@@ -2,17 +2,24 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/pinecone-io/go-pinecone/v3/pinecone"
 	"github.com/pterm/pterm"
 	"github.com/qdrant/go-client/qdrant"
 
 	"github.com/qdrant/migration/pkg/commons"
 )
+
+const DENSE_VECTOR_NAME string = "dense_vector"
+const SPARSE_VECTOR_NAME string = "sparse_vector"
+const PINECONE_ID_KEY string = "___id__"
 
 type MigrateFromPineconeCmd struct {
 	Pinecone  commons.PineconeConfig  `embed:"" prefix:"pinecone."`
@@ -103,7 +110,8 @@ func (r *MigrateFromPineconeCmd) connectToPinecone() (*pinecone.Client, *pinecon
 	}
 
 	indexConn, err := client.Index(pinecone.NewIndexConnParams{
-		Host: r.Pinecone.Host,
+		Host:      r.Pinecone.Host,
+		Namespace: r.Pinecone.Namespace,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to connect to Pinecone index: %w", err)
@@ -159,15 +167,31 @@ func (r *MigrateFromPineconeCmd) prepareTargetCollection(ctx context.Context, so
 		pinecone.Dotproduct: qdrant.Distance_Dot,
 	}
 
-	err = targetClient.CreateCollection(ctx, &qdrant.CreateCollection{
-		CollectionName: r.Qdrant.Collection,
-		// TODO(Anush008): Make vector name configurable
-		VectorsConfig: qdrant.NewVectorsConfig(&qdrant.VectorParams{
-			Size:     uint64(*foundIndex.Dimension),
-			Distance: distanceMapping[foundIndex.Metric],
-		}),
-	})
-	if err != nil {
+	var createReq *qdrant.CreateCollection
+
+	switch foundIndex.VectorType {
+	case "dense":
+		createReq = &qdrant.CreateCollection{
+			CollectionName: r.Qdrant.Collection,
+			VectorsConfig: qdrant.NewVectorsConfigMap(map[string]*qdrant.VectorParams{
+				DENSE_VECTOR_NAME: {
+					Size:     uint64(*foundIndex.Dimension),
+					Distance: distanceMapping[foundIndex.Metric],
+				},
+			}),
+		}
+	case "sparse":
+		createReq = &qdrant.CreateCollection{
+			CollectionName: r.Qdrant.Collection,
+			SparseVectorsConfig: qdrant.NewSparseVectorsConfig(map[string]*qdrant.SparseVectorParams{
+				SPARSE_VECTOR_NAME: {},
+			}),
+		}
+	default:
+		return fmt.Errorf("unsupported vector type: %s", foundIndex.VectorType)
+	}
+
+	if err := targetClient.CreateCollection(ctx, createReq); err != nil {
 		return fmt.Errorf("failed to create target collection: %w", err)
 	}
 
@@ -175,8 +199,14 @@ func (r *MigrateFromPineconeCmd) prepareTargetCollection(ctx context.Context, so
 	return nil
 }
 
+func prettifyStruct(obj interface{}) string {
+	bytes, _ := json.MarshalIndent(obj, "", "  ")
+	return string(bytes)
+}
+
 func (r *MigrateFromPineconeCmd) migrateData(ctx context.Context, sourceIndexConn *pinecone.IndexConnection, targetClient *qdrant.Client, sourcePointCount uint64) error {
-	batchSize := uint32(r.Migration.BatchSize)
+	startTime := time.Now()
+	batchSize := r.Migration.BatchSize
 
 	var offsetId *qdrant.PointId
 	offsetCount := uint64(0)
@@ -194,16 +224,21 @@ func (r *MigrateFromPineconeCmd) migrateData(ctx context.Context, sourceIndexCon
 	displayMigrationProgress(bar, offsetCount)
 
 	for {
-		listRes, err := sourceIndexConn.ListVectors(ctx, &pinecone.ListVectorsRequest{
-			Limit:           &batchSize,
-			PaginationToken: qdrant.PtrOf(offsetId.GetUuid()),
-		})
+		req := &pinecone.ListVectorsRequest{
+			Limit: qdrant.PtrOf(uint32(batchSize)),
+		}
+
+		if offsetId != nil {
+			req.PaginationToken = qdrant.PtrOf(offsetId.GetUuid())
+		}
+
+		listRes, err := sourceIndexConn.ListVectors(ctx, req)
 		if err != nil {
 			return fmt.Errorf("failed to list vectors from Pinecone: %w", err)
 		}
 
-		if len(listRes.VectorIds) == 0 {
-			break
+		if len(listRes.VectorIds) < 1 {
+			return fmt.Errorf("pinecone.ListVectors returned no IDs")
 		}
 
 		ids := make([]string, 0, len(listRes.VectorIds))
@@ -219,39 +254,78 @@ func (r *MigrateFromPineconeCmd) migrateData(ctx context.Context, sourceIndexCon
 		var targetPoints []*qdrant.PointStruct
 		for id, vec := range fetchRes.Vectors {
 			point := &qdrant.PointStruct{
-				Id: qdrant.NewID(id),
+				// Pinecone allows arbitrary strings as ID.
+				// Qdrant only allows UUIDs and +ve integers.
+				// Ref: https://qdrant.tech/documentation/concepts/points/#point-ids
+				// So we create a deterministic UUID based on the original ID.
+				// A copy of the original ID is stored in the payload.
+				Id: pineconeIDToUUID(id),
 			}
+			vectorMap := make(map[string]*qdrant.Vector)
+
 			if vec.Values != nil {
-				point.Vectors = qdrant.NewVectorsMap(map[string]*qdrant.Vector{
-					"default": qdrant.NewVector(*vec.Values...),
-				})
+				vectorMap[DENSE_VECTOR_NAME] = qdrant.NewVectorDense(*vec.Values)
 			}
+
+			if vec.SparseValues != nil {
+				vectorMap[SPARSE_VECTOR_NAME] = qdrant.NewVectorSparse(vec.SparseValues.Indices, vec.SparseValues.Values)
+			}
+
+			if len(vectorMap) > 0 {
+				point.Vectors = qdrant.NewVectorsMap(vectorMap)
+			}
+
+			payload := make(map[string]*qdrant.Value)
 			if vec.Metadata != nil {
-				point.Payload = qdrant.NewValueMap(vec.Metadata.AsMap())
+				payload = qdrant.NewValueMap(vec.Metadata.AsMap())
 			}
+			payload[PINECONE_ID_KEY] = qdrant.NewValueString(id)
+			point.Payload = payload
+
 			targetPoints = append(targetPoints, point)
 		}
 
-		if len(targetPoints) > 0 {
-			_, err = targetClient.Upsert(ctx, &qdrant.UpsertPoints{
-				CollectionName: r.Qdrant.Collection,
-				Points:         targetPoints,
-				Wait:           qdrant.PtrOf(true),
-			})
-			if err != nil {
-				return fmt.Errorf("failed to insert data into target: %w", err)
-			}
+		_, err = targetClient.Upsert(ctx, &qdrant.UpsertPoints{
+			CollectionName: r.Qdrant.Collection,
+			Points:         targetPoints,
+			Wait:           qdrant.PtrOf(true),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to insert data into target: %w", err)
+		}
 
+		if listRes.NextPaginationToken != nil {
 			offsetCount += uint64(len(targetPoints))
+			offsetId = qdrant.NewID(*listRes.NextPaginationToken)
 			err = commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.Pinecone.IndexName, offsetId, offsetCount)
 			if err != nil {
 				return fmt.Errorf("failed to store offset: %w", err)
 			}
+		}
 
-			bar.Add(len(targetPoints))
+		bar.Add(len(targetPoints))
+
+		if listRes.NextPaginationToken == nil {
+			break
+		}
+
+		// If one minute elapsed get updated sourcePointCount.
+		// Useful if any new points were added to the source during migration.
+		if time.Since(startTime) > time.Minute {
+			sourcePointCount, err = r.countPineconeVectors(ctx, sourceIndexConn)
+			if err != nil {
+				return fmt.Errorf("failed to count vectors in Pinecone: %w", err)
+			}
+			bar.Total = int(sourcePointCount)
 		}
 	}
 
 	pterm.Success.Printfln("Data migration finished successfully")
 	return nil
+}
+
+func pineconeIDToUUID(id string) *qdrant.PointId {
+	deterministicUUID := uuid.NewSHA1(uuid.NameSpaceURL, []byte(id))
+
+	return qdrant.NewIDUUID(deterministicUUID.String())
 }
