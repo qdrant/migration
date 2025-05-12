@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -12,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/pinecone-io/go-pinecone/v3/pinecone"
 	"github.com/pterm/pterm"
+
 	"github.com/qdrant/go-client/qdrant"
 
 	"github.com/qdrant/migration/pkg/commons"
@@ -197,11 +197,6 @@ func (r *MigrateFromPineconeCmd) prepareTargetCollection(ctx context.Context, so
 
 	pterm.Success.Printfln("Created target collection '%s'", r.Qdrant.Collection)
 	return nil
-}
-
-func prettifyStruct(obj interface{}) string {
-	bytes, _ := json.MarshalIndent(obj, "", "  ")
-	return string(bytes)
 }
 
 func (r *MigrateFromPineconeCmd) migrateData(ctx context.Context, sourceIndexConn *pinecone.IndexConnection, targetClient *qdrant.Client, sourcePointCount uint64) error {
