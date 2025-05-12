@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
@@ -32,27 +31,17 @@ type MigrateFromMilvusCmd struct {
 }
 
 func (r *MigrateFromMilvusCmd) Parse() error {
-	targetUrl, err := url.Parse(r.Qdrant.Url)
+	var err error
+	r.targetHost, r.targetPort, r.targetTLS, err = parseQdrantUrl(r.Qdrant.Url)
 	if err != nil {
 		return fmt.Errorf("failed to parse target URL: %w", err)
-	}
-
-	r.targetHost = targetUrl.Hostname()
-	r.targetTLS = targetUrl.Scheme == HTTPS
-	r.targetPort, err = getPort(targetUrl)
-	if err != nil {
-		return fmt.Errorf("failed to parse target port: %w", err)
 	}
 
 	return nil
 }
 
 func (r *MigrateFromMilvusCmd) Validate() error {
-	if r.Migration.BatchSize < 1 {
-		return fmt.Errorf("batch size must be greater than 0")
-	}
-
-	return nil
+	return validateBatchSize(r.Migration.BatchSize)
 }
 
 func (r *MigrateFromMilvusCmd) Run(globals *Globals) error {
@@ -76,7 +65,7 @@ func (r *MigrateFromMilvusCmd) Run(globals *Globals) error {
 		return fmt.Errorf("failed to connect to Qdrant target: %w", err)
 	}
 
-	err = commons.PrepareMigrationOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient)
+	err = commons.PrepareOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient)
 	if err != nil {
 		return fmt.Errorf("failed to prepare migration marker collection: %w", err)
 	}
@@ -91,28 +80,14 @@ func (r *MigrateFromMilvusCmd) Run(globals *Globals) error {
 		return fmt.Errorf("error preparing target collection: %w", err)
 	}
 
-	targetPointCount, err := targetClient.Count(ctx, &qdrant.CountPoints{
-		CollectionName: r.Qdrant.Collection,
-		Exact:          qdrant.PtrOf(true),
-	})
-	if err != nil {
-		return fmt.Errorf("failed to count points in target: %w", err)
-	}
-
-	pterm.DefaultSection.Println("Starting data migration")
-
-	_ = pterm.DefaultTable.WithHasHeader().WithData(pterm.TableData{
-		{"Type", "Provider", "Collection", "Points"},
-		{"Source", "milvus", r.Milvus.Collection, strconv.FormatUint(sourcePointCount, 10)},
-		{"Target", "qdrant", r.Qdrant.Collection, strconv.FormatUint(targetPointCount, 10)},
-	}).Render()
+	displayMigrationStart("milvus", r.Milvus.Collection, r.Qdrant.Collection)
 
 	err = r.migrateData(ctx, sourceClient, targetClient, sourcePointCount)
 	if err != nil {
 		return fmt.Errorf("failed to migrate data: %w", err)
 	}
 
-	targetPointCount, err = targetClient.Count(ctx, &qdrant.CountPoints{
+	targetPointCount, err := targetClient.Count(ctx, &qdrant.CountPoints{
 		CollectionName: r.Qdrant.Collection,
 		Exact:          qdrant.PtrOf(true),
 	})
@@ -154,7 +129,6 @@ func (r *MigrateFromMilvusCmd) countMilvusVectors(ctx context.Context, client *m
 	}
 
 	return count, nil
-
 }
 
 func (r *MigrateFromMilvusCmd) prepareTargetCollection(ctx context.Context, sourceClient *milvusclient.Client, targetClient *qdrant.Client) error {
@@ -168,7 +142,7 @@ func (r *MigrateFromMilvusCmd) prepareTargetCollection(ctx context.Context, sour
 	}
 
 	if targetCollectionExists {
-		pterm.Info.Printfln("Target collection '%s' already exists. Skipping creation.", r.Qdrant.Collection)
+		pterm.Info.Printfln("Target collection %q already exists. Skipping creation.", r.Qdrant.Collection)
 		return nil
 	}
 
@@ -203,7 +177,7 @@ func (r *MigrateFromMilvusCmd) prepareTargetCollection(ctx context.Context, sour
 		return fmt.Errorf("failed to create target collection: %w", err)
 	}
 
-	pterm.Success.Printfln("Created target collection '%s'", r.Qdrant.Collection)
+	pterm.Success.Printfln("Created target collection %q", r.Qdrant.Collection)
 	return nil
 }
 
@@ -211,28 +185,21 @@ func (r *MigrateFromMilvusCmd) migrateData(ctx context.Context, sourceClient *mi
 	startTime := time.Now()
 	batchSize := r.Migration.BatchSize
 
-	var lastID *qdrant.PointId
+	var offsetID *qdrant.PointId
 	offsetCount := uint64(0)
 	var err error
 
 	if !r.Migration.Restart {
-		offsetId, offsetStored, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.Milvus.Collection, r.Migration.Restart)
+		id, count, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.Milvus.Collection)
 		if err != nil {
 			return fmt.Errorf("failed to get start offset: %w", err)
 		}
-		offsetCount = offsetStored
-		lastID = offsetId
+		offsetCount = count
+		offsetID = id
 	}
 
 	bar, _ := pterm.DefaultProgressbar.WithTotal(int(sourcePointCount)).Start()
-	if offsetCount > 0 {
-		pterm.Info.Printfln("Starting from offset %d", offsetCount)
-		bar.Add(int(offsetCount))
-	} else {
-		pterm.Info.Printfln("Starting from beginning")
-	}
-
-	fmt.Print("\n")
+	displayMigrationProgress(bar, offsetCount)
 
 	schema, err := sourceClient.DescribeCollection(ctx, milvusclient.NewDescribeCollectionOption(r.Milvus.Collection))
 	if err != nil {
@@ -245,31 +212,28 @@ func (r *MigrateFromMilvusCmd) migrateData(ctx context.Context, sourceClient *mi
 
 	for {
 		filter := ""
-		if lastID != nil {
+		if offsetID != nil {
 			switch pkType {
 			case entity.FieldTypeInt64:
-				filter = fmt.Sprintf("%s > %d", pkName, lastID.GetNum())
+				filter = fmt.Sprintf("%s > %d", pkName, offsetID.GetNum())
 			case entity.FieldTypeVarChar:
-				filter = fmt.Sprintf("%s > '%s'", pkName, lastID.GetUuid())
-			default:
-				return fmt.Errorf("unsupported primary key type: %v", pkType)
+				filter = fmt.Sprintf("%s > '%s'", pkName, offsetID.GetUuid())
 			}
 		}
 
 		result, err := sourceClient.Query(ctx, milvusclient.NewQueryOption(r.Milvus.Collection).
 			WithFilter(filter).
 			WithOutputFields("*").
-			WithLimit(batchSize),
-		)
+			WithLimit(batchSize))
 		if err != nil {
-			return fmt.Errorf("query failed: %w", err)
+			return fmt.Errorf("failed to query Milvus: %w", err)
 		}
+
 		if result.ResultCount == 0 {
 			break
 		}
 
 		var targetPoints []*qdrant.PointStruct
-
 		for i := 0; i < result.ResultCount; i++ {
 			point := &qdrant.PointStruct{}
 			vectors := make(map[string]*qdrant.Vector)
@@ -286,12 +250,12 @@ func (r *MigrateFromMilvusCmd) migrateData(ctx context.Context, sourceClient *mi
 					switch col.Type() {
 					case entity.FieldTypeVarChar:
 						uuid := value.(string)
-						lastID = qdrant.NewID(uuid)
-						point.Id = lastID
+						offsetID = qdrant.NewID(uuid)
+						point.Id = offsetID
 					case entity.FieldTypeInt64:
 						num := value.(int64)
-						lastID = qdrant.NewIDNum(uint64(num))
-						point.Id = lastID
+						offsetID = qdrant.NewIDNum(uint64(num))
+						point.Id = offsetID
 					}
 					continue
 				}
@@ -318,13 +282,12 @@ func (r *MigrateFromMilvusCmd) migrateData(ctx context.Context, sourceClient *mi
 			Points:         targetPoints,
 			Wait:           qdrant.PtrOf(true),
 		})
-
 		if err != nil {
 			return fmt.Errorf("failed to insert data into target: %w", err)
 		}
 
 		offsetCount += uint64(len(targetPoints))
-		err = commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.Milvus.Collection, lastID, offsetCount)
+		err = commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.Milvus.Collection, offsetID, offsetCount)
 		if err != nil {
 			return fmt.Errorf("failed to store offset: %w", err)
 		}
@@ -338,16 +301,16 @@ func (r *MigrateFromMilvusCmd) migrateData(ctx context.Context, sourceClient *mi
 		// If one minute elapsed get updated sourcePointCount.
 		// Useful if any new points were added to the source during migration.
 		if time.Since(startTime) > time.Minute {
-			sourcePointCount, err := r.countMilvusVectors(ctx, sourceClient)
+			sourcePointCount, err = r.countMilvusVectors(ctx, sourceClient)
 			if err != nil {
-				return fmt.Errorf("failed to count points in source: %w", err)
+				return fmt.Errorf("failed to count vectors in Milvus: %w", err)
 			}
 			bar.Total = int(sourcePointCount)
-			startTime = time.Now()
 		}
 	}
 
 	pterm.Success.Printfln("Data migration finished successfully")
+
 	return nil
 }
 
