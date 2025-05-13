@@ -9,7 +9,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/pinecone-io/go-pinecone/v3/pinecone"
 	"github.com/pterm/pterm"
 
@@ -263,7 +262,7 @@ func (r *MigrateFromPineconeCmd) migrateData(ctx context.Context, sourceIndexCon
 				// Ref: https://qdrant.tech/documentation/concepts/points/#point-ids
 				// So we create a deterministic UUID based on the original ID.
 				// A copy of the original ID is stored in the payload.
-				Id: pineconeIDToUUID(id),
+				Id: arbitraryIDToUUID(id),
 			}
 			vectorMap := make(map[string]*qdrant.Vector)
 
@@ -326,14 +325,4 @@ func (r *MigrateFromPineconeCmd) migrateData(ctx context.Context, sourceIndexCon
 
 	pterm.Success.Printfln("Data migration finished successfully")
 	return nil
-}
-
-func pineconeIDToUUID(id string) *qdrant.PointId {
-	// If already a valid UUID, return it directly
-	if _, err := uuid.Parse(id); err == nil {
-		return qdrant.NewIDUUID(id)
-	}
-
-	deterministicUUID := uuid.NewSHA1(uuid.NameSpaceURL, []byte(id))
-	return qdrant.NewIDUUID(deterministicUUID.String())
 }

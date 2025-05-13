@@ -30,3 +30,10 @@ type PineconeConfig struct {
 	Host      string `required:"true"  help:"Pinecone index host URL (e.g., https://example-index-12345.svc.region.pinecone.io)"`
 	Namespace string `help:"Namespace of the partition to migrate"`
 }
+
+type ChromaConfig struct {
+	BaseURL    string `help:"Chroma server URL" default:"http://localhost:8000"`
+	Collection string `help:"Chroma collection name"`
+	Tenant     string `help:"Chroma tenant" default:"default_tenant"`
+	Database   string `help:"Chroma database" default:"default_database"`
+}
