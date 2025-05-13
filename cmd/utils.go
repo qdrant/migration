@@ -69,3 +69,55 @@ func getPort(u *url.URL) (int, error) {
 
 	return 80, nil
 }
+
+func parseQdrantUrl(urlStr string) (host string, port int, tls bool, err error) {
+	parsedUrl, err := url.Parse(urlStr)
+	if err != nil {
+		return "", 0, false, fmt.Errorf("failed to parse URL: %w", err)
+	}
+
+	host = parsedUrl.Hostname()
+	tls = parsedUrl.Scheme == HTTPS
+	port, err = getPort(parsedUrl)
+	if err != nil {
+		return "", 0, false, fmt.Errorf("failed to parse port: %w", err)
+	}
+
+	return host, port, tls, nil
+}
+
+func validateBatchSize(batchSize int) error {
+	if batchSize < 1 {
+		return fmt.Errorf("batch size must be greater than 0")
+	}
+	return nil
+}
+
+func displayMigrationStart(sourceProvider, sourceCollection, targetCollection string) {
+	pterm.DefaultSection.Println("Starting Migration To Qdrant")
+
+	from := fmt.Sprintf("%s@%s", sourceCollection, sourceProvider)
+	to := fmt.Sprintf("%s@qdrant", targetCollection)
+
+	table := pterm.TableData{
+		{pterm.FgLightCyan.Sprint("From → To:"), pterm.FgLightGreen.Sprintf("%s  →  %s", from, to)},
+	}
+
+	_ = pterm.DefaultTable.
+		WithHasHeader(false).
+		WithBoxed(true).
+		WithData(table).
+		Render()
+
+	pterm.Println()
+}
+
+func displayMigrationProgress(bar *pterm.ProgressbarPrinter, offsetCount uint64) {
+	if offsetCount > 0 {
+		pterm.Info.Printfln("Starting from offset %d", offsetCount)
+		bar.Add(int(offsetCount))
+	} else {
+		pterm.Info.Printfln("Starting from the beginning")
+	}
+	fmt.Print("\n")
+}
