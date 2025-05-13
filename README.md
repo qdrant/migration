@@ -44,10 +44,8 @@ Migrate data from a **Pinecone** database to **Qdrant**:
 
 ```bash
 migration pinecone \
-    --pinecone.api-key 'optional-pinecone-api-key' \
     --pinecone.host 'https://example-index-12345.svc.region.pinecone.io' \
-    --pinecone.index-name 'example-index' \
-    --pinecone.namespace 'optional-namespace' \
+    --pinecone.api-key 'optional-pinecone-api-key' \
     --qdrant.url 'https://example.cloud-region.cloud-provider.cloud.qdrant.io:6334' \
     --qdrant.api-key 'optional-qdrant-api-key' \
     --qdrant.collection 'target-collection' \
@@ -58,8 +56,8 @@ With Docker:
 
 ```bash
 docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration pinecone \
-    --pinecone.api-key 'optional-pinecone-api-key' \
     --pinecone.host 'https://example-index-12345.svc.region.pinecone.io' \
+    --pinecone.api-key 'optional-pinecone-api-key' \
     ...
 ```
 
@@ -69,7 +67,6 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | ------------------------------- | --------------------------------------------------------------- |
 | `--pinecone.api-key`            | Pinecone API key for authentication                             |
 | `--pinecone.host`               | Pinecone index host URL (e.g., `https://your-pinecone-url`)     |
-| `--pinecone.index-name`         | Name of the Pinecone index to migrate                           |
 | `--pinecone.namespace`          | Namespace of the partition to migrate                           |
 | `--pinecone.dense-vector-name`  | Name of the dense vector in Qdrant. Default: `"dense_vector"`   |
 | `--pinecone.sparse-vector-name` | Name of the sparse vector in Qdrant. Default: `"sparse_vector"` |
@@ -93,8 +90,6 @@ migration milvus \
     --milvus.url 'https://example.gcp-us-west1.cloud.zilliz.com' \
     --milvus.enable-tls-auth \
     --milvus.collection 'example-collection' \
-    --milvus.db-name 'optional-db-name'
-    --milvus.server-version 'optional-server-version'
     --milvus.api-key 'optional-milvus-api-key' \
     --qdrant.url 'https://example.cloud-region.cloud-provider.cloud.qdrant.io:6334' \
     --qdrant.api-key 'optional-qdrant-api-key' \
