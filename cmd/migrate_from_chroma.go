@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -10,10 +11,11 @@ import (
 	"syscall"
 	"time"
 
+	chroma "github.com/amikos-tech/chroma-go/pkg/api/v2"
 	"github.com/pterm/pterm"
+
 	"github.com/qdrant/go-client/qdrant"
 
-	chroma "github.com/amikos-tech/chroma-go/pkg/api/v2"
 	"github.com/qdrant/migration/pkg/commons"
 )
 
@@ -83,7 +85,7 @@ func (r *MigrateFromChromaCmd) Run(globals *Globals) error {
 		return fmt.Errorf("error preparing target collection: %w", err)
 	}
 
-	displayMigrationStart("chroma", r.Chroma.BaseURL, r.Qdrant.Collection)
+	displayMigrationStart("chroma", r.Chroma.Collection, r.Qdrant.Collection)
 
 	err = r.migrateData(ctx, sourceCollection, targetClient, sourcePointCount)
 	if err != nil {
@@ -103,8 +105,40 @@ func (r *MigrateFromChromaCmd) Run(globals *Globals) error {
 	return nil
 }
 
+func (r *MigrateFromChromaCmd) parseChromaOptions() ([]chroma.ClientOption, error) {
+	clientOptions := []chroma.ClientOption{chroma.WithBaseURL(r.Chroma.Url)}
+
+	if r.Chroma.Database != "" && r.Chroma.Tenant != "" {
+		clientOptions = append(clientOptions, chroma.WithDatabaseAndTenant(r.Chroma.Database, r.Chroma.Tenant))
+	} else if r.Chroma.Tenant != "" {
+		clientOptions = append(clientOptions, chroma.WithTenant(r.Chroma.Tenant))
+	}
+
+	switch r.Chroma.AuthType {
+	case "basic":
+		if r.Chroma.Username == "" || r.Chroma.Password == "" {
+			return nil, errors.New("username and password are required for basic authentication")
+		}
+		authProvider := chroma.NewBasicAuthCredentialsProvider(r.Chroma.Username, r.Chroma.Password)
+		clientOptions = append(clientOptions, chroma.WithAuth(authProvider))
+	case "token":
+		if r.Chroma.Token == "" {
+			return nil, errors.New("token is required for token authentication")
+		}
+		authProvider := chroma.NewTokenAuthCredentialsProvider(r.Chroma.Token, chroma.TokenTransportHeader(r.Chroma.TokenHeader))
+		clientOptions = append(clientOptions, chroma.WithAuth(authProvider))
+	}
+
+	return clientOptions, nil
+}
+
 func (r *MigrateFromChromaCmd) connectToChroma(ctx context.Context) (chroma.Client, chroma.Collection, error) {
-	client, err := chroma.NewHTTPClient()
+	clientOptions, err := r.parseChromaOptions()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get parse Chroma options: %w", err)
+	}
+
+	client, err := chroma.NewHTTPClient(clientOptions...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create Chroma client: %w", err)
 	}
@@ -172,7 +206,7 @@ func (r *MigrateFromChromaCmd) migrateData(ctx context.Context, collection chrom
 	var currentOffset uint64 = 0
 
 	if !r.Migration.Restart {
-		_, offsetStored, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.Chroma.BaseURL)
+		_, offsetStored, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.Chroma.Collection)
 		if err != nil {
 			return fmt.Errorf("failed to get start offset: %w", err)
 		}
@@ -183,7 +217,6 @@ func (r *MigrateFromChromaCmd) migrateData(ctx context.Context, collection chrom
 	displayMigrationProgress(bar, currentOffset)
 
 	for {
-		// Fetch batch of data from Chroma
 		resp, err := collection.Get(
 			ctx,
 			chroma.WithLimitGet(int(batchSize)),
@@ -196,24 +229,24 @@ func (r *MigrateFromChromaCmd) migrateData(ctx context.Context, collection chrom
 
 		count := resp.Count()
 		if count == 0 {
-			break // No more data to fetch
+			break
 		}
 
-		// Prepare points for Qdrant
-		var targetPoints []*qdrant.PointStruct
+		targetPoints := make([]*qdrant.PointStruct, 0, count)
 		ids := resp.GetIDs()
 		embeddings := resp.GetEmbeddings()
 		documents := resp.GetDocuments()
 
-		// The Chroma Go client's metadata type is restrictive/incomplete.
-		// So we convert it to a list of generic maps
+		// The Chroma Go client's metadata type, `chroma.DocumentMetadatas`` is restrictive.
+		// So we convert it to a list of generic maps, `[]map[string]any``.
+		// That is later parse into Qdrant payload with `qdrant.NewValueMap(...)``
 		metadatas := resp.GetMetadatas()
 		jsonData, err := json.Marshal(metadatas)
 		if err != nil {
 			log.Fatalf("Error marshaling metadata: %v", err)
 		}
-		var metadataValues []map[string]any
-		err = json.Unmarshal(jsonData, &metadataValues)
+		var metadatasGeneric []map[string]any
+		err = json.Unmarshal(jsonData, &metadatasGeneric)
 		if err != nil {
 			log.Fatalf("Error unmarshaling metadata: %v", err)
 		}
@@ -221,7 +254,7 @@ func (r *MigrateFromChromaCmd) migrateData(ctx context.Context, collection chrom
 		for i := 0; i < count; i++ {
 			id := ids[i]
 			embedding := embeddings[i]
-			metadataValue := metadataValues[i]
+			metadataValue := metadatasGeneric[i]
 
 			point := &qdrant.PointStruct{
 				Id: arbitraryIDToUUID(string(id)),
@@ -232,13 +265,12 @@ func (r *MigrateFromChromaCmd) migrateData(ctx context.Context, collection chrom
 			point.Vectors = qdrant.NewVectorsMap(vectorMap)
 
 			payload := qdrant.NewValueMap(metadataValue)
+			payload[r.IdField] = qdrant.NewValueString(string(id))
 
 			if i < len(documents) && documents[i].ContentString() != "" {
 				payload[r.DocumentField] = qdrant.NewValueString(documents[i].ContentString())
 			}
 
-			// Store original ID for reference
-			payload[r.IdField] = qdrant.NewValueString(string(id))
 			point.Payload = payload
 
 			targetPoints = append(targetPoints, point)
@@ -257,7 +289,7 @@ func (r *MigrateFromChromaCmd) migrateData(ctx context.Context, collection chrom
 		// Just a placeholder ID for offset tracking.
 		// We're only using the offset count
 		offsetId := qdrant.NewIDNum(0)
-		err = commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.Chroma.BaseURL, offsetId, currentOffset)
+		err = commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.Chroma.Collection, offsetId, currentOffset)
 		if err != nil {
 			return fmt.Errorf("failed to store offset: %w", err)
 		}
@@ -265,6 +297,7 @@ func (r *MigrateFromChromaCmd) migrateData(ctx context.Context, collection chrom
 		bar.Add(count)
 
 		// If one minute elapsed get updated sourcePointCount
+		// Useful if any new points were added to the source during migration
 		if time.Since(startTime) > time.Minute {
 			sourcePointCount, err = r.countChromaVectors(ctx, collection)
 			if err != nil {

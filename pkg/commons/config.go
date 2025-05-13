@@ -32,8 +32,13 @@ type PineconeConfig struct {
 }
 
 type ChromaConfig struct {
-	BaseURL    string `help:"Chroma server URL" default:"http://localhost:8000"`
-	Collection string `help:"Chroma collection name"`
-	Tenant     string `help:"Chroma tenant" default:"default_tenant"`
-	Database   string `help:"Chroma database" default:"default_database"`
+	Collection  string `required:"true" help:"Chroma collection name"`
+	Url         string `help:"Chroma server URL" default:"http://localhost:8000"`
+	Tenant      string `help:"Chroma tenant"`
+	AuthType    string `help:"Authentication type" enum:"basic,token,none" default:"none"`
+	Username    string `help:"Username for basic authentication"`
+	Password    string `help:"Password for basic authentication"`
+	Token       string `help:"Token for token authentication"`
+	TokenHeader string `help:"Token header for authentication" default:"Authorization"`
+	Database    string `help:"Database for Chroma"`
 }
