@@ -68,12 +68,19 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--pinecone.api-key`            | Pinecone API key for authentication                             |
 | `--pinecone.host`               | Pinecone index host URL (e.g., `https://your-pinecone-url`)     |
 | `--pinecone.namespace`          | Namespace of the partition to migrate                           |
-| `--pinecone.dense-vector-name`  | Name of the dense vector in Qdrant. Default: `"dense_vector"`   |
-| `--pinecone.sparse-vector-name` | Name of the sparse vector in Qdrant. Default: `"sparse_vector"` |
-| `--pinecone.id-field`           | Field storing Pinecone IDs in Qdrant. Default: `"__id__"`       |
 
-* See [Qdrant Options](#qdrant-options) for target Qdrant parameters.
-* See [Migration Options](#migration-options) for migration parameters.
+#### Qdrant Options
+
+| Flag                            | Description                                                     |
+| ------------------------------- | --------------------------------------------------------------- |
+| `--qdrant.url`                  | Qdrant gRPC URL (e.g. `https://your-qdrant-hostname:6334`)      |
+| `--qdrant.collection`           | Target collection name                                          |
+| `--qdrant.api-key`              | Qdrant API key                                                  |
+| `--qdrant.dense-vector`         | Name of the dense vector in Qdrant. Default: `"dense_vector"`   |
+| `--qdrant.sparse-vector-name`   | Name of the sparse vector in Qdrant. Default: `"sparse_vector"` |
+| `--qdrant.id-field`             | Field storing Pinecone IDs in Qdrant. Default: `"__id__"`       |
+
+* See [Shared Migration Options](#shared-migration-options) for common migration parameters.
 
 </details>
 
@@ -118,8 +125,15 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--milvus.db-name`         | Milvus database name                                    |
 | `--milvus.server-version`  | Server version                                          |
 
-* See [Qdrant Options](#qdrant-options) for target Qdrant parameters.
-* See [Migration Options](#migration-options) for migration parameters.
+#### Qdrant Options
+
+| Flag                            | Description                                                     |
+| ------------------------------- | --------------------------------------------------------------- |
+| `--qdrant.url`                  | Qdrant gRPC URL (e.g. `https://your-qdrant-hostname:6334`)      |
+| `--qdrant.collection`           | Target collection name                                          |
+| `--qdrant.api-key`              | Qdrant API key                                                  |
+
+* See [Shared Migration Options](#shared-migration-options) for common migration parameters.
 
 </details>
 <details>
@@ -169,15 +183,7 @@ See [Shared Migration Options](#shared-migration-options) for shared parameters.
 
 </details>
 
-#### Qdrant Options
-
-| Flag                  | Description                                                |
-| --------------------- | ---------------------------------------------------------- |
-| `--qdrant.url`        | Qdrant gRPC URL (e.g. `https://your-qdrant-hostname:6334`) |
-| `--qdrant.collection` | Target collection name                                     |
-| `--qdrant.api-key`    | Qdrant API key                                             |
-
-### Migration Options
+### Shared Migration Options
 
 These options apply to all migrations, regardless of the source.
 
