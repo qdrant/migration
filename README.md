@@ -193,4 +193,4 @@ These options apply to all migrations, regardless of the source.
 | `--migration.restart`                | Restart migration without resuming from offset. Default: false       |
 | `--migration.create-collection`      | Create the collection if it doesn't exist. Default: true             |
 | `--migration.ensure-payload-indexes` | Ensure payload indexes exist. Default: true                          |
-| `--migration.offsets-collection`     | Collection to store migration offset. Default: "_migration_offsets" |
+| `--migration.offsets-collection`     | Collection to store migration offset. Default: `"_migration_offsets"` |
