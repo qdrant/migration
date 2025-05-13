@@ -77,7 +77,7 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.collection`           | Target collection name                                          |
 | `--qdrant.api-key`              | Qdrant API key                                                  |
 | `--qdrant.dense-vector`         | Name of the dense vector in Qdrant. Default: `"dense_vector"`   |
-| `--qdrant.sparse-vector-name`   | Name of the sparse vector in Qdrant. Default: `"sparse_vector"` |
+| `--qdrant.sparse-vector`        | Name of the sparse vector in Qdrant. Default: `"sparse_vector"` |
 | `--qdrant.id-field`             | Field storing Pinecone IDs in Qdrant. Default: `"__id__"`       |
 
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
