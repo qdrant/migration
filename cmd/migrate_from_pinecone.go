@@ -19,9 +19,12 @@ import (
 )
 
 type MigrateFromPineconeCmd struct {
-	Pinecone  commons.PineconeConfig  `embed:"" prefix:"pinecone."`
-	Qdrant    commons.QdrantConfig    `embed:"" prefix:"qdrant."`
-	Migration commons.MigrationConfig `embed:"" prefix:"migration."`
+	Pinecone     commons.PineconeConfig  `embed:"" prefix:"pinecone."`
+	Qdrant       commons.QdrantConfig    `embed:"" prefix:"qdrant."`
+	Migration    commons.MigrationConfig `embed:"" prefix:"migration."`
+	IdField      string                  `prefix:"qdrant." help:"Field storing Pinecone IDs in Qdrant." default:"__id__"`
+	DenseVector  string                  `prefix:"qdrant." help:"Name of the dense vector in Qdrant" default:"dense_vector"`
+	SparseVector string                  `prefix:"qdrant." help:"Name of the sparse vector in Qdrant" default:"sparse_vector"`
 
 	targetHost string
 	targetPort int
@@ -180,7 +183,7 @@ func (r *MigrateFromPineconeCmd) prepareTargetCollection(ctx context.Context, so
 		createReq = &qdrant.CreateCollection{
 			CollectionName: r.Qdrant.Collection,
 			VectorsConfig: qdrant.NewVectorsConfigMap(map[string]*qdrant.VectorParams{
-				r.Pinecone.DenseVectorName: {
+				r.DenseVector: {
 					Size:     uint64(*foundIndex.Dimension),
 					Distance: distanceMapping[foundIndex.Metric],
 				},
@@ -190,7 +193,7 @@ func (r *MigrateFromPineconeCmd) prepareTargetCollection(ctx context.Context, so
 		createReq = &qdrant.CreateCollection{
 			CollectionName: r.Qdrant.Collection,
 			SparseVectorsConfig: qdrant.NewSparseVectorsConfig(map[string]*qdrant.SparseVectorParams{
-				r.Pinecone.SparseVectorName: {},
+				r.SparseVector: {},
 			}),
 		}
 	default:
@@ -265,11 +268,11 @@ func (r *MigrateFromPineconeCmd) migrateData(ctx context.Context, sourceIndexCon
 			vectorMap := make(map[string]*qdrant.Vector)
 
 			if vec.Values != nil {
-				vectorMap[r.Pinecone.DenseVectorName] = qdrant.NewVectorDense(*vec.Values)
+				vectorMap[r.DenseVector] = qdrant.NewVectorDense(*vec.Values)
 			}
 
 			if vec.SparseValues != nil {
-				vectorMap[r.Pinecone.SparseVectorName] = qdrant.NewVectorSparse(vec.SparseValues.Indices, vec.SparseValues.Values)
+				vectorMap[r.SparseVector] = qdrant.NewVectorSparse(vec.SparseValues.Indices, vec.SparseValues.Values)
 			}
 
 			if len(vectorMap) > 0 {
@@ -280,7 +283,7 @@ func (r *MigrateFromPineconeCmd) migrateData(ctx context.Context, sourceIndexCon
 			if vec.Metadata != nil {
 				payload = qdrant.NewValueMap(vec.Metadata.AsMap())
 			}
-			payload[r.Pinecone.IdField] = qdrant.NewValueString(id)
+			payload[r.IdField] = qdrant.NewValueString(id)
 			point.Payload = payload
 
 			targetPoints = append(targetPoints, point)
