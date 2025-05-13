@@ -9,7 +9,7 @@ type QdrantConfig struct {
 type MigrationConfig struct {
 	BatchSize            int    `short:"b" help:"Batch size" default:"50"`
 	Restart              bool   `help:"Restart the migration and do not continue from last offset" default:"false"`
-	CreateCollection     bool   `short:"c" help:"Create the collection if it does not exist" default:"false"`
+	CreateCollection     bool   `short:"c" help:"Create the collection if it does not exist" default:"true"`
 	EnsurePayloadIndexes bool   `help:"Ensure payload indexes are created" default:"true"`
 	OffsetsCollection    string `help:"Collection to store the current migration offset" default:"_migration_offsets"`
 }
