@@ -26,11 +26,7 @@ type MilvusConfig struct {
 }
 
 type PineconeConfig struct {
-	APIKey           string `required:"true"  help:"Pinecone API key for authentication"`
-	Host             string `required:"true"  help:"Pinecone index host URL (e.g., https://example-index-12345.svc.region.pinecone.io)"`
-	IndexName        string `required:"true"  help:"Name of the Pinecone index to migrate"`
-	Namespace        string `help:"Namespace of the partition to migrate"`
-	IdField          string `help:"Field storing Pinecone IDs in Qdrant." default:"__id__"`
-	DenseVectorName  string `help:"Name of the dense vector in Qdrant" default:"dense_vector"`
-	SparseVectorName string `help:"Name of the sparse vector in Qdrant" default:"sparse_vector"`
+	APIKey    string `required:"true"  help:"Pinecone API key for authentication"`
+	Host      string `required:"true"  help:"Pinecone index host URL (e.g., https://example-index-12345.svc.region.pinecone.io)"`
+	Namespace string `help:"Namespace of the partition to migrate"`
 }
