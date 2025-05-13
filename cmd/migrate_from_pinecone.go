@@ -329,7 +329,11 @@ func (r *MigrateFromPineconeCmd) migrateData(ctx context.Context, sourceIndexCon
 }
 
 func pineconeIDToUUID(id string) *qdrant.PointId {
-	deterministicUUID := uuid.NewSHA1(uuid.NameSpaceURL, []byte(id))
+	// If already a valid UUID, return it directly
+	if _, err := uuid.Parse(id); err == nil {
+		return qdrant.NewIDUUID(id)
+	}
 
+	deterministicUUID := uuid.NewSHA1(uuid.NameSpaceURL, []byte(id))
 	return qdrant.NewIDUUID(deterministicUUID.String())
 }
