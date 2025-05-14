@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/pterm/pterm"
 	"google.golang.org/grpc"
@@ -120,4 +121,15 @@ func displayMigrationProgress(bar *pterm.ProgressbarPrinter, offsetCount uint64)
 		pterm.Info.Printfln("Starting from the beginning")
 	}
 	fmt.Print("\n")
+}
+
+func arbitraryIDToUUID(id string) *qdrant.PointId {
+	// If already a valid UUID, use it directly
+	if _, err := uuid.Parse(id); err == nil {
+		return qdrant.NewIDUUID(id)
+	}
+
+	// Otherwise create a deterministic UUID based on the ID
+	deterministicUUID := uuid.NewSHA1(uuid.NameSpaceURL, []byte(id))
+	return qdrant.NewIDUUID(deterministicUUID.String())
 }
