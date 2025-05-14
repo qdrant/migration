@@ -81,7 +81,7 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.api-key`        | Qdrant API key. Optional.                                                                          |
 | `--qdrant.dense-vector`   | Name of the dense vector in Qdrant. Default: `"dense_vector"`                                      |
 | `--qdrant.id-field`       | Field storing Pinecone IDs in Qdrant. Default: `"__id__"`                                          |
-| `--qdrant.distance`       | Distance metric for the Qdrant collection. `"cosine"` or `"dot"` or `"euclid"`. Default: `"cosine"`|
+| `--qdrant.distance`       | Distance metric for the Qdrant collection. `"cosine"` or `"dot"` or `"euclid"`. Default: `"euclid"`|
 | `--qdrant.document-field` | Field storing Chroma documents in Qdrant. Default: `"document"`                                    |
 
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
