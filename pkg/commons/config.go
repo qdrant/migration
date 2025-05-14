@@ -1,9 +1,9 @@
 package commons
 
 type QdrantConfig struct {
-	Url        string `help:"gRPC URL, e.g. https://your-qdrant-hostname:6334" required:"true"`
 	Collection string `help:"Collection name" required:"true"`
-	APIKey     string `help:"API key for authentication" env:"TARGET_API_KEY"`
+	Url        string `help:"Qdrant gRPC URL" default:"http://localhost:6334"`
+	APIKey     string `help:"API key for authentication"`
 }
 
 type MigrationConfig struct {
@@ -17,7 +17,7 @@ type MigrationConfig struct {
 type MilvusConfig struct {
 	Url           string `help:"Source Milvus URL, e.g. https://your-milvus-hostname" required:"true"`
 	Collection    string `help:"Source collection" required:"true"`
-	APIKey        string `help:"Source API key" env:"SOURCE_API_KEY"`
+	APIKey        string `help:"Source API key"`
 	EnableTLSAuth bool   `help:"Enable TLS Auth for Milvus" default:"false"`
 	Username      string `help:"Milvus username"`
 	Password      string `help:"Milvus password"`
