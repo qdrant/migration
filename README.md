@@ -34,9 +34,9 @@ docker pull registry.cloud.qdrant.io/library/qdrant-migration
 
 <details>
 
-<summary><h3>From Qdrant</h3></summary>
+<summary><h3>From Chroma</h3></summary>
 
-Migrate data from a **Qdrant** database to **Qdrant**:
+Migrate data from a **Chroma** database to **Qdrant**:
 
 ### 📥 Example
 
@@ -47,7 +47,7 @@ migration chroma \
     --qdrant.url 'https://example.cloud-region.cloud-provider.cloud.qdrant.io:6334' \
     --qdrant.api-key 'optional-qdrant-api-key' \
     --qdrant.collection 'target-collection' \
-    --migration.batch-size 10
+    --migration.batch-size 64
 ````
 
 With Docker:
@@ -55,11 +55,7 @@ With Docker:
 ```bash
 docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration chroma \
     --chroma.url=http://localhost:8000
-    --chroma.collection 'collection-name' \
-    --qdrant.url 'https://example.cloud-region.cloud-provider.cloud.qdrant.io:6334' \
-    --qdrant.api-key 'optional-qdrant-api-key' \
-    --qdrant.collection 'target-collection' \
-    --migration.batch-size 10
+    ...
 ```
 
 ### Chroma Options
@@ -118,7 +114,6 @@ With Docker:
 ```bash
 docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration pinecone \
     --pinecone.host 'https://example-index-12345.svc.region.pinecone.io' \
-    --pinecone.api-key 'optional-pinecone-api-key' \
     ...
 ```
 
