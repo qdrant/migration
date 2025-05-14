@@ -7,9 +7,10 @@ CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for res
 
 ## Supported Sources
 
+* [Chroma](https://trychroma.com/)
 * [Pinecone](https://www.pinecone.io/)
-* [Milvus](https://milvus.io)
-* Another [Qdrant](http://qdrant.tech) instance
+* [Milvus](https://milvus.io/)
+* Another [Qdrant](http://qdrant.tech/) instance
 
 ## Installation
 
@@ -41,7 +42,7 @@ Migrate data from a **Qdrant** database to **Qdrant**:
 
 ```bash
 migration chroma \
-    --chroma.collection 'collection-name' \
+    --chroma.url=http://localhost:8000
     --chroma.collection 'collection-name' \
     --qdrant.url 'https://example.cloud-region.cloud-provider.cloud.qdrant.io:6334' \
     --qdrant.api-key 'optional-qdrant-api-key' \
@@ -52,36 +53,44 @@ migration chroma \
 With Docker:
 
 ```bash
-docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration pinecone \
-    --pinecone.host 'https://example-index-12345.svc.region.pinecone.io' \
-    --pinecone.api-key 'optional-pinecone-api-key' \
-    ...
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration chroma \
+    --chroma.url=http://localhost:8000
+    --chroma.collection 'collection-name' \
+    --qdrant.url 'https://example.cloud-region.cloud-provider.cloud.qdrant.io:6334' \
+    --qdrant.api-key 'optional-qdrant-api-key' \
+    --qdrant.collection 'target-collection' \
+    --migration.batch-size 10
 ```
 
-#### Pinecone Options
+### Chroma Options
 
-| Flag                            | Description                                                     |
-| ------------------------------- | --------------------------------------------------------------- |
-| `--pinecone.api-key`            | Pinecone API key for authentication                             |
-| `--pinecone.host`               | Pinecone index host URL (e.g., `https://your-pinecone-url`)     |
-| `--pinecone.namespace`          | Namespace of the partition to migrate                           |
+| Flag                    | Description                                                              |
+| ----------------------- | ------------------------------------------------------------------------ |
+| `--chroma.collection`   | Chroma collection name.                                                  |
+| `--chroma.url`          | Chroma server URL Default: `"http://localhost:8000"`                     |
+| `--chroma.tenant`       | Chroma tenant. Optional.                                                 |
+| `--chroma.auth-type`    | Authentication type. `"basic"` or `"token"`. Optional.                   |
+| `--chroma.username`     | Username for basic authentication. Optional.                             |
+| `--chroma.password`     | Password for basic authentication. Optional.                             |
+| `--chroma.token`        | Token for token authentication. Optional.                                |
+| `--chroma.token-header` | Token header for authentication. Optional.                               |
+| `--chroma.database`     | Database name. Optional.                                                 |
 
-#### Qdrant Options
+### Qdrant Options
 
-| Flag                            | Description                                                     |
-| ------------------------------- | --------------------------------------------------------------- |
-| `--qdrant.url`                  | Qdrant gRPC URL (e.g. `https://your-qdrant-hostname:6334`)      |
-| `--qdrant.collection`           | Target collection name                                          |
-| `--qdrant.api-key`              | Qdrant API key                                                  |
-| `--qdrant.dense-vector`         | Name of the dense vector in Qdrant. Default: `"dense_vector"`   |
-| `--qdrant.sparse-vector`        | Name of the sparse vector in Qdrant. Default: `"sparse_vector"` |
-| `--qdrant.id-field`             | Field storing Pinecone IDs in Qdrant. Default: `"__id__"`       |
+| Flag                      | Description                                                                                        |
+| ------------------------- | -------------------------------------------------------------------------------------------------- |
+| `--qdrant.collection`     | Target collection name.                                                                            |
+| `--qdrant.url`            | Qdrant gRPC URL. Default: `"http://localhost:6334"`                                                |
+| `--qdrant.api-key`        | Qdrant API key. Optional.                                                                          |
+| `--qdrant.dense-vector`   | Name of the dense vector in Qdrant. Default: `"dense_vector"`                                      |
+| `--qdrant.id-field`       | Field storing Pinecone IDs in Qdrant. Default: `"__id__"`                                          |
+| `--qdrant.distance`       | Distance metric for the Qdrant collection. `"cosine"` or `"dot"` or `"euclid"`. Default: `"cosine"`|
+| `--qdrant.document-field` | Field storing Chroma documents in Qdrant. Default: `"document"`                                    |
 
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
 
 </details>
-
-<details>
 
 <details>
 
@@ -125,8 +134,8 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 
 | Flag                            | Description                                                     |
 | ------------------------------- | --------------------------------------------------------------- |
-| `--qdrant.url`                  | Qdrant gRPC URL (e.g. `https://your-qdrant-hostname:6334`)      |
 | `--qdrant.collection`           | Target collection name                                          |
+| `--qdrant.url`                  | Qdrant gRPC URL. Default: `"http://localhost:6334"`             |
 | `--qdrant.api-key`              | Qdrant API key                                                  |
 | `--qdrant.dense-vector`         | Name of the dense vector in Qdrant. Default: `"dense_vector"`   |
 | `--qdrant.sparse-vector`        | Name of the sparse vector in Qdrant. Default: `"sparse_vector"` |
@@ -181,7 +190,7 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 
 | Flag                            | Description                                                     |
 | ------------------------------- | --------------------------------------------------------------- |
-| `--qdrant.url`                  | Qdrant gRPC URL (e.g. `https://your-qdrant-hostname:6334`)      |
+| `--qdrant.url`                  | Qdrant gRPC URL. Default: `"http://localhost:6334"`             |
 | `--qdrant.collection`           | Target collection name                                          |
 | `--qdrant.api-key`              | Qdrant API key                                                  |
 
@@ -219,16 +228,16 @@ NOTE: If the target collection already exists, its vector size and dimensions mu
 
 | Flag                  | Description                                                |
 | --------------------- | ---------------------------------------------------------- |
-| `--source.url`        | Source gRPC URL (e.g. `https://your-qdrant-hostname:6334`) |
 | `--source.collection` | Source collection name                                     |
+| `--source.url`        | Source gRPC URL. Default: `"http://localhost:6334"`        |
 | `--source.api-key`    | API key for source instance                                |
 
 #### Target Qdrant Options
 
 | Flag                  | Description                                                |
 | --------------------- | ---------------------------------------------------------- |
-| `--target.url`        | Target gRPC URL (e.g. `https://your-qdrant-hostname:6334`) |
 | `--target.collection` | Target collection name                                     |
+| `--target.url`        | Target gRPC URL. Default: `"http://localhost:6334"`        |
 | `--target.api-key`    | API key for target instance                                |
 
 See [Shared Migration Options](#shared-migration-options) for shared parameters.
