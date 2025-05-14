@@ -33,6 +33,58 @@ docker pull registry.cloud.qdrant.io/library/qdrant-migration
 
 <details>
 
+<summary><h3>From Qdrant</h3></summary>
+
+Migrate data from a **Qdrant** database to **Qdrant**:
+
+### 📥 Example
+
+```bash
+migration chroma \
+    --chroma.collection 'collection-name' \
+    --chroma.collection 'collection-name' \
+    --qdrant.url 'https://example.cloud-region.cloud-provider.cloud.qdrant.io:6334' \
+    --qdrant.api-key 'optional-qdrant-api-key' \
+    --qdrant.collection 'target-collection' \
+    --migration.batch-size 10
+````
+
+With Docker:
+
+```bash
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration pinecone \
+    --pinecone.host 'https://example-index-12345.svc.region.pinecone.io' \
+    --pinecone.api-key 'optional-pinecone-api-key' \
+    ...
+```
+
+#### Pinecone Options
+
+| Flag                            | Description                                                     |
+| ------------------------------- | --------------------------------------------------------------- |
+| `--pinecone.api-key`            | Pinecone API key for authentication                             |
+| `--pinecone.host`               | Pinecone index host URL (e.g., `https://your-pinecone-url`)     |
+| `--pinecone.namespace`          | Namespace of the partition to migrate                           |
+
+#### Qdrant Options
+
+| Flag                            | Description                                                     |
+| ------------------------------- | --------------------------------------------------------------- |
+| `--qdrant.url`                  | Qdrant gRPC URL (e.g. `https://your-qdrant-hostname:6334`)      |
+| `--qdrant.collection`           | Target collection name                                          |
+| `--qdrant.api-key`              | Qdrant API key                                                  |
+| `--qdrant.dense-vector`         | Name of the dense vector in Qdrant. Default: `"dense_vector"`   |
+| `--qdrant.sparse-vector`        | Name of the sparse vector in Qdrant. Default: `"sparse_vector"` |
+| `--qdrant.id-field`             | Field storing Pinecone IDs in Qdrant. Default: `"__id__"`       |
+
+* See [Shared Migration Options](#shared-migration-options) for common migration parameters.
+
+</details>
+
+<details>
+
+<details>
+
 <summary><h3>From Pinecone</h3></summary>
 
 Migrate data from a **Pinecone** database to **Qdrant**:
