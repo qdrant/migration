@@ -2,14 +2,12 @@
 
 **Note: This project is in beta. The API may change in future releases.**
 
-This tool helps to migrate data to Qdrant from other sources. It will stream all vectors from a collection in the source Qdrant instance to the target Qdrant instance.
-
-The target collection can have a different replication or sharding configuration, expect the vector size and distance need to be the same.
+Easily move your data to Qdrant from other vector storages. With support for resumable migration, even interrupted processes can continue smoothly.
 
 Supported sources:
 
 * Milvus
-* Another Qdrant instances
+* Another Qdrant instance
 
 ## Installation
 

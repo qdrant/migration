@@ -18,17 +18,9 @@ import (
 )
 
 type MigrateFromQdrantCmd struct {
-	SourceUrl                      string `help:"Source gRPC URL, e.g. https://your-qdrant-hostname:6334" required:"true"`
-	SourceCollection               string `help:"Source collection" required:"true"`
-	SourceAPIKey                   string `help:"Source API key" env:"SOURCE_API_KEY"`
-	TargetUrl                      string `help:"Target gRPC URL, e.g. https://your-qdrant-hostname:6334" required:"true"`
-	TargetCollection               string `help:"Target collection" required:"true"`
-	TargetAPIKey                   string `help:"Target API key" env:"TARGET_API_KEY"`
-	BatchSize                      uint32 `short:"b" help:"Batch size" default:"50"`
-	CreateTargetCollection         bool   `short:"c" help:"Create the target collection if it does not exist" default:"false"`
-	EnsurePayloadIndexes           bool   `help:"Ensure payload indexes are created" default:"true"`
-	MigrationOffsetsCollectionName string `help:"Collection where the current migration offset should be stored" default:"_migration_offsets"`
-	RestartMigration               bool   `help:"Restart the migration and do not continue from last offset" default:"false"`
+	Source    commons.QdrantConfig    `embed:"" prefix:"source."`
+	Target    commons.QdrantConfig    `embed:"" prefix:"target."`
+	Migration commons.MigrationConfig `embed:"" prefix:"migration."`
 
 	sourceHost string
 	sourcePort int
@@ -39,7 +31,7 @@ type MigrateFromQdrantCmd struct {
 }
 
 func (r *MigrateFromQdrantCmd) Parse() error {
-	sourceUrl, err := url.Parse(r.SourceUrl)
+	sourceUrl, err := url.Parse(r.Source.Url)
 	if err != nil {
 		return fmt.Errorf("failed to parse source URL: %w", err)
 	}
@@ -51,7 +43,7 @@ func (r *MigrateFromQdrantCmd) Parse() error {
 		return fmt.Errorf("failed to parse source port: %w", err)
 	}
 
-	targetUrl, err := url.Parse(r.TargetUrl)
+	targetUrl, err := url.Parse(r.Target.Url)
 	if err != nil {
 		return fmt.Errorf("failed to parse target URL: %w", err)
 	}
@@ -67,7 +59,7 @@ func (r *MigrateFromQdrantCmd) Parse() error {
 }
 
 func (r *MigrateFromQdrantCmd) Validate() error {
-	if r.BatchSize < 1 {
+	if r.Migration.BatchSize < 1 {
 		return fmt.Errorf("batch size must be greater than 0")
 	}
 
@@ -75,7 +67,7 @@ func (r *MigrateFromQdrantCmd) Validate() error {
 }
 
 func (r *MigrateFromQdrantCmd) ValidateParsedValues() error {
-	if r.sourceHost == r.targetHost && r.sourcePort == r.targetPort && r.SourceCollection == r.TargetCollection {
+	if r.sourceHost == r.targetHost && r.sourcePort == r.targetPort && r.Source.Collection == r.Target.Collection {
 		return fmt.Errorf("source and target collections must be different")
 	}
 
@@ -97,35 +89,35 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	sourceClient, err := connectToQdrant(globals, r.sourceHost, r.sourcePort, r.SourceAPIKey, r.sourceTLS)
+	sourceClient, err := connectToQdrant(globals, r.sourceHost, r.sourcePort, r.Source.APIKey, r.sourceTLS)
 	if err != nil {
 		return fmt.Errorf("failed to connect to source: %w", err)
 	}
-	targetClient, err := connectToQdrant(globals, r.targetHost, r.targetPort, r.TargetAPIKey, r.targetTLS)
+	targetClient, err := connectToQdrant(globals, r.targetHost, r.targetPort, r.Target.APIKey, r.targetTLS)
 	if err != nil {
 		return fmt.Errorf("failed to connect to target: %w", err)
 	}
 
-	err = commons.PrepareMigrationOffsetsCollection(ctx, r.MigrationOffsetsCollectionName, targetClient)
+	err = commons.PrepareMigrationOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient)
 	if err != nil {
 		return fmt.Errorf("failed to prepare migration marker collection: %w", err)
 	}
 
 	sourcePointCount, err := sourceClient.Count(ctx, &qdrant.CountPoints{
-		CollectionName: r.SourceCollection,
+		CollectionName: r.Source.Collection,
 		Exact:          qdrant.PtrOf(true),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to count points in source: %w", err)
 	}
 
-	err = r.perpareTargetCollection(ctx, sourceClient, r.SourceCollection, targetClient, r.TargetCollection)
+	err = r.perpareTargetCollection(ctx, sourceClient, r.Source.Collection, targetClient, r.Target.Collection)
 	if err != nil {
 		return fmt.Errorf("error preparing target collection: %w", err)
 	}
 
 	targetPointCount, err := targetClient.Count(ctx, &qdrant.CountPoints{
-		CollectionName: r.TargetCollection,
+		CollectionName: r.Target.Collection,
 		Exact:          qdrant.PtrOf(true),
 	})
 	if err != nil {
@@ -136,17 +128,17 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 
 	_ = pterm.DefaultTable.WithHasHeader().WithData(pterm.TableData{
 		{"Type", "Provider", "Collection", "Points"},
-		{"Source", "qdrant", r.SourceCollection, strconv.FormatUint(sourcePointCount, 10)},
-		{"Target", "qdrant", r.TargetCollection, strconv.FormatUint(targetPointCount, 10)},
+		{"Source", "qdrant", r.Source.Collection, strconv.FormatUint(sourcePointCount, 10)},
+		{"Target", "qdrant", r.Target.Collection, strconv.FormatUint(targetPointCount, 10)},
 	}).Render()
 
-	err = r.migrateData(ctx, sourceClient, r.SourceCollection, targetClient, r.TargetCollection, sourcePointCount)
+	err = r.migrateData(ctx, sourceClient, r.Source.Collection, targetClient, r.Target.Collection, sourcePointCount)
 	if err != nil {
 		return fmt.Errorf("failed to migrate data: %w", err)
 	}
 
 	targetPointCount, err = targetClient.Count(ctx, &qdrant.CountPoints{
-		CollectionName: r.TargetCollection,
+		CollectionName: r.Target.Collection,
 		Exact:          qdrant.PtrOf(true),
 	})
 	if err != nil {
@@ -164,7 +156,7 @@ func (r *MigrateFromQdrantCmd) perpareTargetCollection(ctx context.Context, sour
 		return fmt.Errorf("failed to get source collection info: %w", err)
 	}
 
-	if r.CreateTargetCollection {
+	if r.Migration.CreateCollection {
 		targetCollectionExists, err := targetClient.CollectionExists(ctx, targetCollection)
 		if err != nil {
 			return fmt.Errorf("failed to check if collection exists: %w", err)
@@ -200,7 +192,7 @@ func (r *MigrateFromQdrantCmd) perpareTargetCollection(ctx context.Context, sour
 		return fmt.Errorf("failed to get target collection information: %w", err)
 	}
 
-	if r.EnsurePayloadIndexes {
+	if r.Migration.EnsurePayloadIndexes {
 		for name, schemaInfo := range sourceCollectionInfo.GetPayloadSchema() {
 			fieldType := getFieldType(schemaInfo.GetDataType())
 			if fieldType == nil {
@@ -215,7 +207,7 @@ func (r *MigrateFromQdrantCmd) perpareTargetCollection(ctx context.Context, sour
 			_, err = targetClient.CreateFieldIndex(
 				ctx,
 				&qdrant.CreateFieldIndexCollection{
-					CollectionName:   r.TargetCollection,
+					CollectionName:   r.Target.Collection,
 					FieldName:        name,
 					FieldType:        fieldType,
 					FieldIndexParams: schemaInfo.GetParams(),
@@ -255,8 +247,8 @@ func getFieldType(dataType qdrant.PayloadSchemaType) *qdrant.FieldType {
 
 func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string, sourcePointCount uint64) error {
 	startTime := time.Now()
-	limit := r.BatchSize
-	offset, offsetCount, err := commons.GetStartOffset(ctx, r.MigrationOffsetsCollectionName, targetClient, sourceCollection, r.RestartMigration)
+	limit := uint32(r.Migration.BatchSize)
+	offset, offsetCount, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, sourceCollection, r.Migration.Restart)
 	if err != nil {
 		return fmt.Errorf("failed to get start offset: %w", err)
 	}
@@ -353,7 +345,7 @@ func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qd
 
 		offsetCount += uint64(len(points))
 
-		err = commons.StoreStartOffset(ctx, r.MigrationOffsetsCollectionName, targetClient, sourceCollection, offset, offsetCount)
+		err = commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, sourceCollection, offset, offsetCount)
 		if err != nil {
 			return fmt.Errorf("failed to store offset: %w", err)
 		}
