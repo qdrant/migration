@@ -24,10 +24,7 @@ func PrepareOffsetsCollection(ctx context.Context, migrationOffsetsCollectionNam
 	})
 }
 
-func GetStartOffset(ctx context.Context, migrationOffsetsCollectionName string, targetClient *qdrant.Client, sourceCollection string, restartMigration bool) (*qdrant.PointId, uint64, error) {
-	if restartMigration {
-		return nil, 0, nil
-	}
+func GetStartOffset(ctx context.Context, migrationOffsetsCollectionName string, targetClient *qdrant.Client, sourceCollection string) (*qdrant.PointId, uint64, error) {
 	point, err := getOffsetPoint(ctx, migrationOffsetsCollectionName, targetClient, sourceCollection)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get start offset point: %w", err)

@@ -9,6 +9,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2
 	github.com/milvus-io/milvus/client/v2 v2.5.3
+	github.com/pinecone-io/go-pinecone/v3 v3.1.0
 	github.com/pterm/pterm v0.12.80
 	github.com/qdrant/go-client v1.14.0
 	google.golang.org/grpc v1.72.0
@@ -18,6 +19,7 @@ require (
 	atomicgo.dev/cursor v0.2.0 // indirect
 	atomicgo.dev/keyboard v0.2.9 // indirect
 	atomicgo.dev/schedule v0.1.0 // indirect
+	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
@@ -60,6 +62,7 @@ require (
 	github.com/milvus-io/milvus/pkg/v2 v2.5.7 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/oapi-codegen/runtime v1.1.1 // indirect
 	github.com/opencontainers/runtime-spec v1.0.2 // indirect
 	github.com/panjf2000/ants/v2 v2.7.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect

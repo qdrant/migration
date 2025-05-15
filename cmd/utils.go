@@ -97,7 +97,7 @@ func displayMigrationStart(sourceProvider, sourceCollection, targetCollection st
 	pterm.DefaultSection.Println("Starting Migration To Qdrant")
 
 	from := fmt.Sprintf("%s@%s", sourceCollection, sourceProvider)
-	to := fmt.Sprintf("%s@Qdrant", targetCollection)
+	to := fmt.Sprintf("%s@qdrant", targetCollection)
 
 	table := pterm.TableData{
 		{pterm.FgLightCyan.Sprint("From → To:"), pterm.FgLightGreen.Sprintf("%s  →  %s", from, to)},
