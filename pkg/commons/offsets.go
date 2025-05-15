@@ -10,7 +10,7 @@ import (
 	"github.com/qdrant/go-client/qdrant"
 )
 
-func PrepareMigrationOffsetsCollection(ctx context.Context, migrationOffsetsCollectionName string, targetClient *qdrant.Client) error {
+func PrepareOffsetsCollection(ctx context.Context, migrationOffsetsCollectionName string, targetClient *qdrant.Client) error {
 	migrationOffsetCollectionExists, err := targetClient.CollectionExists(ctx, migrationOffsetsCollectionName)
 	if err != nil {
 		return fmt.Errorf("failed to check if collection exists: %w", err)
@@ -85,7 +85,7 @@ func StoreStartOffset(ctx context.Context, migrationOffsetsCollectionName string
 	payload := qdrant.NewValueMap(map[string]any{
 		sourceCollection + "_offset":       offsetId,
 		sourceCollection + "_offsetCount":  offsetCount,
-		sourceCollection + "_lastUpsertAt": time.Now().Format("2006-01-02 15:04:05"),
+		sourceCollection + "_lastUpsertAt": time.Now().Format(time.RFC3339),
 	})
 
 	_, err = targetClient.Upsert(ctx, &qdrant.UpsertPoints{

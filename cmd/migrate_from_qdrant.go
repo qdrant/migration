@@ -98,7 +98,7 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 		return fmt.Errorf("failed to connect to target: %w", err)
 	}
 
-	err = commons.PrepareMigrationOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient)
+	err = commons.PrepareOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient)
 	if err != nil {
 		return fmt.Errorf("failed to prepare migration marker collection: %w", err)
 	}
