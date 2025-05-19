@@ -18,6 +18,7 @@ type CLI struct {
 	Globals
 
 	Qdrant MigrateFromQdrantCmd `cmd:"" help:"Migrate data from a Qdrant database to Qdrant."`
+	Milvus MigrateFromMilvusCmd `cmd:"" help:"Migrate data from a Milvus database to Qdrant."`
 }
 
 func Execute(projectVersion, projectBuild string) {

@@ -8,11 +8,12 @@ The target collection can have a different replication or sharding configuration
 
 Supported sources:
 
-* Other Qdrant instances
+* Milvus
+* Another Qdrant instances
 
 ## Installation
 
-The easiest way to run the qdrant-migration tool is as a container. You can run it any machine where you have connectivity to both the source and the target Qdrant databases. Direct connectivity between both databases is not required. For optimal performance, you should run the tool on a machine with a fast network connection and minimum latency to both databases.
+The easiest way to run the qdrant-migration tool is as a container. You can run it any machine where you have connectivity to both the source and the target Qdrant databases. For optimal performance, you should run the tool on a machine with a fast network connection and minimum latency to both databases.
 
 To pull the latest image run:
 
