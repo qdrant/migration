@@ -2,17 +2,18 @@
 
 CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for resumable transfers in case of interruptions.
 
-> [!WARNING]  
-> This project is in beta. The API may change in future releases.
+Easily move your data to Qdrant from other vector storages. With support for resumable migration, even interrupted processes can continue smoothly.
 
-## Supported Sources
+Supported sources:
 
-* [Milvus](https://milvus.io)
-* Another [Qdrant](http://qdrant.tech) instance
+* Milvus
+* Another Qdrant instance
 
 ## Installation
 
-You can run this tool on any machine with connectivity to both the source and the Qdrant database. For best performance, use a machine with a fast network and minimal latency to both endpoints.
+The easiest way to run the qdrant-migration tool is as a container. You can run it any machine where you have connectivity to both the source and the target Qdrant databases. For optimal performance, you should run the tool on a machine with a fast network connection and minimum latency to both databases.
+
+To pull the latest image run:
 
 #### Binaries
 
@@ -23,7 +24,29 @@ Each release includes **precompiled binaries** for all major OS and CPU architec
 To get the latest Docker image run the following command.
 
 ```bash
-docker pull registry.cloud.qdrant.io/library/qdrant-migration
+$ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration qdrant --help
+Usage: migration qdrant --source-url=STRING --source-collection=STRING --target-url=STRING --target-collection=STRING [flags]
+
+Migrate data from a Qdrant database to Qdrant.
+
+Flags:
+  -h, --help                                                      Show context-sensitive help.
+      --debug                                                     Enable debug mode.
+      --trace                                                     Enable trace mode.
+      --skip-tls-verification                                     Skip TLS verification.
+      --version                                                   Print version information and quit
+
+      --source-url=STRING                                         Source gRPC URL, e.g. https://your-qdrant-hostname:6334
+      --source-collection=STRING                                  Source collection
+      --source-api-key=STRING                                     Source API key ($SOURCE_API_KEY)
+      --target-url=STRING                                         Target gRPC URL, e.g. https://your-qdrant-hostname:6334
+      --target-collection=STRING                                  Target collection
+      --target-api-key=STRING                                     Target API key ($TARGET_API_KEY)
+  -b, --batch-size=50                                             Batch size
+  -c, --create-target-collection                                  Create the target collection if it does not exist
+      --ensure-payload-indexes                                    Ensure payload indexes are created
+      --migration-offsets-collection-name="_migration_offsets"    Collection where the current migration offset should be stored
+      --restart-migration                                         Restart the migration and do not continue from last offset
 ```
 
 ## How To Migrate?
