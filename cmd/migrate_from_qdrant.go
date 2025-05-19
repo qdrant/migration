@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/pterm/pterm"
 	"google.golang.org/grpc"
