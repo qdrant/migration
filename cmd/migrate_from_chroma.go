@@ -85,7 +85,7 @@ func (r *MigrateFromChromaCmd) Run(globals *Globals) error {
 		return fmt.Errorf("error preparing target collection: %w", err)
 	}
 
-	displayMigrationStart("chroma", *r.Chroma.Collection, r.Qdrant.Collection)
+	displayMigrationStart("chroma", r.Chroma.Collection, r.Qdrant.Collection)
 
 	err = r.migrateData(ctx, sourceCollection, targetClient, sourcePointCount)
 	if err != nil {
@@ -106,26 +106,26 @@ func (r *MigrateFromChromaCmd) Run(globals *Globals) error {
 }
 
 func (r *MigrateFromChromaCmd) parseChromaOptions() ([]chroma.ClientOption, error) {
-	clientOptions := []chroma.ClientOption{chroma.WithBaseURL(*r.Chroma.Url)}
+	clientOptions := []chroma.ClientOption{chroma.WithBaseURL(r.Chroma.Url)}
 
-	if r.Chroma.Database != nil && r.Chroma.Tenant != nil {
-		clientOptions = append(clientOptions, chroma.WithDatabaseAndTenant(*r.Chroma.Database, *r.Chroma.Tenant))
-	} else if r.Chroma.Tenant != nil {
-		clientOptions = append(clientOptions, chroma.WithTenant(*r.Chroma.Tenant))
+	if r.Chroma.Database != "" && r.Chroma.Tenant != "" {
+		clientOptions = append(clientOptions, chroma.WithDatabaseAndTenant(r.Chroma.Database, r.Chroma.Tenant))
+	} else if r.Chroma.Tenant != "" {
+		clientOptions = append(clientOptions, chroma.WithTenant(r.Chroma.Tenant))
 	}
 
-	switch *r.Chroma.AuthType {
+	switch r.Chroma.AuthType {
 	case "basic":
-		if r.Chroma.Username == nil || r.Chroma.Password == nil {
+		if r.Chroma.Username == "" || r.Chroma.Password == "" {
 			return nil, errors.New("username and password are required for basic authentication")
 		}
-		authProvider := chroma.NewBasicAuthCredentialsProvider(*r.Chroma.Username, *r.Chroma.Password)
+		authProvider := chroma.NewBasicAuthCredentialsProvider(r.Chroma.Username, r.Chroma.Password)
 		clientOptions = append(clientOptions, chroma.WithAuth(authProvider))
 	case "token":
-		if r.Chroma.Token == nil {
+		if r.Chroma.Token == "" {
 			return nil, errors.New("token is required for token authentication")
 		}
-		authProvider := chroma.NewTokenAuthCredentialsProvider(*r.Chroma.Token, chroma.TokenTransportHeader(*r.Chroma.TokenHeader))
+		authProvider := chroma.NewTokenAuthCredentialsProvider(r.Chroma.Token, chroma.TokenTransportHeader(r.Chroma.TokenHeader))
 		clientOptions = append(clientOptions, chroma.WithAuth(authProvider))
 	}
 
@@ -142,7 +142,7 @@ func (r *MigrateFromChromaCmd) connectToChroma(ctx context.Context) (chroma.Clie
 		return nil, nil, fmt.Errorf("failed to create Chroma client: %w", err)
 	}
 
-	collection, err := client.GetOrCreateCollection(ctx, *r.Chroma.Collection)
+	collection, err := client.GetOrCreateCollection(ctx, r.Chroma.Collection)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get Chroma collection: %w", err)
 	}
@@ -205,7 +205,7 @@ func (r *MigrateFromChromaCmd) migrateData(ctx context.Context, collection chrom
 	var currentOffset uint64 = 0
 
 	if !r.Migration.Restart {
-		_, offsetStored, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, *r.Chroma.Collection)
+		_, offsetStored, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.Chroma.Collection)
 		if err != nil {
 			return fmt.Errorf("failed to get start offset: %w", err)
 		}
@@ -288,7 +288,7 @@ func (r *MigrateFromChromaCmd) migrateData(ctx context.Context, collection chrom
 		// Just a placeholder ID for offset tracking.
 		// We're only using the offset count
 		offsetId := qdrant.NewIDNum(0)
-		err = commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, *r.Chroma.Collection, offsetId, currentOffset)
+		err = commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.Chroma.Collection, offsetId, currentOffset)
 		if err != nil {
 			return fmt.Errorf("failed to store offset: %w", err)
 		}
