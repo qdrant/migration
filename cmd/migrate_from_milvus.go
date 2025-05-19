@@ -310,7 +310,6 @@ func (r *MigrateFromMilvusCmd) migrateData(ctx context.Context, sourceClient *mi
 	}
 
 	pterm.Success.Printfln("Data migration finished successfully")
-
 	return nil
 }
 
