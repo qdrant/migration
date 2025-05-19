@@ -303,13 +303,14 @@ func (r *MigrateFromMilvusCmd) migrateData(ctx context.Context, sourceClient *mi
 		if time.Since(startTime) > time.Minute {
 			sourcePointCount, err = r.countMilvusVectors(ctx, sourceClient)
 			if err != nil {
-				return fmt.Errorf("failed to count points in source: %w", err)
+				return fmt.Errorf("failed to count vectors in Milvus: %w", err)
 			}
 			bar.Total = int(sourcePointCount)
 		}
 	}
 
 	pterm.Success.Printfln("Data migration finished successfully")
+
 	return nil
 }
 

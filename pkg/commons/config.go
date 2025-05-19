@@ -9,7 +9,7 @@ type QdrantConfig struct {
 type MigrationConfig struct {
 	BatchSize            int    `short:"b" help:"Batch size" default:"50"`
 	Restart              bool   `help:"Restart the migration and do not continue from last offset" default:"false"`
-	CreateCollection     bool   `short:"c" help:"Create the collection if it does not exist" default:"false"`
+	CreateCollection     bool   `short:"c" help:"Create the collection if it does not exist" default:"true"`
 	EnsurePayloadIndexes bool   `help:"Ensure payload indexes are created" default:"true"`
 	OffsetsCollection    string `help:"Collection to store the current migration offset" default:"_migration_offsets"`
 }
@@ -23,4 +23,10 @@ type MilvusConfig struct {
 	Password      string `help:"Milvus password"`
 	DBName        string `help:"Milvus database name"`
 	ServerVersion string `help:"Milvus server version"`
+}
+
+type PineconeConfig struct {
+	APIKey    string `required:"true"  help:"Pinecone API key for authentication"`
+	Host      string `required:"true"  help:"Pinecone index host URL (e.g., https://example-index-12345.svc.region.pinecone.io)"`
+	Namespace string `help:"Namespace of the partition to migrate"`
 }

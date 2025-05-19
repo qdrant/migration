@@ -2,18 +2,18 @@
 
 CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for resumable transfers in case of interruptions.
 
-Easily move your data to Qdrant from other vector storages. With support for resumable migration, even interrupted processes can continue smoothly.
+> [!WARNING]  
+> This project is in beta. The API may change in future releases.
 
-Supported sources:
+## Supported Sources
 
-* Milvus
-* Another Qdrant instance
+* [Pinecone](https://www.pinecone.io/)
+* [Milvus](https://milvus.io)
+* Another [Qdrant](http://qdrant.tech) instance
 
 ## Installation
 
-The easiest way to run the qdrant-migration tool is as a container. You can run it any machine where you have connectivity to both the source and the target Qdrant databases. For optimal performance, you should run the tool on a machine with a fast network connection and minimum latency to both databases.
-
-To pull the latest image run:
+You can run this tool on any machine with connectivity to both the source and the Qdrant database. For best performance, use a machine with a fast network and minimal latency to both endpoints.
 
 #### Binaries
 
@@ -24,34 +24,65 @@ Each release includes **precompiled binaries** for all major OS and CPU architec
 To get the latest Docker image run the following command.
 
 ```bash
-$ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration qdrant --help
-Usage: migration qdrant --source-url=STRING --source-collection=STRING --target-url=STRING --target-collection=STRING [flags]
-
-Migrate data from a Qdrant database to Qdrant.
-
-Flags:
-  -h, --help                                                      Show context-sensitive help.
-      --debug                                                     Enable debug mode.
-      --trace                                                     Enable trace mode.
-      --skip-tls-verification                                     Skip TLS verification.
-      --version                                                   Print version information and quit
-
-      --source-url=STRING                                         Source gRPC URL, e.g. https://your-qdrant-hostname:6334
-      --source-collection=STRING                                  Source collection
-      --source-api-key=STRING                                     Source API key ($SOURCE_API_KEY)
-      --target-url=STRING                                         Target gRPC URL, e.g. https://your-qdrant-hostname:6334
-      --target-collection=STRING                                  Target collection
-      --target-api-key=STRING                                     Target API key ($TARGET_API_KEY)
-  -b, --batch-size=50                                             Batch size
-  -c, --create-target-collection                                  Create the target collection if it does not exist
-      --ensure-payload-indexes                                    Ensure payload indexes are created
-      --migration-offsets-collection-name="_migration_offsets"    Collection where the current migration offset should be stored
-      --restart-migration                                         Restart the migration and do not continue from last offset
+docker pull registry.cloud.qdrant.io/library/qdrant-migration
 ```
 
 ## How To Migrate?
 
 > Click each to expand
+
+<details>
+
+<summary><h3>From Pinecone</h3></summary>
+
+Migrate data from a **Pinecone** database to **Qdrant**:
+
+> IMPORTANT ⚠️
+> Only Pinecone serverless indexes support listing all vectors for migration. [Reference](https://docs.pinecone.io/reference/api/2025-01/data-plane/list)
+
+### 📥 Example
+
+```bash
+migration pinecone \
+    --pinecone.host 'https://example-index-12345.svc.region.pinecone.io' \
+    --pinecone.api-key 'optional-pinecone-api-key' \
+    --qdrant.url 'https://example.cloud-region.cloud-provider.cloud.qdrant.io:6334' \
+    --qdrant.api-key 'optional-qdrant-api-key' \
+    --qdrant.collection 'target-collection' \
+    --migration.batch-size 64
+````
+
+With Docker:
+
+```bash
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration pinecone \
+    --pinecone.host 'https://example-index-12345.svc.region.pinecone.io' \
+    --pinecone.api-key 'optional-pinecone-api-key' \
+    ...
+```
+
+#### Pinecone Options
+
+| Flag                            | Description                                                     |
+| ------------------------------- | --------------------------------------------------------------- |
+| `--pinecone.api-key`            | Pinecone API key for authentication                             |
+| `--pinecone.host`               | Pinecone index host URL (e.g., `https://your-pinecone-url`)     |
+| `--pinecone.namespace`          | Namespace of the partition to migrate                           |
+
+#### Qdrant Options
+
+| Flag                            | Description                                                     |
+| ------------------------------- | --------------------------------------------------------------- |
+| `--qdrant.url`                  | Qdrant gRPC URL (e.g. `https://your-qdrant-hostname:6334`)      |
+| `--qdrant.collection`           | Target collection name                                          |
+| `--qdrant.api-key`              | Qdrant API key                                                  |
+| `--qdrant.dense-vector`         | Name of the dense vector in Qdrant. Default: `"dense_vector"`   |
+| `--qdrant.sparse-vector`        | Name of the sparse vector in Qdrant. Default: `"sparse_vector"` |
+| `--qdrant.id-field`             | Field storing Pinecone IDs in Qdrant. Default: `"__id__"`       |
+
+* See [Shared Migration Options](#shared-migration-options) for common migration parameters.
+
+</details>
 
 <details>
 
@@ -66,8 +97,6 @@ migration milvus \
     --milvus.url 'https://example.gcp-us-west1.cloud.zilliz.com' \
     --milvus.enable-tls-auth \
     --milvus.collection 'example-collection' \
-    --milvus.db-name 'optional-db-name'
-    --milvus.server-version 'optional-server-version'
     --milvus.api-key 'optional-milvus-api-key' \
     --qdrant.url 'https://example.cloud-region.cloud-provider.cloud.qdrant.io:6334' \
     --qdrant.api-key 'optional-qdrant-api-key' \
@@ -98,13 +127,13 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 
 #### Qdrant Options
 
-| Flag                  | Description                                                |
-| --------------------- | ---------------------------------------------------------- |
-| `--qdrant.url`        | Qdrant gRPC URL (e.g. `https://your-qdrant-hostname:6334`) |
-| `--qdrant.collection` | Target collection name                                     |
-| `--qdrant.api-key`    | Qdrant API key                                             |
+| Flag                            | Description                                                     |
+| ------------------------------- | --------------------------------------------------------------- |
+| `--qdrant.url`                  | Qdrant gRPC URL (e.g. `https://your-qdrant-hostname:6334`)      |
+| `--qdrant.collection`           | Target collection name                                          |
+| `--qdrant.api-key`              | Qdrant API key                                                  |
 
-See [Shared Migration Options](#shared-migration-options) for shared parameters.
+* See [Shared Migration Options](#shared-migration-options) for common migration parameters.
 
 </details>
 <details>
@@ -164,4 +193,4 @@ These options apply to all migrations, regardless of the source.
 | `--migration.restart`                | Restart migration without resuming from offset. Default: false       |
 | `--migration.create-collection`      | Create the collection if it doesn't exist. Default: true             |
 | `--migration.ensure-payload-indexes` | Ensure payload indexes exist. Default: true                          |
-| `--migration.offsets-collection`     | Collection to store migration offset. Default: "_migration_offsets" |
+| `--migration.offsets-collection`     | Collection to store migration offset. Default: `"_migration_offsets"` |
