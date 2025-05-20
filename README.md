@@ -75,15 +75,15 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 
 ### Qdrant Options
 
-| Flag                      | Description                                                                                        |
-| ------------------------- | -------------------------------------------------------------------------------------------------- |
-| `--qdrant.collection`     | Target collection name.                                                                            |
-| `--qdrant.url`            | Qdrant gRPC URL. Default: `"http://localhost:6334"`                                                |
-| `--qdrant.api-key`        | Qdrant API key. Optional.                                                                          |
-| `--qdrant.dense-vector`   | Name of the dense vector in Qdrant. Default: `"dense_vector"`                                      |
-| `--qdrant.id-field`       | Field storing Pinecone IDs in Qdrant. Default: `"__id__"`                                          |
-| `--qdrant.distance`       | Distance metric for the Qdrant collection. `"cosine"` or `"dot"` or `"euclid"`. Default: `"euclid"`|
-| `--qdrant.document-field` | Field storing Chroma documents in Qdrant. Default: `"document"`                                    |
+| Flag                      | Description                                                                                                      |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `--qdrant.collection`     | Target collection name.                                                                                          |
+| `--qdrant.url`            | Qdrant gRPC URL. Default: `"http://localhost:6334"`                                                              |
+| `--qdrant.api-key`        | Qdrant API key. Optional.                                                                                        |
+| `--qdrant.dense-vector`   | Name of the dense vector in Qdrant. Default: `"dense_vector"`                                                    |
+| `--qdrant.id-field`       | Field storing Chroma IDs in Qdrant. Default: `"__id__"`                                                          |
+| `--qdrant.distance`       | Distance metric for the Qdrant collection. `"cosine"`, `"dot"`, `"manhattan"` or `"euclid"`. Default: `"euclid"` |
+| `--qdrant.document-field` | Field storing Chroma documents in Qdrant. Default: `"document"`                                                  |
 
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
 
@@ -173,14 +173,15 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 
 | Flag                       | Description                                             |
 | -------------------------- | ------------------------------------------------------- |
-| `--milvus.url`             | Source Milvus URL (e.g. `https://your-milvus-hostname`) |
-| `--milvus.collection`      | Source collection name                                  |
-| `--milvus.api-key`         | Source API key                                          |
-| `--milvus.enable-tls-auth` | Enable TLS Auth                                         |
+| `--milvus.url`             | Milvus URL (e.g. `https://your-milvus-hostname`)        |
+| `--milvus.collection`      | Milvus collection name                                  |
+| `--milvus.api-key`         | Milvus API key for authentication                       |
+| `--milvus.enable-tls-auth` | Whether to enable TLS Auth                              |
 | `--milvus.username`        | Username for Milvus                                     |
 | `--milvus.password`        | Password for Milvus                                     |
-| `--milvus.db-name`         | Milvus database name                                    |
-| `--milvus.server-version`  | Server version                                          |
+| `--milvus.db-name`         | Optional database name                                  |
+| `--milvus.server-version`  | Milvus server version                                   |
+| `--milvus.partitions`      | List of partition names                                 |
 
 #### Qdrant Options
 

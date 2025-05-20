@@ -25,7 +25,7 @@ type MigrateFromChromaCmd struct {
 	Migration     commons.MigrationConfig `embed:"" prefix:"migration."`
 	IdField       string                  `prefix:"qdrant." help:"Field storing Chroma IDs in Qdrant." default:"__id__"`
 	DenseVector   string                  `prefix:"qdrant." help:"Name of the dense vector in Qdrant" default:"dense_vector"`
-	Distance      string                  `prefix:"qdrant." enum:"cosine,dot,euclid" help:"Distance metric for the Qdrant collection" default:"euclid"`
+	Distance      string                  `prefix:"qdrant." enum:"cosine,dot,euclid,manhattan" help:"Distance metric for the Qdrant collection" default:"euclid"`
 	DocumentField string                  `prefix:"qdrant." help:"Field storing Chroma documents in Qdrant." default:"document"`
 
 	targetHost string
@@ -175,9 +175,10 @@ func (r *MigrateFromChromaCmd) prepareTargetCollection(ctx context.Context, coll
 	}
 
 	distanceMapping := map[string]qdrant.Distance{
-		"euclid": qdrant.Distance_Euclid,
-		"cosine": qdrant.Distance_Cosine,
-		"dot":    qdrant.Distance_Dot,
+		"euclid":    qdrant.Distance_Euclid,
+		"cosine":    qdrant.Distance_Cosine,
+		"dot":       qdrant.Distance_Dot,
+		"manhattan": qdrant.Distance_Manhattan,
 	}
 
 	createReq := &qdrant.CreateCollection{

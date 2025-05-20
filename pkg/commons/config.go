@@ -15,14 +15,15 @@ type MigrationConfig struct {
 }
 
 type MilvusConfig struct {
-	Url           string `help:"Source Milvus URL, e.g. https://your-milvus-hostname" required:"true"`
-	Collection    string `help:"Source collection" required:"true"`
-	APIKey        string `help:"Source API key"`
-	EnableTLSAuth bool   `help:"Enable TLS Auth for Milvus" default:"false"`
-	Username      string `help:"Milvus username"`
-	Password      string `help:"Milvus password"`
-	DBName        string `help:"Milvus database name"`
-	ServerVersion string `help:"Milvus server version"`
+	Url           string   `help:"Source Milvus URL, e.g. https://your-milvus-hostname" required:"true"`
+	Collection    string   `help:"Source collection" required:"true"`
+	APIKey        string   `help:"Source API key"`
+	EnableTLSAuth bool     `help:"Enable TLS Auth for Milvus" default:"false"`
+	Username      string   `help:"Milvus username"`
+	Password      string   `help:"Milvus password"`
+	DBName        string   `help:"Milvus database name"`
+	ServerVersion string   `help:"Milvus server version"`
+	Partitions    []string `help:"Milvus partition names"`
 }
 
 type PineconeConfig struct {
