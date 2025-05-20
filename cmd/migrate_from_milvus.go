@@ -222,6 +222,7 @@ func (r *MigrateFromMilvusCmd) migrateData(ctx context.Context, sourceClient *mi
 		}
 
 		result, err := sourceClient.Query(ctx, milvusclient.NewQueryOption(r.Milvus.Collection).
+			WithPartitions(r.Milvus.Partitions...).
 			WithFilter(filter).
 			WithOutputFields("*").
 			WithLimit(batchSize))

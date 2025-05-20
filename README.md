@@ -172,14 +172,15 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 
 | Flag                       | Description                                             |
 | -------------------------- | ------------------------------------------------------- |
-| `--milvus.url`             | Source Milvus URL (e.g. `https://your-milvus-hostname`) |
-| `--milvus.collection`      | Source collection name                                  |
-| `--milvus.api-key`         | Source API key (`$SOURCE_API_KEY`)                      |
-| `--milvus.enable-tls-auth` | Enable TLS Auth                                         |
+| `--milvus.url`             | Milvus URL (e.g. `https://your-milvus-hostname`)        |
+| `--milvus.collection`      | Milvus collection name                                  |
+| `--milvus.api-key`         | Milvus API key for authentication                       |
+| `--milvus.enable-tls-auth` | Whether to enable TLS Auth                              |
 | `--milvus.username`        | Username for Milvus                                     |
 | `--milvus.password`        | Password for Milvus                                     |
-| `--milvus.db-name`         | Milvus database name                                    |
-| `--milvus.server-version`  | Server version                                          |
+| `--milvus.db-name`         | Optional database name                                  |
+| `--milvus.server-version`  | Milvus server version                                   |
+| `--milvus.partitions`      | List of partition names                                 |
 
 #### Qdrant Options
 
