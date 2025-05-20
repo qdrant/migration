@@ -8,7 +8,6 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
-	"time"
 
 	"github.com/milvus-io/milvus/client/v2/column"
 	"github.com/milvus-io/milvus/client/v2/entity"
@@ -182,7 +181,6 @@ func (r *MigrateFromMilvusCmd) prepareTargetCollection(ctx context.Context, sour
 }
 
 func (r *MigrateFromMilvusCmd) migrateData(ctx context.Context, sourceClient *milvusclient.Client, targetClient *qdrant.Client, sourcePointCount uint64) error {
-	startTime := time.Now()
 	batchSize := r.Migration.BatchSize
 
 	var offsetID *qdrant.PointId
@@ -299,15 +297,6 @@ func (r *MigrateFromMilvusCmd) migrateData(ctx context.Context, sourceClient *mi
 			break
 		}
 
-		// If one minute elapsed get updated sourcePointCount.
-		// Useful if any new points were added to the source during migration.
-		if time.Since(startTime) > time.Minute {
-			sourcePointCount, err = r.countMilvusVectors(ctx, sourceClient)
-			if err != nil {
-				return fmt.Errorf("failed to count vectors in Milvus: %w", err)
-			}
-			bar.Total = int(sourcePointCount)
-		}
 	}
 
 	pterm.Success.Printfln("Data migration finished successfully")
