@@ -54,4 +54,5 @@ type WeaviateConfig struct {
 	Scopes       []string `help:"Scopes for authentication (when AuthType is 'password')"`
 	ClientSecret string   `help:"Client secret for authentication (when AuthType is 'client')"`
 	Token        string   `help:"Bearer token for authentication (when AuthType is 'bearer')"`
+	Tenant       string   `help:"Objects belonging to which tenant to migrate"`
 }

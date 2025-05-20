@@ -341,7 +341,8 @@ func (r *MigrateFromWeaviateCmd) migrateData(ctx context.Context, sourceClient *
 		query := sourceClient.GraphQL().Get().
 			WithClassName(r.Weaviate.ClassName).
 			WithLimit(r.Migration.BatchSize).
-			WithFields(fields...)
+			WithFields(fields...).
+			WithTenant(r.Weaviate.Tenant)
 
 		if offsetID != nil {
 			query = query.WithAfter(offsetID.GetUuid())
