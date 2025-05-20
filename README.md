@@ -241,13 +241,13 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 
 #### Qdrant Options
 
-| Flag                    | Description                                                                                         |
-| ----------------------- | --------------------------------------------------------------------------------------------------- |
-| `--qdrant.url`          | Qdrant gRPC URL. Default: `"http://localhost:6334"`                                                 |
-| `--qdrant.collection`   | Target collection name                                                                              |
-| `--qdrant.api-key`      | Qdrant API key                                                                                      |
-| `--qdrant.dense-vector` | Name of the dense vector in Qdrant. Default: `"dense_vector"`                                       |
-| `--qdrant.distance`     | Distance metric for the Qdrant collection. `"cosine"` or `"dot"` or `"euclid"`. Default: `"cosine"` |
+| Flag                    | Description                                                                                                      |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `--qdrant.url`          | Qdrant gRPC URL. Default: `"http://localhost:6334"`                                                              |
+| `--qdrant.collection`   | Target collection name                                                                                           |
+| `--qdrant.api-key`      | Qdrant API key                                                                                                   |
+| `--qdrant.dense-vector` | Name of the dense vector in Qdrant. Default: `"dense_vector"`                                                    |
+| `--qdrant.distance`     | Distance metric for the Qdrant collection. `"cosine"`, `"dot"`, `"euclid"` or `"manhattan"`. Default: `"cosine"` |
 
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
 
