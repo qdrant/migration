@@ -192,6 +192,10 @@ func (r *MigrateFromWeaviateCmd) getWeaviateVectorDimension(ctx context.Context,
 		return 0, fmt.Errorf("failed to get object from Weaviate: %w", err)
 	}
 
+	if len(result.Errors) > 0 {
+		return 0, fmt.Errorf("GraphQL error: %v", result.Errors[0].Message)
+	}
+
 	getData, ok := result.Data["Get"].(map[string]any)
 	if !ok {
 		return 0, errors.New("invalid response format from Weaviate")
@@ -233,6 +237,10 @@ func (r *MigrateFromWeaviateCmd) countWeaviateObjects(ctx context.Context, clien
 
 	if err != nil {
 		return 0, fmt.Errorf("failed to count objects in Weaviate: %w", err)
+	}
+
+	if len(result.Errors) > 0 {
+		return 0, fmt.Errorf("GraphQL error: %v", result.Errors[0].Message)
 	}
 
 	aggregateData, ok := result.Data["Aggregate"].(map[string]any)
@@ -351,6 +359,10 @@ func (r *MigrateFromWeaviateCmd) migrateData(ctx context.Context, sourceClient *
 		result, err := query.Do(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to get objects from Weaviate: %w", err)
+		}
+
+		if len(result.Errors) > 0 {
+			return fmt.Errorf("GraphQL error: %v", result.Errors[0].Message)
 		}
 
 		getData, ok := result.Data["Get"].(map[string]any)
