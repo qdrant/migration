@@ -4,12 +4,9 @@ go 1.24.1
 
 toolchain go1.24.2
 
-require github.com/amikos-tech/chroma-go v0.2.2
-
-// Till https://github.com/amikos-tech/chroma-go/pull/221 is merged.
-replace github.com/amikos-tech/chroma-go => github.com/Anush008/chroma-go v0.2.3
-
 require (
+	// Temporary fork used until https://github.com/amikos-tech/chroma-go/pull/221 is merged
+	github.com/Anush008/chroma-go v0.2.4-0.20250522070907-42e5c3470d37
 	github.com/alecthomas/kong v1.10.0
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2

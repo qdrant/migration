@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	chroma "github.com/amikos-tech/chroma-go/pkg/api/v2"
+	chroma "github.com/Anush008/chroma-go/pkg/api/v2"
 	"github.com/pterm/pterm"
 
 	"github.com/qdrant/go-client/qdrant"

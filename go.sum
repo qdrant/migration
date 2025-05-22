@@ -10,8 +10,8 @@ cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMT
 cloud.google.com/go v0.34.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 dario.cat/mergo v1.0.1 h1:Ra4+bf83h2ztPIQYNP99R6m+Y7KfnARDfID+a+vLl4s=
 dario.cat/mergo v1.0.1/go.mod h1:uNxQE+84aUszobStD9th8a29P2fMDhsBdgRYvZOxGmk=
-github.com/Anush008/chroma-go v0.2.3 h1:umkF36eP5xJF0mj7OaajQ7vMuFX+V7D/aAgXW2V2+1k=
-github.com/Anush008/chroma-go v0.2.3/go.mod h1:PCwTYNpy4JXYpEtC55TC3+RQzdRCsjLCWOsKazsyaSg=
+github.com/Anush008/chroma-go v0.2.4-0.20250522070907-42e5c3470d37 h1:TGhGpt4Ys2x5eirc5OH6v088Y1fdEvpgUZnm1/mySpg=
+github.com/Anush008/chroma-go v0.2.4-0.20250522070907-42e5c3470d37/go.mod h1:zKAGe1c0qvJhnlaTDERD54IMEgemoV5bDKVngyGaNrY=
 github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 h1:L/gRVlceqvL25UVaW/CKtUDjefjrs0SPonmDGUVOYP0=
 github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161/go.mod h1:xomTg63KZ2rFqZQzSB4Vz2SUXa1BpHTVz9L5PTmPC4E=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
