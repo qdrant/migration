@@ -10,6 +10,7 @@ CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for res
 * [Chroma](https://trychroma.com/)
 * [Pinecone](https://www.pinecone.io/)
 * [Milvus](https://milvus.io/)
+* [Redis](https://redis.io)
 * Another [Qdrant](http://qdrant.tech/) instance
 
 ## Installation
@@ -94,7 +95,7 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 
 Migrate data from a **Pinecone** database to **Qdrant**:
 
-> IMPORTANT ⚠️
+> IMPORTANT ⚠️:
 > Only Pinecone serverless indexes support listing all vectors for migration. [Reference](https://docs.pinecone.io/reference/api/2025-01/data-plane/list)
 
 ### 📥 Example
@@ -193,6 +194,63 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
 
 </details>
+
+<details>
+
+<summary><h3>From Redis</h3></summary>
+
+Migrate data from a **Redis** database to **Qdrant**:
+
+> Important ⚠️:
+> Redis does not expose vector configuration details after an index is created.
+> Therefore, you must [manually create](https://qdrant.tech/documentation/concepts/vectors/#named-vectors) a Qdrant collection before starting the migration.
+> Ensure that the **vector names and dimensions in Qdrant exactly match** those used in Redis.
+
+### 📥 Example
+
+```bash
+migration redis \
+    --redis.index 'index_name' \
+    --redis.addr 'localhost:6379' \
+    --qdrant.url 'http://localhost:6334' \
+    --qdrant.collection 'target-collection' \
+    --migration.create-collection --migration.batch-size 100 --migration.restart
+```
+
+With Docker:
+
+```bash
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration milvus \
+    --redis.index 'index_name' \
+    ...
+```
+
+#### Redis Options
+
+| Flag                  | Description                                                             |
+| --------------------- | ----------------------------------------------------------------------- |
+| `--redis.index`       | Redis index name                                                        |
+| `--redis.addr`        | Redis address in the format `host:port` (default: `localhost:6379`)     |
+| `--redis.protocol`    | Redis protocol version (default: `2`)                                   |
+| `--redis.password`    | Password to authenticate requests. Optional.                            |
+| `--redis.username`    | Username to authenticate requests. Optional.                            |
+| `--redis.client-name` | Will execute the `CLIENT SETNAME <NAME>` for each connection. Optional. |
+| `--redis.db`          | Database to be selected after connecting to the server. Optional.       |
+| `--redis.network`     | Redis network type (`tcp` or `unix`, default: `tcp`)                    |
+
+#### Qdrant Options
+
+| Flag                            | Description                                                     |
+| ------------------------------- | --------------------------------------------------------------- |
+| `--qdrant.url`                  | Qdrant gRPC URL. Default: `"http://localhost:6334"`             |
+| `--qdrant.collection`           | Target collection name                                          |
+| `--qdrant.api-key`              | Qdrant API key                                                  |
+| `--qdrant.id-field`             | Field storing Redis IDs in Qdrant. Default: `"__id__"`         |
+
+* See [Shared Migration Options](#shared-migration-options) for common migration parameters.
+
+</details>
+
 <details>
 <summary><h3>From Another Qdrant Instance</h3></summary>
 

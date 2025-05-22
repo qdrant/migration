@@ -17,6 +17,7 @@ require (
 	github.com/pinecone-io/go-pinecone/v3 v3.1.0
 	github.com/pterm/pterm v0.12.80
 	github.com/qdrant/go-client v1.14.0
+	github.com/redis/go-redis/v9 v9.8.0
 	google.golang.org/grpc v1.72.1
 )
 
@@ -39,6 +40,7 @@ require (
 	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
