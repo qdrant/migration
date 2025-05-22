@@ -214,7 +214,7 @@ migration redis \
     --redis.addr 'localhost:6379' \
     --qdrant.url 'http://localhost:6334' \
     --qdrant.collection 'target-collection' \
-    --migration.create-collection --migration.batch-size 100 --migration.restart
+    --migration.batch-size 100
 ```
 
 With Docker:
