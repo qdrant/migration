@@ -203,6 +203,11 @@ Migrate data from a **Weaviate** database to **Qdrant**:
 
 ### 📥 Example
 
+> Important ⚠️:
+ > Weaviate does not expose vector dimensions and distance metrics after a collection is created. [Reference](https://forum.weaviate.io/t/get-vector-dimension-of-a-collection/1769/).
+ > Therefore, you must [manually create](https://qdrant.tech/documentation/concepts/collections/#create-a-collection) a Qdrant collection before starting the migration.
+ > Ensure that the **vector dimensions in Qdrant exactly match** those used in Weaviate.
+
 ```bash
 migration weaviate \
     --weaviate.host 'example.c0.asia-southeast1.gcp.weaviate.cloud' \
@@ -246,8 +251,6 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.url`          | Qdrant gRPC URL. Default: `"http://localhost:6334"`                                                              |
 | `--qdrant.collection`   | Target collection name                                                                                           |
 | `--qdrant.api-key`      | Qdrant API key                                                                                                   |
-| `--qdrant.dense-vector` | Name of the dense vector in Qdrant. Default: `"dense_vector"`                                                    |
-| `--qdrant.distance`     | Distance metric for the Qdrant collection. `"cosine"`, `"dot"`, `"euclid"` or `"manhattan"`. Default: `"cosine"` |
 
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
 

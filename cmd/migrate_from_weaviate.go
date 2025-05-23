@@ -20,11 +20,9 @@ import (
 )
 
 type MigrateFromWeaviateCmd struct {
-	Weaviate    commons.WeaviateConfig  `embed:"" prefix:"weaviate."`
-	Qdrant      commons.QdrantConfig    `embed:"" prefix:"qdrant."`
-	Migration   commons.MigrationConfig `embed:"" prefix:"migration."`
-	DenseVector string                  `prefix:"qdrant." help:"Name of the dense vector in Qdrant" default:"dense_vector"`
-	Distance    string                  `prefix:"qdrant." enum:"cosine,dot,euclid,manhattan" help:"Distance metric for the Qdrant collection" default:"cosine"`
+	Weaviate  commons.WeaviateConfig  `embed:"" prefix:"weaviate."`
+	Qdrant    commons.QdrantConfig    `embed:"" prefix:"qdrant."`
+	Migration commons.MigrationConfig `embed:"" prefix:"migration."`
 
 	targetHost string
 	targetPort int
@@ -67,6 +65,14 @@ func (r *MigrateFromWeaviateCmd) Run(globals *Globals) error {
 	}
 	defer targetClient.Close()
 
+	targetCollectionExists, err := targetClient.CollectionExists(ctx, r.Qdrant.Collection)
+	if err != nil {
+		return fmt.Errorf("failed to check if collection exists: %w", err)
+	}
+	if !targetCollectionExists {
+		return fmt.Errorf("target collection '%s' does not exist in Qdrant", r.Qdrant.Collection)
+	}
+
 	err = commons.PrepareOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient)
 	if err != nil {
 		return fmt.Errorf("failed to prepare migration marker collection: %w", err)
@@ -75,11 +81,6 @@ func (r *MigrateFromWeaviateCmd) Run(globals *Globals) error {
 	sourcePointCount, err := r.countWeaviateObjects(ctx, sourceClient)
 	if err != nil {
 		return fmt.Errorf("failed to count objects in source: %w", err)
-	}
-
-	err = r.prepareTargetCollection(ctx, sourceClient, targetClient)
-	if err != nil {
-		return fmt.Errorf("error preparing target collection: %w", err)
 	}
 
 	displayMigrationStart("weaviate", r.Weaviate.ClassName, r.Qdrant.Collection)
@@ -173,57 +174,6 @@ func (r *MigrateFromWeaviateCmd) getClassSchema(ctx context.Context, client *wea
 	return nil, fmt.Errorf("class %s not found", r.Weaviate.ClassName)
 }
 
-func (r *MigrateFromWeaviateCmd) getWeaviateVectorDimension(ctx context.Context, client *weaviate.Client) (int, error) {
-	// Sadly, we can't get the dimensions from the collection info
-	// https://forum.weaviate.io/t/get-vector-dimension-of-a-collection/1769/2?u=serendipitous
-	// So we'll have to fetch one object to do so.
-	result, err := client.GraphQL().Get().
-		WithClassName(r.Weaviate.ClassName).
-		WithLimit(1).
-		WithFields(graphql.Field{
-			Name: "_additional",
-			Fields: []graphql.Field{
-				{Name: "vector"},
-			},
-		}).
-		Do(ctx)
-
-	if err != nil {
-		return 0, fmt.Errorf("failed to get object from Weaviate: %w", err)
-	}
-
-	if len(result.Errors) > 0 {
-		return 0, fmt.Errorf("GraphQL error: %v", result.Errors[0].Message)
-	}
-
-	getData, ok := result.Data["Get"].(map[string]any)
-	if !ok {
-		return 0, errors.New("invalid response format from Weaviate")
-	}
-
-	classData, ok := getData[r.Weaviate.ClassName].([]any)
-	if !ok || len(classData) == 0 {
-		return 0, errors.New("no objects found in class")
-	}
-
-	firstObject, ok := classData[0].(map[string]any)
-	if !ok {
-		return 0, errors.New("invalid object format")
-	}
-
-	additional, ok := firstObject["_additional"].(map[string]any)
-	if !ok {
-		return 0, errors.New("_additional field not found in object")
-	}
-
-	vector, ok := additional["vector"].([]any)
-	if !ok {
-		return 0, errors.New("vector field not found in _additional")
-	}
-
-	return len(vector), nil
-}
-
 func (r *MigrateFromWeaviateCmd) countWeaviateObjects(ctx context.Context, client *weaviate.Client) (uint64, error) {
 	result, err := client.GraphQL().Aggregate().
 		WithClassName(r.Weaviate.ClassName).
@@ -264,51 +214,6 @@ func (r *MigrateFromWeaviateCmd) countWeaviateObjects(ctx context.Context, clien
 	}
 
 	return uint64(count), nil
-}
-
-func (r *MigrateFromWeaviateCmd) prepareTargetCollection(ctx context.Context, sourceClient *weaviate.Client, targetClient *qdrant.Client) error {
-	if !r.Migration.CreateCollection {
-		return nil
-	}
-
-	targetCollectionExists, err := targetClient.CollectionExists(ctx, r.Qdrant.Collection)
-	if err != nil {
-		return fmt.Errorf("failed to check if collection exists: %w", err)
-	}
-
-	if targetCollectionExists {
-		pterm.Info.Printfln("Target collection '%s' already exists. Skipping creation.", r.Qdrant.Collection)
-		return nil
-	}
-
-	vectorDimension, err := r.getWeaviateVectorDimension(ctx, sourceClient)
-	if err != nil {
-		return fmt.Errorf("failed to get vector dimension: %w", err)
-	}
-
-	distanceMapping := map[string]qdrant.Distance{
-		"euclid":    qdrant.Distance_Euclid,
-		"cosine":    qdrant.Distance_Cosine,
-		"dot":       qdrant.Distance_Dot,
-		"manhattan": qdrant.Distance_Manhattan,
-	}
-
-	createReq := &qdrant.CreateCollection{
-		CollectionName: r.Qdrant.Collection,
-		VectorsConfig: qdrant.NewVectorsConfigMap(map[string]*qdrant.VectorParams{
-			r.DenseVector: {
-				Size:     uint64(vectorDimension),
-				Distance: distanceMapping[r.Distance],
-			},
-		}),
-	}
-
-	if err := targetClient.CreateCollection(ctx, createReq); err != nil {
-		return fmt.Errorf("failed to create target collection: %w", err)
-	}
-
-	pterm.Success.Printfln("Created target collection '%s' with dimension %d", r.Qdrant.Collection, vectorDimension)
-	return nil
 }
 
 func (r *MigrateFromWeaviateCmd) migrateData(ctx context.Context, sourceClient *weaviate.Client, targetClient *qdrant.Client, sourcePointCount uint64) error {
@@ -424,10 +329,8 @@ func (r *MigrateFromWeaviateCmd) migrateData(ctx context.Context, sourceClient *
 			}
 
 			point := &qdrant.PointStruct{
-				Id: qdrant.NewID(id),
-				Vectors: qdrant.NewVectorsMap(map[string]*qdrant.Vector{
-					r.DenseVector: qdrant.NewVectorDense(vector),
-				}),
+				Id:      qdrant.NewID(id),
+				Vectors: qdrant.NewVectors(vector...),
 				Payload: payload,
 			}
 
