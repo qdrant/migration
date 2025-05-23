@@ -202,7 +202,7 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 Migrate data from a **Redis** database to **Qdrant**:
 
 > Important ⚠️:
-> Redis does not expose vector configuration details after an index is created.
+> Redis does not expose vector configurations after an index is created.
 > Therefore, you must [manually create](https://qdrant.tech/documentation/concepts/vectors/#named-vectors) a Qdrant collection before starting the migration.
 > Ensure that the **vector names and dimensions in Qdrant exactly match** those used in Redis.
 

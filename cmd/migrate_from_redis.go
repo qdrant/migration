@@ -66,16 +66,11 @@ func (r *MigrateFromRedisCmd) Run(globals *Globals) error {
 	})
 	defer rdb.Close()
 
-	sourcePointCount, err := r.countRedisDocuments(ctx, rdb)
-	if err != nil {
-		return fmt.Errorf("failed to count documents in Redis index: %w", err)
-	}
-
 	targetClient, err := connectToQdrant(globals, r.targetHost, r.targetPort, r.Qdrant.APIKey, r.targetTLS)
 	if err != nil {
 		return fmt.Errorf("failed to connect to Qdrant target: %w", err)
 	}
-	pterm.Success.Println("Connected to Qdrant")
+	defer targetClient.Close()
 
 	targetCollectionExists, err := targetClient.CollectionExists(ctx, r.Qdrant.Collection)
 	if err != nil {
@@ -91,6 +86,11 @@ func (r *MigrateFromRedisCmd) Run(globals *Globals) error {
 	}
 
 	displayMigrationStart("redis", r.Redis.Index, r.Qdrant.Collection)
+
+	sourcePointCount, err := r.countRedisDocuments(ctx, rdb)
+	if err != nil {
+		return fmt.Errorf("failed to count documents in Redis index: %w", err)
+	}
 
 	err = r.migrateData(ctx, rdb, targetClient, sourcePointCount)
 	if err != nil {
