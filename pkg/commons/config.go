@@ -43,3 +43,14 @@ type ChromaConfig struct {
 	TokenHeader string `help:"Token header for authentication" default:"Authorization"`
 	Database    string `help:"Database for Chroma"`
 }
+
+type RedisConfig struct {
+	Index      string `help:"Redis FT index name" required:"true"`
+	Addr       string `help:"Redis address in the format host:port" default:"localhost:6379"`
+	Protocol   int    `help:"Redis protocol version" default:"2"`
+	Password   string `help:"Password to authenticate requests"`
+	Username   string `help:"Username to authenticate requests"`
+	ClientName string `help:"Will execute the 'CLIENT SETNAME <NAME>' for each connection"`
+	DB         int    `help:"Database to be selected after connecting to the server"`
+	Network    string `help:"Redis network type" enum:"tcp,unix" default:"tcp"`
+}
