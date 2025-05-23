@@ -52,8 +52,10 @@ type WeaviateConfig struct {
 	APIKey       string   `help:"API key for authentication (when AuthType is 'apiKey')"`
 	Username     string   `help:"Username for authentication (when AuthType is 'password')"`
 	Password     string   `help:"Password for authentication (when AuthType is 'password')"`
-	Scopes       []string `help:"Scopes for authentication (when AuthType is 'password')"`
+	Scopes       []string `help:"Scopes for authentication (when AuthType is 'password' or 'client')"`
 	ClientSecret string   `help:"Client secret for authentication (when AuthType is 'client')"`
 	Token        string   `help:"Bearer token for authentication (when AuthType is 'bearer')"`
+	RefreshToken string   `help:"Refresh token for authentication (when AuthType is 'bearer')"`
+	ExpiresIn    uint     `help:"Access token expiration time (when AuthType is 'bearer')"`
 	Tenant       string   `help:"Objects belonging to which tenant to migrate"`
 }

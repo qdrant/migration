@@ -204,7 +204,7 @@ Migrate data from a **Weaviate** database to **Qdrant**:
 ### 📥 Example
 
 > Important ⚠️:
- > Weaviate does not expose vector dimensions and distance metrics after a collection is created. [Reference](https://forum.weaviate.io/t/get-vector-dimension-of-a-collection/1769/).
+ > Weaviate does not expose vector dimensions and distance metric after a collection is created. [Reference](https://forum.weaviate.io/t/get-vector-dimension-of-a-collection/1769/).
  > Therefore, you must [manually create](https://qdrant.tech/documentation/concepts/collections/#create-a-collection) a Qdrant collection before starting the migration.
  > Ensure that the **vector dimensions in Qdrant exactly match** those used in Weaviate.
 
@@ -239,9 +239,11 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--weaviate.api-key`       | API key for authentication (when `auth-type` is `apiKey`)                                        |
 | `--weaviate.username`      | Username for authentication (when `auth-type` is `password`)                                     |
 | `--weaviate.password`      | Password for authentication (when `auth-type` is `password`)                                     |
-| `--weaviate.scopes`        | Scopes for authentication (when `auth-type` is `password`)                                       |
+| `--weaviate.scopes`        | Scopes for authentication (when `auth-type` is `password` or `client`)                           |
 | `--weaviate.client-secret` | Client secret for authentication (when `auth-type` is `client`)                                  |
 | `--weaviate.token`         | Bearer token for authentication (when `auth-type` is `bearer`)                                   |
+| `--weaviate.refresh-token` | Refresh token for authentication (when `auth-type` is `bearer`)                                  |
+| `--weaviate.expires-in`    | Access token expiration time in seconds (when `auth-type` is `bearer`)                           |
 | `--weaviate.tenant`        | Objects belonging to which tenant to migrate                                                     |
 
 #### Qdrant Options

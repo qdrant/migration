@@ -132,13 +132,16 @@ func (r *MigrateFromWeaviateCmd) parseWeaviateOptions() (weaviate.Config, error)
 		}
 		cfg.AuthConfig = auth.ClientCredentials{
 			ClientSecret: r.Weaviate.ClientSecret,
+			Scopes:       r.Weaviate.Scopes,
 		}
 	case "bearer":
 		if r.Weaviate.Token == "" {
 			return cfg, errors.New("token is required for bearer token authentication")
 		}
 		cfg.AuthConfig = auth.BearerToken{
-			AccessToken: r.Weaviate.Token,
+			AccessToken:  r.Weaviate.Token,
+			RefreshToken: r.Weaviate.RefreshToken,
+			ExpiresIn:    r.Weaviate.ExpiresIn,
 		}
 	}
 
