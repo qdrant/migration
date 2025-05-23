@@ -36,9 +36,17 @@ func TestMigrateFromChroma(t *testing.T) {
 	ctx := context.Background()
 
 	qdrantContainer := qdrantContainer(ctx, t, qdrantAPIKey)
-	defer qdrantContainer.Terminate(ctx)
+	defer func() {
+		if err := qdrantContainer.Terminate(ctx); err != nil {
+			t.Errorf("Failed to terminate Qdrant container: %v", err)
+		}
+	}()
 	chromaContainer := chromaContainer(ctx, t)
-	defer chromaContainer.Terminate(ctx)
+	defer func() {
+		if err := chromaContainer.Terminate(ctx); err != nil {
+			t.Errorf("Failed to terminate Chroma container: %v", err)
+		}
+	}()
 
 	chromaHost, err := chromaContainer.Host(ctx)
 	require.NoError(t, err)
