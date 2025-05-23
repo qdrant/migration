@@ -60,7 +60,6 @@ func TestMigrateFromChroma(t *testing.T) {
 
 	chromaClient, err := chroma.NewHTTPClient(chroma.WithBaseURL("http://" + chromaHost + ":" + chromaPort.Port()))
 	require.NoError(t, err)
-	defer chromaClient.Close()
 
 	collection, err := chromaClient.GetOrCreateCollection(ctx, testCollectionName)
 	require.NoError(t, err)
