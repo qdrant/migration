@@ -27,9 +27,11 @@ type MilvusConfig struct {
 }
 
 type PineconeConfig struct {
-	APIKey    string `required:"true"  help:"Pinecone API key for authentication"`
-	Host      string `required:"true"  help:"Pinecone index host URL (e.g., https://example-index-12345.svc.region.pinecone.io)"`
-	Namespace string `help:"Namespace of the partition to migrate"`
+	IndexName   string `required:"true"  help:"Pinecone index name"`
+	IndexHost   string `required:"true"  help:"Pinecone index host URL (e.g., https://example-index-12345.svc.region.pinecone.io)"`
+	APIKey      string `required:"true"  help:"Pinecone API key for authentication"`
+	Namespace   string `help:"Namespace of the partition to migrate"`
+	ServiceHost string `help:"Pinecone service host URL. Optional."`
 }
 
 type ChromaConfig struct {

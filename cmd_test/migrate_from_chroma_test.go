@@ -17,19 +17,10 @@ import (
 )
 
 const (
-	testCollectionName    = "test_collection"
-	chromaPort            = "8000"
-	qdrantPort            = "6334"
-	qdrantAPIKey          = "00000000"
-	idField               = "__id__"
-	documentField         = "document"
-	sourceField           = "source"
-	denseVectorField      = "dense_vector"
-	distance              = "euclid"
-	batchSize             = 10
-	offsetsCollectionName = "_migration_marker"
-	totalEntries          = 100
-	dimension             = 384
+	chromaPort    = "8000"
+	sourceField   = "source"
+	documentField = "document"
+	distance      = "euclid"
 )
 
 func TestMigrateFromChroma(t *testing.T) {
@@ -123,7 +114,7 @@ func TestMigrateFromChroma(t *testing.T) {
 		IdField:       idField,
 		DocumentField: documentField,
 		Distance:      distance,
-		DenseVector:   denseVectorField,
+		DenseVector:   denseVectorName,
 	}
 
 	err = migrationCmd.Run(&cmd.Globals{})
@@ -165,7 +156,7 @@ func TestMigrateFromChroma(t *testing.T) {
 		require.Equal(t, expected.document, point.Payload[documentField].GetStringValue())
 		require.Equal(t, expected.source, point.Payload[sourceField].GetStringValue())
 
-		vector := point.Vectors.GetVectors().GetVectors()[denseVectorField].GetData()
+		vector := point.Vectors.GetVectors().GetVectors()[denseVectorName].GetData()
 		require.Equal(t, expected.vector, vector)
 	}
 }
