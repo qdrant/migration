@@ -21,9 +21,10 @@ import (
 )
 
 type MigrateFromMilvusCmd struct {
-	Milvus    commons.MilvusConfig    `embed:"" prefix:"milvus."`
-	Qdrant    commons.QdrantConfig    `embed:"" prefix:"qdrant."`
-	Migration commons.MigrationConfig `embed:"" prefix:"migration."`
+	Milvus         commons.MilvusConfig    `embed:"" prefix:"milvus."`
+	Qdrant         commons.QdrantConfig    `embed:"" prefix:"qdrant."`
+	Migration      commons.MigrationConfig `embed:"" prefix:"migration."`
+	DistanceMetric map[string]string       `prefix:"qdrant." help:"Map of vector field names to distance metrics (cosine,dot,euclid,manhattan). Default is cosine if not specified."`
 
 	targetHost string
 	targetPort int
@@ -151,6 +152,13 @@ func (r *MigrateFromMilvusCmd) prepareTargetCollection(ctx context.Context, sour
 		return fmt.Errorf("failed to describe Milvus collection: %w", err)
 	}
 
+	distanceMapping := map[string]qdrant.Distance{
+		"euclid":    qdrant.Distance_Euclid,
+		"cosine":    qdrant.Distance_Cosine,
+		"dot":       qdrant.Distance_Dot,
+		"manhattan": qdrant.Distance_Manhattan,
+	}
+
 	vectorParamsMap := make(map[string]*qdrant.VectorParams)
 	for _, field := range schema.Schema.Fields {
 		if field.DataType == entity.FieldTypeFloatVector {
@@ -160,11 +168,17 @@ func (r *MigrateFromMilvusCmd) prepareTargetCollection(ctx context.Context, sour
 				return fmt.Errorf("failed to parse vector dimension: %w", err)
 			}
 
+			distanceMetric := "cosine"
+			if specifiedDistance, ok := r.DistanceMetric[field.Name]; ok {
+				if _, valid := distanceMapping[specifiedDistance]; !valid {
+					return fmt.Errorf("invalid distance metric '%s' for vector '%s'", specifiedDistance, field.Name)
+				}
+				distanceMetric = specifiedDistance
+			}
+
 			vectorParamsMap[field.Name] = &qdrant.VectorParams{
-				Size: uint64(dimension),
-				// TODO(Anush008): Get distance from Milvus somehow
-				// field.TypeParams only has "dim"
-				Distance: qdrant.Distance_Cosine,
+				Size:     uint64(dimension),
+				Distance: distanceMapping[distanceMetric],
 			}
 		}
 	}
@@ -226,6 +240,7 @@ func (r *MigrateFromMilvusCmd) migrateData(ctx context.Context, sourceClient *mi
 			WithFilter(filter).
 			WithOutputFields("*").
 			WithLimit(batchSize))
+
 		if err != nil {
 			return fmt.Errorf("failed to query Milvus: %w", err)
 		}
@@ -295,10 +310,6 @@ func (r *MigrateFromMilvusCmd) migrateData(ctx context.Context, sourceClient *mi
 
 		bar.Add(len(targetPoints))
 
-		if result.ResultCount < batchSize {
-			break
-		}
-
 		// If one minute elapsed get updated sourcePointCount.
 		// Useful if any new points were added to the source during migration.
 		if time.Since(startTime) > time.Minute {
@@ -352,6 +363,8 @@ func extractValue(col column.Column, index int) (interface{}, error) {
 		end := start + dim
 		return vec[start:end], nil
 
+	// TODO(Anush008): Extract sparse vectors when it's out of beta in Milvus.
+	// https://github.com/milvus-io/milvus-proto/blob/02ce2e62a9fd3053b5f2dc632aea32d289a562da/proto/schema.proto#L165
 	default:
 		return nil, fmt.Errorf("unsupported field type: %v", col.Type())
 	}
