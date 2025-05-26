@@ -10,7 +10,7 @@ require github.com/amikos-tech/chroma-go v0.2.2
 replace github.com/amikos-tech/chroma-go => github.com/Anush008/chroma-go v0.2.3
 
 require (
-	github.com/alecthomas/kong v1.10.0
+	github.com/alecthomas/kong v1.11.0
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2
 	github.com/milvus-io/milvus/client/v2 v2.5.3
