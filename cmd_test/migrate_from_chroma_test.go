@@ -13,7 +13,6 @@ import (
 	"github.com/qdrant/go-client/qdrant"
 
 	"github.com/qdrant/migration/cmd"
-	"github.com/qdrant/migration/pkg/commons"
 )
 
 const (
@@ -103,29 +102,25 @@ func TestMigrateFromChroma(t *testing.T) {
 	require.NoError(t, err)
 	defer qdrantClient.Close()
 
-	migrationCmd := &cmd.MigrateFromChromaCmd{
-		Chroma: commons.ChromaConfig{
-			Url:        "http://" + chromaHost + ":" + chromaPort.Port(),
-			Collection: testCollectionName,
-		},
-		Qdrant: commons.QdrantConfig{
-			Url:        "http://" + qdrantHost + ":" + qdrantPort.Port(),
-			Collection: testCollectionName,
-			APIKey:     qdrantAPIKey,
-		},
-		Migration: commons.MigrationConfig{
-			BatchSize:            batchSize,
-			CreateCollection:     true,
-			EnsurePayloadIndexes: true,
-			OffsetsCollection:    offsetsCollectionName,
-		},
-		IdField:       idField,
-		DocumentField: documentField,
-		Distance:      distance,
-		DenseVector:   denseVectorField,
+	args := []string{
+		"chroma",
+		fmt.Sprintf("--chroma.url=http://%s:%s", chromaHost, chromaPort.Port()),
+		fmt.Sprintf("--chroma.collection=%s", testCollectionName),
+		fmt.Sprintf("--qdrant.url=http://%s:%s", qdrantHost, qdrantPort.Port()),
+		fmt.Sprintf("--qdrant.api-key=%s", qdrantAPIKey),
+		fmt.Sprintf("--qdrant.collection=%s", testCollectionName),
+		fmt.Sprintf("--migration.batch-size=%d", batchSize),
+		fmt.Sprintf("--migration.offsets-collection=%s", offsetsCollectionName),
+		fmt.Sprintf("--qdrant.id-field=%s", idField),
+		fmt.Sprintf("--qdrant.document-field=%s", documentField),
+		fmt.Sprintf("--qdrant.distance=%s", distance),
+		fmt.Sprintf("--qdrant.dense-vector=%s", denseVectorField),
 	}
 
-	err = migrationCmd.Run(&cmd.Globals{})
+	command, err := cmd.NewParser(args)
+	require.NoError(t, err)
+
+	err = command.Run()
 	require.NoError(t, err)
 
 	points, err := qdrantClient.Scroll(ctx, &qdrant.ScrollPoints{
