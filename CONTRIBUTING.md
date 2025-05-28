@@ -2,20 +2,6 @@
 
 ### Running tests
 
-The migration tool has two kind of tests, Golang unit tests and integration tests written with [bats](https://bats-core.readthedocs.io/).
-
-To run the Golang tests, execute:
-
-```bash
-make test_unit
-```
-
-To run the integration tests, execute:
-
-```bash
-make test_integration
-```
-
 To run all tests, execute:
 
 ```bash

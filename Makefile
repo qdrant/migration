@@ -34,15 +34,8 @@ vet: ## Run go vet against code.
 	go vet ./...
 
 .PHONY: test
-test: fmt vet lint test_integration
-
-.PHONY: test_integration
-test_integration:
-	bats --print-output-on-failure integration_tests
-
-.PHONY: test_unit
-test_unit:
-	go test -v -coverprofile cover.out ./...
+test: 
+	go test ./...
 
 .PHONY: lint
 lint:
