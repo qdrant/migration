@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"os/exec"
+	"path/filepath"
 	"testing"
 
 	chroma "github.com/amikos-tech/chroma-go/pkg/api/v2"
@@ -11,9 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/qdrant/go-client/qdrant"
-
-	"github.com/qdrant/migration/cmd"
-	"github.com/qdrant/migration/pkg/commons"
 )
 
 const (
@@ -51,7 +50,6 @@ func TestMigrateFromChroma(t *testing.T) {
 
 	chromaClient, err := chroma.NewHTTPClient(chroma.WithBaseURL("http://" + chromaHost + ":" + chromaPort.Port()))
 	require.NoError(t, err)
-	defer chromaClient.Close()
 
 	collection, err := chromaClient.GetOrCreateCollection(ctx, testCollectionName)
 	require.NoError(t, err)
@@ -95,30 +93,30 @@ func TestMigrateFromChroma(t *testing.T) {
 	require.NoError(t, err)
 	defer qdrantClient.Close()
 
-	migrationCmd := &cmd.MigrateFromChromaCmd{
-		Chroma: commons.ChromaConfig{
-			Url:        "http://" + chromaHost + ":" + chromaPort.Port(),
-			Collection: testCollectionName,
-		},
-		Qdrant: commons.QdrantConfig{
-			Url:        "http://" + qdrantHost + ":" + qdrantPort.Port(),
-			Collection: testCollectionName,
-			APIKey:     qdrantAPIKey,
-		},
-		Migration: commons.MigrationConfig{
-			BatchSize:            batchSize,
-			CreateCollection:     true,
-			EnsurePayloadIndexes: true,
-			OffsetsCollection:    offsetsCollectionName,
-		},
-		IdField:       idField,
-		DocumentField: documentField,
-		Distance:      distance,
-		DenseVector:   denseVectorName,
+	binaryPath := filepath.Join(t.TempDir(), "migration")
+	cmd := exec.Command("go", "build", "-o", binaryPath, "main.go")
+	cmd.Dir = ".."
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "build failed: %s", string(out))
+
+	args := []string{
+		"chroma",
+		fmt.Sprintf("--chroma.url=http://%s:%s", chromaHost, chromaPort.Port()),
+		fmt.Sprintf("--chroma.collection=%s", testCollectionName),
+		fmt.Sprintf("--qdrant.url=http://%s:%s", qdrantHost, qdrantPort.Port()),
+		fmt.Sprintf("--qdrant.api-key=%s", qdrantAPIKey),
+		fmt.Sprintf("--qdrant.collection=%s", testCollectionName),
+		fmt.Sprintf("--migration.batch-size=%d", batchSize),
+		fmt.Sprintf("--migration.offsets-collection=%s", offsetsCollectionName),
+		fmt.Sprintf("--qdrant.id-field=%s", idField),
+		fmt.Sprintf("--qdrant.document-field=%s", documentField),
+		fmt.Sprintf("--qdrant.distance=%s", distance),
+		fmt.Sprintf("--qdrant.dense-vector=%s", denseVectorField),
 	}
 
-	err = migrationCmd.Run(&cmd.Globals{})
-	require.NoError(t, err)
+	cmd = exec.Command(binaryPath, args...)
+	out, err = cmd.CombinedOutput()
+	require.NoError(t, err, "migration failed: %s", string(out))
 
 	points, err := qdrantClient.Scroll(ctx, &qdrant.ScrollPoints{
 		CollectionName: testCollectionName,
