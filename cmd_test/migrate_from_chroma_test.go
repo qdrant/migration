@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"os/exec"
+	"path/filepath"
 	"testing"
 
 	chroma "github.com/amikos-tech/chroma-go/pkg/api/v2"
@@ -11,8 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/qdrant/go-client/qdrant"
-
-	"github.com/qdrant/migration/cmd"
 )
 
 const (
@@ -102,6 +102,12 @@ func TestMigrateFromChroma(t *testing.T) {
 	require.NoError(t, err)
 	defer qdrantClient.Close()
 
+	binaryPath := filepath.Join(t.TempDir(), "migration")
+	cmd := exec.Command("go", "build", "-o", binaryPath, "main.go")
+	cmd.Dir = ".."
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "build failed: %s", string(out))
+
 	args := []string{
 		"chroma",
 		fmt.Sprintf("--chroma.url=http://%s:%s", chromaHost, chromaPort.Port()),
@@ -117,11 +123,9 @@ func TestMigrateFromChroma(t *testing.T) {
 		fmt.Sprintf("--qdrant.dense-vector=%s", denseVectorField),
 	}
 
-	command, err := cmd.NewParser(args)
-	require.NoError(t, err)
-
-	err = command.Run()
-	require.NoError(t, err)
+	cmd = exec.Command(binaryPath, args...)
+	out, err = cmd.CombinedOutput()
+	require.NoError(t, err, "migration failed: %s", string(out))
 
 	points, err := qdrantClient.Scroll(ctx, &qdrant.ScrollPoints{
 		CollectionName: testCollectionName,
