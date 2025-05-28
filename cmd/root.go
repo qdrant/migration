@@ -41,14 +41,3 @@ func Execute(projectVersion, projectBuild string) {
 		ctx.Exit(1)
 	}
 }
-
-func NewParser(args []string) (*kong.Context, error) {
-	cli := &CLI{}
-
-	parser, err := kong.New(cli, kong.Bind(&cli.Globals))
-	if err != nil {
-		return nil, err
-	}
-
-	return parser.Parse(args)
-}

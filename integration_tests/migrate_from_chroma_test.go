@@ -1,4 +1,4 @@
-package cmd_test
+package integrationtests
 
 import (
 	"context"
