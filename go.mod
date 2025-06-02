@@ -6,7 +6,7 @@ toolchain go1.24.2
 
 require (
 	github.com/alecthomas/kong v1.11.0
-	github.com/amikos-tech/chroma-go v0.2.3-0.20250522174736-0f8a35c6abb9
+	github.com/amikos-tech/chroma-go v0.2.3
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2
 	github.com/milvus-io/milvus/client/v2 v2.5.3
@@ -15,7 +15,7 @@ require (
 	github.com/qdrant/go-client v1.14.0
 	github.com/stretchr/testify v1.10.0
 	github.com/testcontainers/testcontainers-go v0.36.0
-	google.golang.org/grpc v1.72.1
+	google.golang.org/grpc v1.72.2
 )
 
 require (
