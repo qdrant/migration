@@ -7,7 +7,6 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/pinecone-io/go-pinecone/v3/pinecone"
 	"github.com/pterm/pterm"
@@ -208,7 +207,6 @@ func (r *MigrateFromPineconeCmd) prepareTargetCollection(ctx context.Context, so
 }
 
 func (r *MigrateFromPineconeCmd) migrateData(ctx context.Context, sourceIndexConn *pinecone.IndexConnection, targetClient *qdrant.Client, sourcePointCount uint64) error {
-	startTime := time.Now()
 	batchSize := r.Migration.BatchSize
 
 	var offsetId *qdrant.PointId
@@ -312,15 +310,6 @@ func (r *MigrateFromPineconeCmd) migrateData(ctx context.Context, sourceIndexCon
 			break
 		}
 
-		// If one minute elapsed get updated sourcePointCount.
-		// Useful if any new points were added to the source during migration.
-		if time.Since(startTime) > time.Minute {
-			sourcePointCount, err = r.countPineconeVectors(ctx, sourceIndexConn)
-			if err != nil {
-				return fmt.Errorf("failed to count vectors in Pinecone: %w", err)
-			}
-			bar.Total = int(sourcePointCount)
-		}
 	}
 
 	pterm.Success.Printfln("Data migration finished successfully")
