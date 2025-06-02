@@ -33,8 +33,8 @@ github.com/alecthomas/kong v1.11.0 h1:y++1gI7jf8O7G7l4LZo5ASFhrhJvzc+WgF/arranEm
 github.com/alecthomas/kong v1.11.0/go.mod h1:p2vqieVMeTAnaC83txKtXe8FLke2X07aruPWXyMPQrU=
 github.com/alecthomas/repr v0.4.0 h1:GhI2A8MACjfegCPVq9f1FLvIBS+DrQ2KQBFZP1iFzXc=
 github.com/alecthomas/repr v0.4.0/go.mod h1:Fr0507jx4eOXV7AlPV6AVZLYrLIuIeSOWtW57eE/O/4=
-github.com/amikos-tech/chroma-go v0.2.3-0.20250522174736-0f8a35c6abb9 h1:4p3UI+H6yYSF6rKuPhAY9XYpZie11EVnGDtPSPXqJh0=
-github.com/amikos-tech/chroma-go v0.2.3-0.20250522174736-0f8a35c6abb9/go.mod h1:PCwTYNpy4JXYpEtC55TC3+RQzdRCsjLCWOsKazsyaSg=
+github.com/amikos-tech/chroma-go v0.2.3 h1:sUsa36JSGPbQwZsn6jlbjJf+YGE2TXwXI1JJpcBs6R4=
+github.com/amikos-tech/chroma-go v0.2.3/go.mod h1:PCwTYNpy4JXYpEtC55TC3+RQzdRCsjLCWOsKazsyaSg=
 github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kdvxnR2qWY=
 github.com/apapsch/go-jsonmerge/v2 v2.0.0 h1:axGnT1gRIfimI7gJifB699GoE/oq+F2MU7Dml6nw9rQ=
 github.com/apapsch/go-jsonmerge/v2 v2.0.0/go.mod h1:lvDnEdqiQrp0O42VQGgmlKpxL1AP2+08jFMw88y4klk=
