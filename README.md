@@ -356,11 +356,12 @@ NOTE: If the target collection already exists, its vector size and dimensions mu
 
 #### Target Qdrant Options
 
-| Flag                  | Description                                                |
-| --------------------- | ---------------------------------------------------------- |
-| `--target.collection` | Target collection name                                     |
-| `--target.url`        | Target gRPC URL. Default: `"http://localhost:6334"`        |
-| `--target.api-key`    | API key for target instance                                |
+| Flag                              | Description                                         |
+| --------------------------------- | --------------------------------------------------- |
+| `--target.collection`             | Target collection name                              |
+| `--target.url`                    | Target gRPC URL. Default: `"http://localhost:6334"` |
+| `--target.api-key`                | API key for target instance                         |
+| `--target.ensure-payload-indexes` | Ensure payload indexes exist. Default: true         |
 
 See [Shared Migration Options](#shared-migration-options) for shared parameters.
 
@@ -375,5 +376,4 @@ These options apply to all migrations, regardless of the source.
 | `--migration.batch-size`             | Migration batch size. Default: 50                                    |
 | `--migration.restart`                | Restart migration without resuming from offset. Default: false       |
 | `--migration.create-collection`      | Create the collection if it doesn't exist. Default: true             |
-| `--migration.ensure-payload-indexes` | Ensure payload indexes exist. Default: true                          |
-| `--migration.offsets-collection`     | Collection to store migration offset. Default: `"_migration_offsets"` |
+| `--migration.offsets-collection`     | Collection to store migration offset. Default: `"_migration_offsets"`|
