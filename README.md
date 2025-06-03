@@ -102,7 +102,8 @@ Migrate data from a **Pinecone** database to **Qdrant**:
 
 ```bash
 migration pinecone \
-    --pinecone.host 'https://example-index-12345.svc.region.pinecone.io' \
+    --pinecone.index-host 'https://example-index.svc.region.pinecone.io' \
+    --pinecone.index-name 'example-index' \
     --pinecone.api-key 'optional-pinecone-api-key' \
     --qdrant.url 'https://example.cloud-region.cloud-provider.cloud.qdrant.io:6334' \
     --qdrant.api-key 'optional-qdrant-api-key' \
@@ -114,7 +115,7 @@ With Docker:
 
 ```bash
 docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration pinecone \
-    --pinecone.host 'https://example-index-12345.svc.region.pinecone.io' \
+    --pinecone.index-host 'https://example-index.svc.region.pinecone.io' \
     ...
 ```
 
@@ -122,9 +123,11 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 
 | Flag                            | Description                                                     |
 | ------------------------------- | --------------------------------------------------------------- |
-| `--pinecone.api-key`            | Pinecone API key for authentication                             |
-| `--pinecone.host`               | Pinecone index host URL (e.g., `https://your-pinecone-url`)     |
-| `--pinecone.namespace`          | Namespace of the partition to migrate                           |
+| `--pinecone.index-name`              | Pinecone index name.                                       |
+| `--pinecone.index-host`         | Pinecone index host URL (e.g., `https://your-pinecone-url`)     |
+| `--pinecone.api-key`            | Pinecone API key for authentication.                            |
+| `--pinecone.namespace`          | Namespace of the partition to migrate. Optional.                |
+| `--pinecone.service-host`       | Pinecone service host URL. Optional.                            |
 
 #### Qdrant Options
 
