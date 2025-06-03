@@ -22,6 +22,7 @@ type CLI struct {
 	Pinecone MigrateFromPineconeCmd `cmd:"" help:"Migrate data from a Pinecone database to Qdrant."`
 	Chroma   MigrateFromChromaCmd   `cmd:"" help:"Migrate data from a Chroma database to Qdrant."`
 	Weaviate MigrateFromWeaviateCmd `cmd:"" help:"Migrate data from a Weaviate database to Qdrant."`
+	Redis    MigrateFromRedisCmd    `cmd:"" help:"Migrate data from a Redis database to Qdrant."`
 }
 
 func Execute(projectVersion, projectBuild string) {
