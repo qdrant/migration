@@ -233,13 +233,11 @@ func bytesToFloats(b []byte) []float32 {
 }
 
 func parseFieldValue(attrType string, val string) interface{} {
-	switch attrType {
 	// redis.SearchFieldTypeVector is handled
 	// before invoking this function.
-	case redis.SearchFieldTypeNumeric.String():
+	if attrType == redis.SearchFieldTypeNumeric.String() {
 		f, _ := strconv.ParseFloat(val, 64)
 		return f
-	default:
-		return val
 	}
+	return val
 }
