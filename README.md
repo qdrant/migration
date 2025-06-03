@@ -208,7 +208,7 @@ Migrate data from a **Weaviate** database to **Qdrant**:
 ### 📥 Example
 
 > Important ⚠️:
- > Weaviate does not expose vector dimensions and distance metric after a collection is created. [Reference](https://forum.weaviate.io/t/get-vector-dimension-of-a-collection/1769/).
+ > Weaviate [does not expose](https://forum.weaviate.io/t/get-vector-dimension-of-a-collection/1769/) vector dimensions and distance metric after a collection is created.
  > Therefore, you must [manually create](https://qdrant.tech/documentation/concepts/collections/#create-a-collection) a Qdrant collection before starting the migration.
  > Ensure that the **vector dimensions in Qdrant exactly match** those used in Weaviate.
 
@@ -261,7 +261,6 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
 
 </details>
-
 
 <details>
 
