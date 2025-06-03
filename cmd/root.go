@@ -21,6 +21,7 @@ type CLI struct {
 	Milvus   MigrateFromMilvusCmd   `cmd:"" help:"Migrate data from a Milvus database to Qdrant."`
 	Pinecone MigrateFromPineconeCmd `cmd:"" help:"Migrate data from a Pinecone database to Qdrant."`
 	Chroma   MigrateFromChromaCmd   `cmd:"" help:"Migrate data from a Chroma database to Qdrant."`
+	Weaviate MigrateFromWeaviateCmd `cmd:"" help:"Migrate data from a Weaviate database to Qdrant."`
 }
 
 func Execute(projectVersion, projectBuild string) {

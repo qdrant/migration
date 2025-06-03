@@ -10,6 +10,7 @@ CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for res
 * [Chroma](https://trychroma.com/)
 * [Pinecone](https://www.pinecone.io/)
 * [Milvus](https://milvus.io/)
+* [Weaviate](https://weaviate.io/)
 * Another [Qdrant](http://qdrant.tech/) instance
 
 ## Installation
@@ -196,6 +197,70 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
 
 </details>
+
+<details>
+
+<summary><h3>From Weaviate</h3></summary>
+
+Migrate data from a **Weaviate** database to **Qdrant**:
+
+### 📥 Example
+
+> Important ⚠️:
+ > Weaviate does not expose vector dimensions and distance metric after a collection is created. [Reference](https://forum.weaviate.io/t/get-vector-dimension-of-a-collection/1769/).
+ > Therefore, you must [manually create](https://qdrant.tech/documentation/concepts/collections/#create-a-collection) a Qdrant collection before starting the migration.
+ > Ensure that the **vector dimensions in Qdrant exactly match** those used in Weaviate.
+
+```bash
+migration weaviate \
+    --weaviate.host 'example.c0.asia-southeast1.gcp.weaviate.cloud' \
+    --weaviate.scheme 'https' \
+    --weaviate.auth-type 'apiKey' \
+    --weaviate.api-key 'optional-api-key' \
+    --weaviate.class-name 'ExampleClass' \
+    --qdrant.url 'http://localhost:6334' \
+    --qdrant.collection 'target-collection' \
+    --migration.batch-size 64
+```
+
+With Docker:
+
+```bash
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration weaviate \
+    --weaviate.host 'example.c0.asia-southeast1.gcp.weaviate.cloud' \
+    ...
+```
+
+#### Weaviate Options
+
+| Flag                       | Description                                                                                      |
+| -------------------------- | ------------------------------------------------------------------------------------------------ |
+| `--weaviate.host`          | Host of the Weaviate instance (e.g. `localhost:8080`) **(required)**                             |
+| `--weaviate.scheme`        | Scheme of the Weaviate instance (e.g. `http` or `https`) _(default: http)_                       |
+| `--weaviate.class-name`    | Name of the Weaviate class to migrate **(required)**                                             |
+| `--weaviate.auth-type`     | Authentication type _(default: none)_. Options: `none`, `apiKey`, `password`, `client`, `bearer` |
+| `--weaviate.api-key`       | API key for authentication (when `auth-type` is `apiKey`)                                        |
+| `--weaviate.username`      | Username for authentication (when `auth-type` is `password`)                                     |
+| `--weaviate.password`      | Password for authentication (when `auth-type` is `password`)                                     |
+| `--weaviate.scopes`        | Scopes for authentication (when `auth-type` is `password` or `client`)                           |
+| `--weaviate.client-secret` | Client secret for authentication (when `auth-type` is `client`)                                  |
+| `--weaviate.token`         | Bearer token for authentication (when `auth-type` is `bearer`)                                   |
+| `--weaviate.refresh-token` | Refresh token for authentication (when `auth-type` is `bearer`)                                  |
+| `--weaviate.expires-in`    | Access token expiration time in seconds (when `auth-type` is `bearer`)                           |
+| `--weaviate.tenant`        | Objects belonging to which tenant to migrate                                                     |
+
+#### Qdrant Options
+
+| Flag                    | Description                                                                                                      |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `--qdrant.url`          | Qdrant gRPC URL. Default: `"http://localhost:6334"`                                                              |
+| `--qdrant.collection`   | Target collection name                                                                                           |
+| `--qdrant.api-key`      | Qdrant API key                                                                                                   |
+
+* See [Shared Migration Options](#shared-migration-options) for common migration parameters.
+
+</details>
+
 <details>
 <summary><h3>From Another Qdrant Instance</h3></summary>
 
