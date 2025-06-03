@@ -15,9 +15,10 @@ import (
 )
 
 type MigrateFromQdrantCmd struct {
-	Source    commons.QdrantConfig    `embed:"" prefix:"source."`
-	Target    commons.QdrantConfig    `embed:"" prefix:"target."`
-	Migration commons.MigrationConfig `embed:"" prefix:"migration."`
+	Source               commons.QdrantConfig    `embed:"" prefix:"source."`
+	Target               commons.QdrantConfig    `embed:"" prefix:"target."`
+	Migration            commons.MigrationConfig `embed:"" prefix:"migration."`
+	EnsurePayloadIndexes bool                    `help:"Ensure payload indexes are created" default:"true" prefix:"target."`
 
 	sourceHost string
 	sourcePort int
@@ -158,7 +159,7 @@ func (r *MigrateFromQdrantCmd) perpareTargetCollection(ctx context.Context, sour
 		return fmt.Errorf("failed to get target collection information: %w", err)
 	}
 
-	if r.Migration.EnsurePayloadIndexes {
+	if r.EnsurePayloadIndexes {
 		for name, schemaInfo := range sourceCollectionInfo.GetPayloadSchema() {
 			fieldType := getFieldType(schemaInfo.GetDataType())
 			if fieldType == nil {
