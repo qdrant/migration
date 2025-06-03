@@ -3,8 +3,6 @@ package integrationtests
 import (
 	"context"
 	"fmt"
-	"os/exec"
-	"path/filepath"
 	"testing"
 
 	"github.com/google/uuid"
@@ -97,12 +95,6 @@ func TestMigrateFromWeaviate(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	binaryPath := filepath.Join(t.TempDir(), "migration")
-	cmd := exec.Command("go", "build", "-o", binaryPath, "main.go")
-	cmd.Dir = ".."
-	out, err := cmd.CombinedOutput()
-	require.NoError(t, err, "build failed: %s", string(out))
-
 	args := []string{
 		"weaviate",
 		fmt.Sprintf("--weaviate.host=%s", weaviateHost),
@@ -112,9 +104,7 @@ func TestMigrateFromWeaviate(t *testing.T) {
 		fmt.Sprintf("--qdrant.collection=%s", testCollectionName),
 	}
 
-	cmd = exec.Command(binaryPath, args...)
-	out, err = cmd.CombinedOutput()
-	require.NoError(t, err, "migration failed: %s", string(out))
+	runMigrationBinary(t, args)
 
 	points, err := qdrantClient.Scroll(ctx, &qdrant.ScrollPoints{
 		CollectionName: testCollectionName,

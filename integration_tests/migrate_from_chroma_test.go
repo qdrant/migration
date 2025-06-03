@@ -3,8 +3,6 @@ package integrationtests
 import (
 	"context"
 	"fmt"
-	"os/exec"
-	"path/filepath"
 	"testing"
 
 	chroma "github.com/amikos-tech/chroma-go/pkg/api/v2"
@@ -91,12 +89,6 @@ func TestMigrateFromChroma(t *testing.T) {
 	require.NoError(t, err)
 	defer qdrantClient.Close()
 
-	binaryPath := filepath.Join(t.TempDir(), "migration")
-	cmd := exec.Command("go", "build", "-o", binaryPath, "main.go")
-	cmd.Dir = ".."
-	out, err := cmd.CombinedOutput()
-	require.NoError(t, err, "build failed: %s", string(out))
-
 	args := []string{
 		"chroma",
 		fmt.Sprintf("--chroma.url=http://%s:%s", chromaHost, chromaPort.Port()),
@@ -110,9 +102,7 @@ func TestMigrateFromChroma(t *testing.T) {
 		fmt.Sprintf("--qdrant.dense-vector=%s", denseVectorField),
 	}
 
-	cmd = exec.Command(binaryPath, args...)
-	out, err = cmd.CombinedOutput()
-	require.NoError(t, err, "migration failed: %s", string(out))
+	runMigrationBinary(t, args)
 
 	points, err := qdrantClient.Scroll(ctx, &qdrant.ScrollPoints{
 		CollectionName: testCollectionName,
