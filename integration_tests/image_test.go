@@ -13,7 +13,7 @@ import (
 //nolint:unparam
 func qdrantContainer(ctx context.Context, t *testing.T, apiKey string) testcontainers.Container {
 	req := testcontainers.ContainerRequest{
-		Image:        "qdrant/qdrant",
+		Image:        "qdrant/qdrant:v1.14.1",
 		ExposedPorts: []string{"6334/tcp"},
 		Env: map[string]string{
 			"QDRANT__SERVICE__API_KEY": apiKey,
@@ -33,7 +33,7 @@ func qdrantContainer(ctx context.Context, t *testing.T, apiKey string) testconta
 
 func chromaContainer(ctx context.Context, t *testing.T) testcontainers.Container {
 	req := testcontainers.ContainerRequest{
-		Image:        "chromadb/chroma",
+		Image:        "chromadb/chroma:1.0.12",
 		ExposedPorts: []string{"8000/tcp"},
 		WaitingFor: wait.ForAll(
 			wait.ForListeningPort("8000/tcp").WithStartupTimeout(5 * time.Second),
@@ -50,7 +50,7 @@ func chromaContainer(ctx context.Context, t *testing.T) testcontainers.Container
 
 func weaviateContainer(ctx context.Context, t *testing.T) testcontainers.Container {
 	req := testcontainers.ContainerRequest{
-		Image:        "cr.weaviate.io/semitechnologies/weaviate:1.30.4",
+		Image:        "cr.weaviate.io/semitechnologies/weaviate:1.31.0",
 		ExposedPorts: []string{"8080/tcp"},
 		Env: map[string]string{
 			"QUERY_DEFAULTS_LIMIT":                    "25",
@@ -74,7 +74,7 @@ func weaviateContainer(ctx context.Context, t *testing.T) testcontainers.Contain
 func pineconeContainer(ctx context.Context, t *testing.T) testcontainers.Container {
 
 	req := testcontainers.ContainerRequest{
-		Image:        "ghcr.io/pinecone-io/pinecone-local:latest",
+		Image:        "ghcr.io/pinecone-io/pinecone-local:v1.0.0.rc0",
 		ExposedPorts: []string{"5081/tcp", "5082/tcp"},
 		Env: map[string]string{
 			"PORT": "5081",
@@ -94,7 +94,7 @@ func pineconeContainer(ctx context.Context, t *testing.T) testcontainers.Contain
 
 func redisContainer(ctx context.Context, t *testing.T) testcontainers.Container {
 	req := testcontainers.ContainerRequest{
-		Image:        "redis/redis-stack:latest",
+		Image:        "redis/redis-stack:7.2.0-v17",
 		ExposedPorts: []string{"6379/tcp"},
 		WaitingFor:   wait.ForListeningPort("6379/tcp"),
 	}
