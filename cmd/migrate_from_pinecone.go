@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
-	"time"
 
 	"github.com/pinecone-io/go-pinecone/v3/pinecone"
 	"github.com/pterm/pterm"
@@ -30,21 +28,12 @@ type MigrateFromPineconeCmd struct {
 	targetTLS  bool
 }
 
-func stripScheme(input string) string {
-	if idx := strings.Index(input, "://"); idx != -1 {
-		return input[idx+3:]
-	}
-	return input
-}
-
 func (r *MigrateFromPineconeCmd) Parse() error {
 	var err error
 	r.targetHost, r.targetPort, r.targetTLS, err = parseQdrantUrl(r.Qdrant.Url)
 	if err != nil {
 		return fmt.Errorf("failed to parse target URL: %w", err)
 	}
-
-	r.Pinecone.Host = stripScheme(r.Pinecone.Host)
 
 	return nil
 }
@@ -89,7 +78,7 @@ func (r *MigrateFromPineconeCmd) Run(globals *Globals) error {
 		return fmt.Errorf("error preparing target collection: %w", err)
 	}
 
-	displayMigrationStart("pinecone", r.Pinecone.Host, r.Qdrant.Collection)
+	displayMigrationStart("pinecone", r.Pinecone.IndexHost, r.Qdrant.Collection)
 
 	err = r.migrateData(ctx, sourceIndexConn, targetClient, sourcePointCount)
 	if err != nil {
@@ -111,6 +100,7 @@ func (r *MigrateFromPineconeCmd) Run(globals *Globals) error {
 
 func (r *MigrateFromPineconeCmd) connectToPinecone() (*pinecone.Client, *pinecone.IndexConnection, error) {
 	client, err := pinecone.NewClient(pinecone.NewClientParams{
+		Host:   r.Pinecone.ServiceHost,
 		ApiKey: r.Pinecone.APIKey,
 	})
 	if err != nil {
@@ -118,7 +108,7 @@ func (r *MigrateFromPineconeCmd) connectToPinecone() (*pinecone.Client, *pinecon
 	}
 
 	indexConn, err := client.Index(pinecone.NewIndexConnParams{
-		Host:      r.Pinecone.Host,
+		Host:      r.Pinecone.IndexHost,
 		Namespace: r.Pinecone.Namespace,
 	})
 	if err != nil {
@@ -159,14 +149,14 @@ func (r *MigrateFromPineconeCmd) prepareTargetCollection(ctx context.Context, so
 
 	var foundIndex *pinecone.Index
 	for i := range indexes {
-		if indexes[i].Host == r.Pinecone.Host {
+		if indexes[i].Name == r.Pinecone.IndexName {
 			foundIndex = indexes[i]
 			break
 		}
 	}
 
 	if foundIndex == nil {
-		return fmt.Errorf("index %q not found in Pinecone", r.Pinecone.Host)
+		return fmt.Errorf("index %q not found in Pinecone", r.Pinecone.IndexName)
 	}
 
 	distanceMapping := map[pinecone.IndexMetric]qdrant.Distance{
@@ -208,14 +198,13 @@ func (r *MigrateFromPineconeCmd) prepareTargetCollection(ctx context.Context, so
 }
 
 func (r *MigrateFromPineconeCmd) migrateData(ctx context.Context, sourceIndexConn *pinecone.IndexConnection, targetClient *qdrant.Client, sourcePointCount uint64) error {
-	startTime := time.Now()
 	batchSize := r.Migration.BatchSize
 
 	var offsetId *qdrant.PointId
 	offsetCount := uint64(0)
 
 	if !r.Migration.Restart {
-		id, offsetStored, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.Pinecone.Host)
+		id, offsetStored, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.Pinecone.IndexHost)
 		if err != nil {
 			return fmt.Errorf("failed to get start offset: %w", err)
 		}
@@ -241,7 +230,7 @@ func (r *MigrateFromPineconeCmd) migrateData(ctx context.Context, sourceIndexCon
 		}
 
 		if len(listRes.VectorIds) < 1 {
-			return fmt.Errorf("pinecone.ListVectors returned no IDs")
+			break
 		}
 
 		ids := make([]string, 0, len(listRes.VectorIds))
@@ -300,7 +289,7 @@ func (r *MigrateFromPineconeCmd) migrateData(ctx context.Context, sourceIndexCon
 		if listRes.NextPaginationToken != nil {
 			offsetCount += uint64(len(targetPoints))
 			offsetId = qdrant.NewID(*listRes.NextPaginationToken)
-			err = commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.Pinecone.Host, offsetId, offsetCount)
+			err = commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.Pinecone.IndexHost, offsetId, offsetCount)
 			if err != nil {
 				return fmt.Errorf("failed to store offset: %w", err)
 			}
@@ -312,15 +301,6 @@ func (r *MigrateFromPineconeCmd) migrateData(ctx context.Context, sourceIndexCon
 			break
 		}
 
-		// If one minute elapsed get updated sourcePointCount.
-		// Useful if any new points were added to the source during migration.
-		if time.Since(startTime) > time.Minute {
-			sourcePointCount, err = r.countPineconeVectors(ctx, sourceIndexConn)
-			if err != nil {
-				return fmt.Errorf("failed to count vectors in Pinecone: %w", err)
-			}
-			bar.Total = int(sourcePointCount)
-		}
 	}
 
 	pterm.Success.Printfln("Data migration finished successfully")

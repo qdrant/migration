@@ -21,6 +21,7 @@ type CLI struct {
 	Milvus   MigrateFromMilvusCmd   `cmd:"" help:"Migrate data from a Milvus database to Qdrant."`
 	Pinecone MigrateFromPineconeCmd `cmd:"" help:"Migrate data from a Pinecone database to Qdrant."`
 	Chroma   MigrateFromChromaCmd   `cmd:"" help:"Migrate data from a Chroma database to Qdrant."`
+	Weaviate MigrateFromWeaviateCmd `cmd:"" help:"Migrate data from a Weaviate database to Qdrant."`
 	Redis    MigrateFromRedisCmd    `cmd:"" help:"Migrate data from a Redis database to Qdrant."`
 }
 
@@ -41,4 +42,15 @@ func Execute(projectVersion, projectBuild string) {
 		pterm.Error.Println(err)
 		ctx.Exit(1)
 	}
+}
+
+func NewParser(args []string) (*kong.Context, error) {
+	cli := &CLI{}
+
+	parser, err := kong.New(cli, kong.Bind(&cli.Globals))
+	if err != nil {
+		return nil, err
+	}
+
+	return parser.Parse(args)
 }
