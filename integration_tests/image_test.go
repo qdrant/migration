@@ -90,3 +90,19 @@ func pineconeContainer(ctx context.Context, t *testing.T) testcontainers.Contain
 
 	return container
 }
+
+func redisContainer(ctx context.Context, t *testing.T) testcontainers.Container {
+	req := testcontainers.ContainerRequest{
+		Image:        "redis/redis-stack:latest",
+		ExposedPorts: []string{"6379/tcp"},
+		WaitingFor:   wait.ForListeningPort("6379/tcp"),
+	}
+
+	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	require.NoError(t, err)
+
+	return container
+}
