@@ -18,6 +18,7 @@ require (
 	github.com/weaviate/weaviate v1.27.0
 	github.com/weaviate/weaviate-go-client/v4 v4.16.1
 	google.golang.org/grpc v1.72.2
+	google.golang.org/protobuf v1.36.6
 )
 
 require (

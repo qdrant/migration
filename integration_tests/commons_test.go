@@ -15,6 +15,7 @@ const (
 	qdrantAPIKey       = "00000000"
 	totalEntries       = 100
 	dimension          = 384
+	idField            = "__id__"
 )
 
 func randFloat32Values(n int) []float32 {
@@ -23,6 +24,14 @@ func randFloat32Values(n int) []float32 {
 		values[i] = rand.Float32()
 	}
 	return values
+}
+
+func randIndices(n int) []uint32 {
+	indices := make([]uint32, n)
+	for i := range indices {
+		indices[i] = rand.Uint32()
+	}
+	return indices
 }
 
 func runMigrationBinary(t *testing.T, args []string) {

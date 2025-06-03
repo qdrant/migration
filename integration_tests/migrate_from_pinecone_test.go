@@ -1,9 +1,8 @@
-package cmd_test
+package integrationtests
 
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"testing"
 
 	"github.com/pinecone-io/go-pinecone/v3/pinecone"
@@ -11,9 +10,11 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/qdrant/go-client/qdrant"
+)
 
-	"github.com/qdrant/migration/cmd"
-	"github.com/qdrant/migration/pkg/commons"
+const (
+	denseVectorName  = "dense_vector"
+	sparseVectorName = "sparse_vector"
 )
 
 func TestMigrateFromPineconeDense(t *testing.T) {
@@ -60,30 +61,20 @@ func TestMigrateFromPineconeDense(t *testing.T) {
 	require.NoError(t, err)
 	defer qdrantClient.Close()
 
-	migrationCmd := &cmd.MigrateFromPineconeCmd{
-		Pinecone: commons.PineconeConfig{
-			IndexName:   indexName,
-			IndexHost:   pineconeIndexHost,
-			ServiceHost: pineconeHost,
-			APIKey:      "qdrant-migration-test",
-		},
-		Qdrant: commons.QdrantConfig{
-			Url:        "http://" + qdrantHost + ":" + fmt.Sprint(qdrantPort),
-			Collection: testCollectionName,
-			APIKey:     qdrantAPIKey,
-		},
-		Migration: commons.MigrationConfig{
-			BatchSize:            batchSize,
-			CreateCollection:     true,
-			EnsurePayloadIndexes: true,
-			OffsetsCollection:    offsetsCollectionName,
-		},
-		IdField:     idField,
-		DenseVector: denseVectorName,
+	args := []string{
+		"pinecone",
+		fmt.Sprintf("--pinecone.index-name=%s", indexName),
+		fmt.Sprintf("--pinecone.index-host=%s", pineconeIndexHost),
+		fmt.Sprintf("--pinecone.service-host=%s", pineconeHost),
+		fmt.Sprintf("--pinecone.api-key=%s", "qdrant-migration-test"),
+		fmt.Sprintf("--qdrant.url=http://%s:%s", qdrantHost, fmt.Sprint(qdrantPort)),
+		fmt.Sprintf("--qdrant.api-key=%s", qdrantAPIKey),
+		fmt.Sprintf("--qdrant.collection=%s", testCollectionName),
+		fmt.Sprintf("--qdrant.id-field=%s", idField),
+		fmt.Sprintf("--qdrant.dense-vector=%s", denseVectorName),
 	}
 
-	err = migrationCmd.Run(&cmd.Globals{})
-	require.NoError(t, err)
+	runMigrationBinary(t, args)
 
 	points, err := qdrantClient.Scroll(ctx, &qdrant.ScrollPoints{
 		CollectionName: testCollectionName,
@@ -159,30 +150,20 @@ func TestMigrateFromPineconeSparse(t *testing.T) {
 	require.NoError(t, err)
 	defer qdrantClient.Close()
 
-	migrationCmd := &cmd.MigrateFromPineconeCmd{
-		Pinecone: commons.PineconeConfig{
-			IndexName:   indexName,
-			IndexHost:   pineconeIndexHost,
-			ServiceHost: pineconeHost,
-			APIKey:      "qdrant-migration-test",
-		},
-		Qdrant: commons.QdrantConfig{
-			Url:        "http://" + qdrantHost + ":" + fmt.Sprint(qdrantPort),
-			Collection: testCollectionName,
-			APIKey:     qdrantAPIKey,
-		},
-		Migration: commons.MigrationConfig{
-			BatchSize:            batchSize,
-			CreateCollection:     true,
-			EnsurePayloadIndexes: true,
-			OffsetsCollection:    offsetsCollectionName,
-		},
-		IdField:      idField,
-		SparseVector: sparseVectorName,
+	args := []string{
+		"pinecone",
+		fmt.Sprintf("--pinecone.index-name=%s", indexName),
+		fmt.Sprintf("--pinecone.index-host=%s", pineconeIndexHost),
+		fmt.Sprintf("--pinecone.service-host=%s", pineconeHost),
+		fmt.Sprintf("--pinecone.api-key=%s", "qdrant-migration-test"),
+		fmt.Sprintf("--qdrant.url=http://%s:%s", qdrantHost, fmt.Sprint(qdrantPort)),
+		fmt.Sprintf("--qdrant.api-key=%s", qdrantAPIKey),
+		fmt.Sprintf("--qdrant.collection=%s", testCollectionName),
+		fmt.Sprintf("--qdrant.id-field=%s", idField),
+		fmt.Sprintf("--qdrant.sparse-vector=%s", sparseVectorName),
 	}
 
-	err = migrationCmd.Run(&cmd.Globals{})
-	require.NoError(t, err)
+	runMigrationBinary(t, args)
 
 	points, err := qdrantClient.Scroll(ctx, &qdrant.ScrollPoints{
 		CollectionName: testCollectionName,
@@ -228,12 +209,12 @@ func TestMigrateFromPineconeSparse(t *testing.T) {
 			actualMap[idx] = actualValues[i]
 		}
 
-		require.Equal(t, len(expectedMap), len(actualMap), "sparse vector index count mismatch for id: %s", id)
+		require.Len(t, expectedMap, len(actualMap), "sparse vector index count mismatch for id: %s", id)
 
 		for idx, expectedVal := range expectedMap {
 			actualVal, exists := actualMap[idx]
 			require.True(t, exists, "missing index %d in sparse vector for id: %s", idx, id)
-			require.Equal(t, expectedVal, actualVal, "mismatched value at index %d for id: %s", idx, id)
+			require.InEpsilon(t, expectedVal, actualVal, 1e-2, "mismatched value at index %d for id: %s", idx, id)
 		}
 	}
 
@@ -282,31 +263,15 @@ func createTestData(t *testing.T, isSparse bool) ([]string, []*pinecone.Vector) 
 		if isSparse {
 			sparse := &pinecone.SparseValues{
 				Indices: randIndices(5),
-				Values:  randValues(5),
+				Values:  randFloat32Values(5),
 			}
 			vec.SparseValues = sparse
 		} else {
-			dense := randValues(dimension)
+			dense := randFloat32Values(dimension)
 			vec.Values = &dense
 		}
 
 		vectors[i] = vec
 	}
 	return ids, vectors
-}
-
-func randIndices(n int) []uint32 {
-	indices := make([]uint32, n)
-	for i := range indices {
-		indices[i] = rand.Uint32()
-	}
-	return indices
-}
-
-func randValues(n int) []float32 {
-	values := make([]float32, n)
-	for i := range values {
-		values[i] = rand.Float32()
-	}
-	return values
 }

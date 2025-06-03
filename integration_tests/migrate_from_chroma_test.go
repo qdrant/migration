@@ -18,7 +18,6 @@ const (
 	sourceField      = "source"
 	denseVectorField = "dense_vector"
 	distance         = "euclid"
-	idField          = "__id__"
 )
 
 func TestMigrateFromChroma(t *testing.T) {
