@@ -309,25 +309,25 @@ func extractValue(col column.Column, index int) (interface{}, error) {
 
 	switch col.Type() {
 	case entity.FieldTypeBool:
-		return data.GetScalars().GetBoolData().Data[index], nil
+		return data.GetScalars().GetBoolData().GetData()[index], nil
 
 	case entity.FieldTypeInt64:
-		return data.GetScalars().GetLongData().Data[index], nil
+		return data.GetScalars().GetLongData().GetData()[index], nil
 
 	case entity.FieldTypeInt8, entity.FieldTypeInt16, entity.FieldTypeInt32:
-		return int64(data.GetScalars().GetIntData().Data[index]), nil
+		return int64(data.GetScalars().GetIntData().GetData()[index]), nil
 
 	case entity.FieldTypeFloat:
-		return data.GetScalars().GetFloatData().Data[index], nil
+		return data.GetScalars().GetFloatData().GetData()[index], nil
 
 	case entity.FieldTypeDouble:
-		return data.GetScalars().GetDoubleData().Data[index], nil
+		return data.GetScalars().GetDoubleData().GetData()[index], nil
 
 	case entity.FieldTypeVarChar, entity.FieldTypeString:
-		return data.GetScalars().GetStringData().Data[index], nil
+		return data.GetScalars().GetStringData().GetData()[index], nil
 
 	case entity.FieldTypeJSON:
-		jsonData := data.GetScalars().GetJsonData().Data[index]
+		jsonData := data.GetScalars().GetJsonData().GetData()[index]
 		var result map[string]interface{}
 		if err := json.Unmarshal(jsonData, &result); err != nil {
 			return nil, fmt.Errorf("failed to parse JSON: %w", err)
@@ -335,7 +335,7 @@ func extractValue(col column.Column, index int) (interface{}, error) {
 		return result, nil
 
 	case entity.FieldTypeFloatVector:
-		vec := data.GetVectors().GetFloatVector().Data
+		vec := data.GetVectors().GetFloatVector().GetData()
 		dim := int(data.GetVectors().Dim)
 		start := index * dim
 		end := start + dim
