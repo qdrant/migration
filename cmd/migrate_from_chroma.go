@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	chroma "github.com/amikos-tech/chroma-go/pkg/api/v2"
 	"github.com/pterm/pterm"
@@ -200,7 +199,6 @@ func (r *MigrateFromChromaCmd) prepareTargetCollection(ctx context.Context, coll
 }
 
 func (r *MigrateFromChromaCmd) migrateData(ctx context.Context, collection chroma.Collection, targetClient *qdrant.Client, sourcePointCount uint64) error {
-	startTime := time.Now()
 	batchSize := r.Migration.BatchSize
 
 	var currentOffset uint64 = 0
@@ -295,16 +293,6 @@ func (r *MigrateFromChromaCmd) migrateData(ctx context.Context, collection chrom
 		}
 
 		bar.Add(count)
-
-		// If one minute elapsed get updated sourcePointCount
-		// Useful if any new points were added to the source during migration
-		if time.Since(startTime) > time.Minute {
-			sourcePointCount, err = r.countChromaVectors(ctx, collection)
-			if err != nil {
-				return fmt.Errorf("failed to count vectors in Chroma: %w", err)
-			}
-			bar.Total = int(sourcePointCount)
-		}
 	}
 
 	pterm.Success.Printfln("Data migration finished successfully")
