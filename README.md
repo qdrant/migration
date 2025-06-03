@@ -189,11 +189,12 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 
 #### Qdrant Options
 
-| Flag                            | Description                                                     |
-| ------------------------------- | --------------------------------------------------------------- |
-| `--qdrant.url`                  | Qdrant gRPC URL. Default: `"http://localhost:6334"`             |
-| `--qdrant.collection`           | Target collection name                                          |
-| `--qdrant.api-key`              | Qdrant API key                                                  |
+| Flag                       | Description                                                                                                      |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `--qdrant.url`             | Qdrant gRPC URL. Default: `"http://localhost:6334"`                                                              |
+| `--qdrant.collection`      | Target collection name                                                                                           |
+| `--qdrant.api-key`         | Qdrant API key                                                                                                   |
+| `--qdrant.distance-metric` | Map of vector field names to distance metrics (`"cosine"`,`"dot"`,`"euclid"`,`"manhattan"`). Default: `"cosine"` |
 
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
 
