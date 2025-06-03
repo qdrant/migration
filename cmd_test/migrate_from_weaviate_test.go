@@ -1,0 +1,181 @@
+package cmd_test
+
+import (
+	"context"
+	"fmt"
+	"math/rand/v2"
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+	"github.com/weaviate/weaviate-go-client/v4/weaviate"
+	"github.com/weaviate/weaviate/entities/models"
+
+	"github.com/qdrant/go-client/qdrant"
+
+	"github.com/qdrant/migration/cmd"
+	"github.com/qdrant/migration/pkg/commons"
+)
+
+func TestMigrateFromWeaviate(t *testing.T) {
+	ctx := context.Background()
+
+	qdrantCont := qdrantContainer(ctx, t, qdrantAPIKey)
+	weaviateCont := weaviateContainer(ctx, t)
+
+	t.Cleanup(func() {
+		require.NoError(t, qdrantCont.Terminate(ctx))
+		require.NoError(t, weaviateCont.Terminate(ctx))
+	})
+
+	var err error
+	weaviateHost, err := weaviateCont.PortEndpoint(ctx, "8080/tcp", "")
+	require.NoError(t, err)
+
+	qdrantHost, err := qdrantCont.Host(ctx)
+	require.NoError(t, err)
+	mappedPort, err := qdrantCont.MappedPort(ctx, qdrantPort)
+	require.NoError(t, err)
+	qdrantPort := mappedPort.Int()
+
+	// Create Weaviate client
+	weaviateClient, err := weaviate.NewClient(weaviate.Config{
+		Host:   weaviateHost,
+		Scheme: "http",
+	})
+	require.NoError(t, err)
+
+	// Create Weaviate class
+	class := &models.Class{
+		Class:      testCollectionName,
+		Vectorizer: "none",
+		Properties: []*models.Property{
+			{
+				Name:     "content",
+				DataType: []string{"text"},
+			},
+			{
+				Name:     "genre",
+				DataType: []string{"text"},
+			},
+		},
+		VectorIndexConfig: map[string]interface{}{
+			"distance": "dot",
+		},
+		VectorIndexType: "hnsw",
+	}
+
+	err = weaviateClient.Schema().ClassCreator().WithClass(class).Do(ctx)
+	require.NoError(t, err)
+
+	testIDs, vectors := createWeaviateTestData()
+	for i, vec := range vectors {
+		obj := map[string]interface{}{
+			"content": fmt.Sprintf("test content %d", i+1),
+			"genre":   fmt.Sprintf("test genre %d", i+1),
+		}
+
+		_, err = weaviateClient.Data().Creator().
+			WithClassName(testCollectionName).
+			WithID(testIDs[i]).
+			WithProperties(obj).
+			WithVector(vec).
+			Do(ctx)
+		require.NoError(t, err)
+	}
+
+	qdrantClient, err := qdrant.NewClient(&qdrant.Config{
+		Host:   qdrantHost,
+		Port:   qdrantPort,
+		APIKey: qdrantAPIKey,
+	})
+	require.NoError(t, err)
+	defer qdrantClient.Close()
+
+	err = qdrantClient.CreateCollection(ctx, &qdrant.CreateCollection{
+		CollectionName: testCollectionName,
+		VectorsConfig: qdrant.NewVectorsConfig(&qdrant.VectorParams{
+			Size:     uint64(dimension),
+			Distance: qdrant.Distance_Dot,
+		}),
+	})
+	require.NoError(t, err)
+
+	migrationCmd := &cmd.MigrateFromWeaviateCmd{
+		Weaviate: commons.WeaviateConfig{
+			Host:      weaviateHost,
+			Scheme:    "http",
+			ClassName: testCollectionName,
+		},
+		Qdrant: commons.QdrantConfig{
+			Url:        "http://" + qdrantHost + ":" + fmt.Sprint(qdrantPort),
+			Collection: testCollectionName,
+			APIKey:     qdrantAPIKey,
+		},
+		Migration: commons.MigrationConfig{
+			BatchSize:            batchSize,
+			EnsurePayloadIndexes: true,
+			OffsetsCollection:    offsetsCollectionName,
+		},
+	}
+
+	err = migrationCmd.Run(&cmd.Globals{})
+	require.NoError(t, err)
+
+	points, err := qdrantClient.Scroll(ctx, &qdrant.ScrollPoints{
+		CollectionName: testCollectionName,
+		Limit:          qdrant.PtrOf(uint32(len(testIDs))),
+		WithPayload:    qdrant.NewWithPayload(true),
+		WithVectors:    qdrant.NewWithVectors(true),
+	})
+	require.NoError(t, err)
+	require.Len(t, points, len(testIDs))
+
+	expectedPoints := make(map[string]struct {
+		content string
+		genre   string
+		vector  []float32
+	})
+	for i, id := range testIDs {
+		expectedPoints[id] = struct {
+			content string
+			genre   string
+			vector  []float32
+		}{
+			content: fmt.Sprintf("test content %d", i+1),
+			genre:   fmt.Sprintf("test genre %d", i+1),
+			vector:  vectors[i],
+		}
+	}
+
+	for _, point := range points {
+		id := point.Id.GetUuid()
+		expected, exists := expectedPoints[id]
+		require.True(t, exists)
+
+		require.Equal(t, expected.content, point.Payload["content"].GetStringValue())
+		require.Equal(t, expected.genre, point.Payload["genre"].GetStringValue())
+
+		vector := point.Vectors.GetVector().GetData()
+		require.Equal(t, expected.vector, vector)
+	}
+}
+
+func createWeaviateTestData() ([]string, [][]float32) {
+	ids := make([]string, totalEntries)
+	vectors := make([][]float32, totalEntries)
+
+	for i := 0; i < totalEntries; i++ {
+		ids[i] = uuid.New().String()
+		vectors[i] = randFloat32Values(dimension)
+	}
+	return ids, vectors
+}
+
+func randFloat32Values(n int) []float32 {
+	values := make([]float32, n)
+	for i := range values {
+		values[i] = rand.Float32()
+	}
+	return values
+}
