@@ -1,9 +1,10 @@
-package cmd_test
+package integrationtests
 
 import (
 	"context"
 	"fmt"
-	"math/rand/v2"
+	"os/exec"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/uuid"
@@ -12,9 +13,6 @@ import (
 	"github.com/weaviate/weaviate/entities/models"
 
 	"github.com/qdrant/go-client/qdrant"
-
-	"github.com/qdrant/migration/cmd"
-	"github.com/qdrant/migration/pkg/commons"
 )
 
 func TestMigrateFromWeaviate(t *testing.T) {
@@ -36,16 +34,14 @@ func TestMigrateFromWeaviate(t *testing.T) {
 	require.NoError(t, err)
 	mappedPort, err := qdrantCont.MappedPort(ctx, qdrantPort)
 	require.NoError(t, err)
-	qdrantPort := mappedPort.Int()
+	qdrantPort := mappedPort
 
-	// Create Weaviate client
 	weaviateClient, err := weaviate.NewClient(weaviate.Config{
 		Host:   weaviateHost,
 		Scheme: "http",
 	})
 	require.NoError(t, err)
 
-	// Create Weaviate class
 	class := &models.Class{
 		Class:      testCollectionName,
 		Vectorizer: "none",
@@ -86,7 +82,7 @@ func TestMigrateFromWeaviate(t *testing.T) {
 
 	qdrantClient, err := qdrant.NewClient(&qdrant.Config{
 		Host:   qdrantHost,
-		Port:   qdrantPort,
+		Port:   qdrantPort.Int(),
 		APIKey: qdrantAPIKey,
 	})
 	require.NoError(t, err)
@@ -101,26 +97,24 @@ func TestMigrateFromWeaviate(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	migrationCmd := &cmd.MigrateFromWeaviateCmd{
-		Weaviate: commons.WeaviateConfig{
-			Host:      weaviateHost,
-			Scheme:    "http",
-			ClassName: testCollectionName,
-		},
-		Qdrant: commons.QdrantConfig{
-			Url:        "http://" + qdrantHost + ":" + fmt.Sprint(qdrantPort),
-			Collection: testCollectionName,
-			APIKey:     qdrantAPIKey,
-		},
-		Migration: commons.MigrationConfig{
-			BatchSize:            batchSize,
-			EnsurePayloadIndexes: true,
-			OffsetsCollection:    offsetsCollectionName,
-		},
+	binaryPath := filepath.Join(t.TempDir(), "migration")
+	cmd := exec.Command("go", "build", "-o", binaryPath, "main.go")
+	cmd.Dir = ".."
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "build failed: %s", string(out))
+
+	args := []string{
+		"weaviate",
+		fmt.Sprintf("--weaviate.host=%s", weaviateHost),
+		fmt.Sprintf("--weaviate.class-name=%s", testCollectionName),
+		fmt.Sprintf("--qdrant.url=http://%s:%s", qdrantHost, qdrantPort.Port()),
+		fmt.Sprintf("--qdrant.api-key=%s", qdrantAPIKey),
+		fmt.Sprintf("--qdrant.collection=%s", testCollectionName),
 	}
 
-	err = migrationCmd.Run(&cmd.Globals{})
-	require.NoError(t, err)
+	cmd = exec.Command(binaryPath, args...)
+	out, err = cmd.CombinedOutput()
+	require.NoError(t, err, "migration failed: %s", string(out))
 
 	points, err := qdrantClient.Scroll(ctx, &qdrant.ScrollPoints{
 		CollectionName: testCollectionName,
@@ -170,12 +164,4 @@ func createWeaviateTestData() ([]string, [][]float32) {
 		vectors[i] = randFloat32Values(dimension)
 	}
 	return ids, vectors
-}
-
-func randFloat32Values(n int) []float32 {
-	values := make([]float32, n)
-	for i := range values {
-		values[i] = rand.Float32()
-	}
-	return values
 }
