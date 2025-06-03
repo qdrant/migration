@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/pterm/pterm"
 
@@ -213,7 +212,6 @@ func getFieldType(dataType qdrant.PayloadSchemaType) *qdrant.FieldType {
 }
 
 func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string, sourcePointCount uint64) error {
-	startTime := time.Now()
 	limit := uint32(r.Migration.BatchSize)
 
 	var offsetId *qdrant.PointId
@@ -323,18 +321,6 @@ func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qd
 			break
 		}
 
-		// If one minute elapsed get updated sourcePointCount.
-		// Useful if any new points were added to the source during migration.
-		if time.Since(startTime) > time.Minute {
-			sourcePointCount, err := sourceClient.Count(ctx, &qdrant.CountPoints{
-				CollectionName: sourceCollection,
-				Exact:          qdrant.PtrOf(true),
-			})
-			if err != nil {
-				return fmt.Errorf("failed to count points in source: %w", err)
-			}
-			bar.Total = int(sourcePointCount)
-		}
 	}
 
 	pterm.Success.Printfln("Data migration finished successfully")

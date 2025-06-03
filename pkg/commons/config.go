@@ -27,9 +27,11 @@ type MilvusConfig struct {
 }
 
 type PineconeConfig struct {
-	APIKey    string `required:"true"  help:"Pinecone API key for authentication"`
-	Host      string `required:"true"  help:"Pinecone index host URL (e.g., https://example-index-12345.svc.region.pinecone.io)"`
-	Namespace string `help:"Namespace of the partition to migrate"`
+	IndexName   string `required:"true"  help:"Pinecone index name"`
+	IndexHost   string `required:"true"  help:"Pinecone index host URL (e.g., https://example-index-12345.svc.region.pinecone.io)"`
+	APIKey      string `required:"true"  help:"Pinecone API key for authentication"`
+	Namespace   string `help:"Namespace of the partition to migrate"`
+	ServiceHost string `help:"Pinecone service host URL. Optional."`
 }
 
 type ChromaConfig struct {
@@ -42,4 +44,20 @@ type ChromaConfig struct {
 	Token       string `help:"Token for token authentication"`
 	TokenHeader string `help:"Token header for authentication" default:"Authorization"`
 	Database    string `help:"Database for Chroma"`
+}
+
+type WeaviateConfig struct {
+	Host         string   `help:"Host of the Weaviate instance (e.g. 'localhost:8080')" required:"true"`
+	Scheme       string   `help:"Scheme of the Weaviate instance (e.g. 'http' or 'https')" default:"http"`
+	ClassName    string   `help:"Name of the Weaviate class to migrate" required:"true"`
+	AuthType     string   `enum:"none,apiKey,password,client,bearer" help:"Authentication type" default:"none"`
+	APIKey       string   `help:"API key for authentication (when AuthType is 'apiKey')"`
+	Username     string   `help:"Username for authentication (when AuthType is 'password')"`
+	Password     string   `help:"Password for authentication (when AuthType is 'password')"`
+	Scopes       []string `help:"Scopes for authentication (when AuthType is 'password' or 'client')"`
+	ClientSecret string   `help:"Client secret for authentication (when AuthType is 'client')"`
+	Token        string   `help:"Bearer token for authentication (when AuthType is 'bearer')"`
+	RefreshToken string   `help:"Refresh token for authentication (when AuthType is 'bearer')"`
+	ExpiresIn    uint     `help:"Access token expiration time (when AuthType is 'bearer')"`
+	Tenant       string   `help:"Objects belonging to which tenant to migrate"`
 }
