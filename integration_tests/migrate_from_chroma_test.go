@@ -3,9 +3,6 @@ package integrationtests
 import (
 	"context"
 	"fmt"
-	"math/rand"
-	"os/exec"
-	"path/filepath"
 	"testing"
 
 	chroma "github.com/amikos-tech/chroma-go/pkg/api/v2"
@@ -16,19 +13,12 @@ import (
 )
 
 const (
-	testCollectionName    = "test_collection"
-	chromaPort            = "8000"
-	qdrantPort            = "6334"
-	qdrantAPIKey          = "00000000"
-	idField               = "__id__"
-	documentField         = "document"
-	sourceField           = "source"
-	denseVectorField      = "dense_vector"
-	distance              = "euclid"
-	batchSize             = 10
-	offsetsCollectionName = "_migration_marker"
-	totalEntries          = 100
-	dimension             = 384
+	chromaPort       = "8000"
+	documentField    = "document"
+	sourceField      = "source"
+	denseVectorField = "dense_vector"
+	distance         = "euclid"
+	idField          = "__id__"
 )
 
 func TestMigrateFromChroma(t *testing.T) {
@@ -71,10 +61,7 @@ func TestMigrateFromChroma(t *testing.T) {
 	for i := 0; i < totalEntries; i++ {
 		testIDs[i] = chroma.DocumentID(fmt.Sprintf("%d", i+1))
 
-		randomVector := make([]float32, dimension)
-		for j := range randomVector {
-			randomVector[j] = rand.Float32()
-		}
+		randomVector := randFloat32Values(dimension)
 		testEmbeddings[i] = embeddings.NewEmbeddingFromFloat32(randomVector)
 
 		testDocuments[i] = fmt.Sprintf("test document %d", i+1)
@@ -102,12 +89,6 @@ func TestMigrateFromChroma(t *testing.T) {
 	require.NoError(t, err)
 	defer qdrantClient.Close()
 
-	binaryPath := filepath.Join(t.TempDir(), "migration")
-	cmd := exec.Command("go", "build", "-o", binaryPath, "main.go")
-	cmd.Dir = ".."
-	out, err := cmd.CombinedOutput()
-	require.NoError(t, err, "build failed: %s", string(out))
-
 	args := []string{
 		"chroma",
 		fmt.Sprintf("--chroma.url=http://%s:%s", chromaHost, chromaPort.Port()),
@@ -115,17 +96,13 @@ func TestMigrateFromChroma(t *testing.T) {
 		fmt.Sprintf("--qdrant.url=http://%s:%s", qdrantHost, qdrantPort.Port()),
 		fmt.Sprintf("--qdrant.api-key=%s", qdrantAPIKey),
 		fmt.Sprintf("--qdrant.collection=%s", testCollectionName),
-		fmt.Sprintf("--migration.batch-size=%d", batchSize),
-		fmt.Sprintf("--migration.offsets-collection=%s", offsetsCollectionName),
 		fmt.Sprintf("--qdrant.id-field=%s", idField),
 		fmt.Sprintf("--qdrant.document-field=%s", documentField),
 		fmt.Sprintf("--qdrant.distance=%s", distance),
 		fmt.Sprintf("--qdrant.dense-vector=%s", denseVectorField),
 	}
 
-	cmd = exec.Command(binaryPath, args...)
-	out, err = cmd.CombinedOutput()
-	require.NoError(t, err, "migration failed: %s", string(out))
+	runMigrationBinary(t, args)
 
 	points, err := qdrantClient.Scroll(ctx, &qdrant.ScrollPoints{
 		CollectionName: testCollectionName,
