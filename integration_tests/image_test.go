@@ -10,6 +10,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
+//nolint:unparam
 func qdrantContainer(ctx context.Context, t *testing.T, apiKey string) testcontainers.Container {
 	req := testcontainers.ContainerRequest{
 		Image:        "qdrant/qdrant",
