@@ -80,7 +80,7 @@
 }
 
 @test "Migrating with invalid port should fail" {
-  run docker run --net=host --rm registry.cloud.qdrant.io/library/qdrant-migration:dev drant --source.url http://localhost:invalid --source.collection source_collection --target.url http://localhost:8334 --target.collection source_collection --migration.batch-size 1
+  run docker run --net=host --rm registry.cloud.qdrant.io/library/qdrant-migration:dev qdrant --source.url http://localhost:invalid --source.collection source_collection --target.url http://localhost:8334 --target.collection source_collection --migration.batch-size 1
   [ $status -ne 0 ]
   [[ "$output" =~ "invalid port \":invalid\" after host" ]]
 }
