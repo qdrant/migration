@@ -48,7 +48,7 @@ teardown() {
   echo "Wait for a few seconds to load the vectors"
   sleep 5
 
-  run go run main.go milvus \
+  run docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration:dev milvus \
     --milvus.url 'http://localhost:19530' \
     --milvus.collection 'migrate_collection' \
     --qdrant.url 'http://localhost:6334' \

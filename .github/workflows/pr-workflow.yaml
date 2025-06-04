@@ -30,16 +30,6 @@ jobs:
           version: v2.1.2 # Specify the golangci-lint version, so we are stable
           args: --timeout 10m # Increase the timeout to 10 minutes
 
-      - name: Run Trivy vulnerability scanner in repo mode
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'fs'
-          exit-code: '1'
-          ignore-unfixed: true
-          format: 'table'
-          vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'
-
   tests:
     name: Tests
     runs-on: ubuntu-latest
@@ -55,6 +45,51 @@ jobs:
       - name: Unit tests
         run: |
           make test_unit
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract build info
+        id: extract_build_info
+        run: |
+          echo "tag=${GITHUB_REF##*/}" >> $GITHUB_OUTPUT
+          echo "commit_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Set Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            registry.cloud.qdrant.io/library/qdrant-migration
+          tags: |
+            type=raw,value=dev
+
+      - name: Build and push container image
+        uses: docker/build-push-action@v6
+        id: build-and-push
+        with:
+          context: .
+          push: false
+          sbom: false
+          provenance: false
+          platforms: linux/amd64,linux/arm64
+          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: |
+            VERSION=dev
+            BUILD=${{ steps.extract_build_info.outputs.commit_short }}
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: registry.cloud.qdrant.io/library/qdrant-migration:dev
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
 
       - name: Setup BATS
         uses: mig4/setup-bats@v1

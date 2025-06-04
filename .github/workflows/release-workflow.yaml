@@ -24,15 +24,6 @@ jobs:
           echo "tag=${GITHUB_REF##*/}" >> $GITHUB_OUTPUT
           echo "commit_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.24'
-          cache: false
-
-      - name: Build Binaries
-        run: |
-          make release VERSION="${{ steps.extract_build_info.outputs.tag }}" BUILD="${{ steps.extract_build_info.outputs.commit_short }}"
-
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
@@ -93,13 +84,5 @@ jobs:
           commitish: ${{ github.ref }}
           tag: ${{ steps.extract_build_info.outputs.tag }}
           publish: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Release Artifacts
-        run: |
-          for file in dist/*; do
-              gh release upload --clobber ${{ steps.extract_build_info.outputs.tag }} $file
-          done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

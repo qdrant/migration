@@ -48,13 +48,3 @@ test_unit:
 lint:
 	golangci-lint run
 
-release: $(PLATFORMS)
-
-temp = $(subst /, ,$@)
-os = $(word 1, $(temp))
-arch = $(word 2, $(temp))
-
-$(PLATFORMS):
-	BUILD_DATE=$(date +%F-%T) GOOS=$(os) GOARCH=$(arch) CGO_ENABLED=0 go build -o $(DIST_DIR)/qdrant-migrate-$(os)-$(arch) \
-		-ldflags "-s -w -extldflags \"-static\" -X 'main.projectVersion=$(VERSION)' -X 'main.projectBuild=$(BUILD)'" main.go
-
