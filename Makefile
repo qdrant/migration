@@ -1,6 +1,7 @@
 PLATFORMS=darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64 windows/arm64
 VERSION=0.0.0
 BUILD=dev
+DEV_IMAGE_REF ?= registry.cloud.qdrant.io/library/qdrant-migration:dev
 
 ## Location to install dependencies to
 LOCALBIN ?= $(shell pwd)/bin
@@ -38,7 +39,7 @@ test: fmt vet lint test_integration
 
 .PHONY: test_integration
 test_integration:
-	bats --print-output-on-failure integration_tests
+	IMAGE_REF=$(DEV_IMAGE_REF) bats --print-output-on-failure integration_tests
 
 .PHONY: test_unit
 test_unit:
