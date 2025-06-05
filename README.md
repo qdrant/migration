@@ -18,13 +18,9 @@ CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for res
 
 You can run this tool on any machine with connectivity to both the source and the Qdrant database. For best performance, use a machine with a fast network and minimal latency to both endpoints.
 
-#### Binaries
+The tool is distributed as a container image, which can be run on any system with Docker, Podman or similar container runtimes. The following examples use Docker.
 
-Each release includes **precompiled binaries** for all major OS and CPU architectures. Download the latest one from the [Releases Page](https://github.com/qdrant/migration/releases).
-
-#### Docker
-
-To get the latest Docker image run the following command.
+To get the latest container image run the following command:
 
 ```bash
 docker pull registry.cloud.qdrant.io/library/qdrant-migration
@@ -43,21 +39,13 @@ Migrate data from a **Chroma** database to **Qdrant**:
 ### 📥 Example
 
 ```bash
-migration chroma \
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration chroma \
     --chroma.url=http://localhost:8000
     --chroma.collection 'collection-name' \
     --qdrant.url 'https://example.cloud-region.cloud-provider.cloud.qdrant.io:6334' \
     --qdrant.api-key 'optional-qdrant-api-key' \
     --qdrant.collection 'target-collection' \
     --migration.batch-size 64
-````
-
-With Docker:
-
-```bash
-docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration chroma \
-    --chroma.url=http://localhost:8000
-    ...
 ```
 
 ### Chroma Options
@@ -102,7 +90,7 @@ Migrate data from a **Pinecone** database to **Qdrant**:
 ### 📥 Example
 
 ```bash
-migration pinecone \
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration pinecone \
     --pinecone.index-host 'https://example-index.svc.region.pinecone.io' \
     --pinecone.index-name 'example-index' \
     --pinecone.api-key 'optional-pinecone-api-key' \
@@ -110,14 +98,6 @@ migration pinecone \
     --qdrant.api-key 'optional-qdrant-api-key' \
     --qdrant.collection 'target-collection' \
     --migration.batch-size 64
-````
-
-With Docker:
-
-```bash
-docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration pinecone \
-    --pinecone.index-host 'https://example-index.svc.region.pinecone.io' \
-    ...
 ```
 
 #### Pinecone Options
@@ -154,7 +134,7 @@ Migrate data from a **Milvus** database to **Qdrant**:
 ### 📥 Example
 
 ```bash
-migration milvus \
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration milvus \
     --milvus.url 'https://example.gcp-us-west1.cloud.zilliz.com' \
     --milvus.enable-tls-auth \
     --milvus.collection 'example-collection' \
@@ -163,14 +143,6 @@ migration milvus \
     --qdrant.api-key 'optional-qdrant-api-key' \
     --qdrant.collection 'target-collection' \
     --migration.batch-size 64
-```
-
-With Docker:
-
-```bash
-docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration milvus \
-    --milvus.url 'https://example.gcp-us-west1.cloud.zilliz.com' \
-    ...
 ```
 
 #### Milvus Options
@@ -214,7 +186,7 @@ Migrate data from a **Weaviate** database to **Qdrant**:
  > Ensure that the **vector dimensions in Qdrant exactly match** those used in Weaviate.
 
 ```bash
-migration weaviate \
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration weaviate \
     --weaviate.host 'example.c0.asia-southeast1.gcp.weaviate.cloud' \
     --weaviate.scheme 'https' \
     --weaviate.auth-type 'apiKey' \
@@ -223,14 +195,6 @@ migration weaviate \
     --qdrant.url 'http://localhost:6334' \
     --qdrant.collection 'target-collection' \
     --migration.batch-size 64
-```
-
-With Docker:
-
-```bash
-docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration weaviate \
-    --weaviate.host 'example.c0.asia-southeast1.gcp.weaviate.cloud' \
-    ...
 ```
 
 #### Weaviate Options
@@ -277,20 +241,12 @@ Migrate data from a **Redis** database to **Qdrant**:
 ### 📥 Example
 
 ```bash
-migration redis \
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration milvus \
     --redis.index 'index_name' \
     --redis.addr 'localhost:6379' \
     --qdrant.url 'http://localhost:6334' \
     --qdrant.collection 'target-collection' \
     --migration.batch-size 100
-```
-
-With Docker:
-
-```bash
-docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration milvus \
-    --redis.index 'index_name' \
-    ...
 ```
 
 #### Redis Options
@@ -327,21 +283,13 @@ Migrate data from one **Qdrant** instance to another.
 ### 📥 Example
 
 ```bash
-migration qdrant \
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration qdrant \
     --source.url 'http://localhost:6334' \
     --source.collection 'source-collection' \
     --target.url 'https://example.cloud-region.cloud-provider.cloud.qdrant.io:6334' \
     --target.api-key 'qdrant-key' \
     --target.collection 'target-collection' \
     --migration.batch-size 64
-```
-
-With Docker:
-
-```bash
-docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration qdrant \
-    --source.url 'http://localhost:6334' \
-    ...
 ```
 
 NOTE: If the target collection already exists, its vector size and dimensions must match the source. Other settings like replication, shards can differ.
