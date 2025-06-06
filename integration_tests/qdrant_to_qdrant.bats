@@ -1,3 +1,5 @@
+IMAGE_REF=${IMAGE_REF-registry.cloud.qdrant.io/library/qdrant-migration:dev}
+
 @test "Migrate Qdrant to Qdrant" {
   run curl -X PUT http://localhost:7333/collections/source_collection \
     -H 'Content-Type: application/json' \
@@ -47,7 +49,7 @@
 
   echo $source_result
 
-  run docker run --net=host --rm registry.cloud.qdrant.io/library/qdrant-migration:dev qdrant --source.url http://localhost:7334 --source.collection source_collection --target.url http://localhost:8334 --target.collection target_collection --migration.batch-size 1
+  run docker run --net=host --rm $IMAGE_REF qdrant --source.url http://localhost:7334 --source.collection source_collection --target.url http://localhost:8334 --target.collection target_collection --migration.batch-size 1
   [ $status -eq 0 ]
 
   run curl -s -X POST http://localhost:8333/collections/target_collection/points/scroll \
@@ -74,13 +76,13 @@
   [ $status -eq 0 ]
 
 
-  run docker run --net=host --rm registry.cloud.qdrant.io/library/qdrant-migration:dev qdrant --source.url http://localhost:7334 --source.collection source_collection --target.url http://localhost:7334 --target.collection source_collection --migration.batch-size 1
+  run docker run --net=host --rm $IMAGE_REF qdrant --source.url http://localhost:7334 --source.collection source_collection --target.url http://localhost:7334 --target.collection source_collection --migration.batch-size 1
   [ $status -ne 0 ]
   [[ "$output" =~ "source and target collections must be different" ]]
 }
 
 @test "Migrating with invalid port should fail" {
-  run docker run --net=host --rm registry.cloud.qdrant.io/library/qdrant-migration:dev qdrant --source.url http://localhost:invalid --source.collection source_collection --target.url http://localhost:8334 --target.collection source_collection --migration.batch-size 1
+  run docker run --net=host --rm $IMAGE_REF qdrant --source.url http://localhost:invalid --source.collection source_collection --target.url http://localhost:8334 --target.collection source_collection --migration.batch-size 1
   [ $status -ne 0 ]
   [[ "$output" =~ "invalid port \":invalid\" after host" ]]
 }

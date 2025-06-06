@@ -61,21 +61,23 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
+          # ttl.sh is an anonymous & ephemeral Docker image registry,
+          # check https://ttl.sh for more infos
           images: |
-            registry.cloud.qdrant.io/library/qdrant-migration
+            ttl.sh/qdrant-migration-${{ steps.extract_build_info.outputs.commit_short }}
           tags: |
-            type=raw,value=dev
+            type=raw,value=1h
 
-      - name: Build and push container image
+      - name: Build and push container images
         uses: docker/build-push-action@v6
         id: build-and-push
         with:
           context: .
-          push: false
-          load: true
-          sbom: false
+          push: true
+          load: false
+          sbom: true
           provenance: false
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           labels: ${{ steps.meta.outputs.labels }}
           tags: ${{ steps.meta.outputs.tags }}
           build-args: |
@@ -85,7 +87,7 @@ jobs:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: registry.cloud.qdrant.io/library/qdrant-migration:dev
+          image-ref: ttl.sh/qdrant-migration-${{ steps.extract_build_info.outputs.commit_short }}:1h
           format: 'table'
           exit-code: '1'
           ignore-unfixed: true
@@ -98,4 +100,4 @@ jobs:
           bats-version: 1.11.1
 
       - name: Integration tests
-        run: make test_integration
+        run: make test_integration DEV_IMAGE_REF=ttl.sh/qdrant-migration-${{ steps.extract_build_info.outputs.commit_short }}:1h

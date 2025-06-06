@@ -1,3 +1,5 @@
+IMAGE_REF=${IMAGE_REF-registry.cloud.qdrant.io/library/qdrant-migration:dev}
+
 setup() {
   docker compose -f integration_tests/compose_files/milvus_to_qdrant.yaml up -d --wait
 }
@@ -48,7 +50,7 @@ teardown() {
   echo "Wait for a few seconds to load the vectors"
   sleep 5
 
-  run docker run --net=host --rm registry.cloud.qdrant.io/library/qdrant-migration:dev milvus \
+  run docker run --net=host --rm $IMAGE_REF milvus \
     --milvus.url 'http://localhost:19530' \
     --milvus.collection 'migrate_collection' \
     --qdrant.url 'http://localhost:6334' \
