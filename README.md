@@ -7,12 +7,12 @@ CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for res
 
 ## Supported Sources
 
-* [Chroma](https://trychroma.com/)
-* [Pinecone](https://www.pinecone.io/)
-* [Milvus](https://milvus.io/)
-* [Weaviate](https://weaviate.io/)
-* [Redis](https://redis.io)
-* Another [Qdrant](http://qdrant.tech/) instance
+* Chroma
+* Pinecone
+* Milvus
+* Weaviate
+* Redis
+* Another Qdrant instance
 
 ## Installation
 
