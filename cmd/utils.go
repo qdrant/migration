@@ -17,7 +17,7 @@ import (
 
 const HTTPS = "https"
 
-func connectToQdrant(globals *Globals, host string, port int, apiKey string, useTLS bool) (*qdrant.Client, error) {
+func connectToQdrant(globals *Globals, host string, port int, apiKey string, useTLS bool, maxMessageSize int) (*qdrant.Client, error) {
 	debugLogger := logging.LoggerFunc(func(ctx context.Context, lvl logging.Level, msg string, fields ...any) {
 		pterm.Debug.Printf(msg, fields...)
 	})
@@ -35,6 +35,12 @@ func connectToQdrant(globals *Globals, host string, port int, apiKey string, use
 		loggingOptions := logging.WithLogOnEvents(logging.StartCall, logging.FinishCall)
 		grpcOptions = append(grpcOptions, grpc.WithChainUnaryInterceptor(logging.UnaryClientInterceptor(debugLogger, loggingOptions)))
 		grpcOptions = append(grpcOptions, grpc.WithChainStreamInterceptor(logging.StreamClientInterceptor(debugLogger, loggingOptions)))
+	}
+
+	if maxMessageSize != 0 {
+		grpcOptions = append(grpcOptions, grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(maxMessageSize),
+		))
 	}
 
 	tlsConfig := tls.Config{
