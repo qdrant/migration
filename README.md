@@ -301,6 +301,7 @@ NOTE: If the target collection already exists, its vector size and dimensions mu
 | `--source.collection` | Source collection name                                     |
 | `--source.url`        | Source gRPC URL. Default: `"http://localhost:6334"`        |
 | `--source.api-key`    | API key for source instance                                |
+| `--source.max-message-size`  | Maximum gRPC message size in bytes (default: `33554432` = 32MB). Increase if you encounter `ResourceExhausted` errors with large batches.|
 
 #### Target Qdrant Options
 

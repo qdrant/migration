@@ -18,6 +18,7 @@ type MigrateFromQdrantCmd struct {
 	Source               commons.QdrantConfig    `embed:"" prefix:"source."`
 	Target               commons.QdrantConfig    `embed:"" prefix:"target."`
 	Migration            commons.MigrationConfig `embed:"" prefix:"migration."`
+	MaxMessageSize       int                     `help:"Maximum gRPC message size in bytes (default: 33554432 = 32MB)" default:"33554432" prefix:"source."`
 	EnsurePayloadIndexes bool                    `help:"Ensure payload indexes are created" default:"true" prefix:"target."`
 
 	sourceHost string
@@ -70,11 +71,11 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	sourceClient, err := connectToQdrant(globals, r.sourceHost, r.sourcePort, r.Source.APIKey, r.sourceTLS)
+	sourceClient, err := connectToQdrant(globals, r.sourceHost, r.sourcePort, r.Source.APIKey, r.sourceTLS, r.MaxMessageSize)
 	if err != nil {
 		return fmt.Errorf("failed to connect to source: %w", err)
 	}
-	targetClient, err := connectToQdrant(globals, r.targetHost, r.targetPort, r.Target.APIKey, r.targetTLS)
+	targetClient, err := connectToQdrant(globals, r.targetHost, r.targetPort, r.Target.APIKey, r.targetTLS, 0)
 	if err != nil {
 		return fmt.Errorf("failed to connect to target: %w", err)
 	}
