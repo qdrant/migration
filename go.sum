@@ -298,10 +298,10 @@ github.com/mdlayher/netlink v1.7.2 h1:/UtM3ofJap7Vl4QWCPDGXY8d3GIY2UGSDbK+QWmY8/
 github.com/mdlayher/netlink v1.7.2/go.mod h1:xraEF7uJbxLhc5fpHL4cPe221LI2bdttWlU+ZGLfQSw=
 github.com/mdlayher/socket v0.4.1 h1:eM9y2/jlbs1M615oshPQOHZzj6R6wMT7bX5NPiQvn2U=
 github.com/mdlayher/socket v0.4.1/go.mod h1:cAqeGjoufqdxWkD7DkpyS+wcefOtmu5OQ8KuoJGIReA=
-github.com/milvus-io/milvus-proto/go-api/v2 v2.5.11 h1:W+FHnglCc/ShYnrfzt+k0WU8uA9Ocx7jHb9ucSzhNlM=
-github.com/milvus-io/milvus-proto/go-api/v2 v2.5.11/go.mod h1:/6UT4zZl6awVeXLeE7UGDWZvXj3IWkRsh3mqsn0DiAs=
-github.com/milvus-io/milvus/client/v2 v2.5.3 h1:xBD+Ti9ZRYyZLKb7iiypYNfH8zIh/oTIv3PYfEomrYY=
-github.com/milvus-io/milvus/client/v2 v2.5.3/go.mod h1:aYX9oLXYyhLcAzRR+Oxbv0oea1pk3wKJA/baIaM6Eio=
+github.com/milvus-io/milvus-proto/go-api/v2 v2.5.13 h1:oa0VBlDYyV3hNuRsNhXn6nGY8RFuuBtb7BaMqTcpJBI=
+github.com/milvus-io/milvus-proto/go-api/v2 v2.5.13/go.mod h1:/6UT4zZl6awVeXLeE7UGDWZvXj3IWkRsh3mqsn0DiAs=
+github.com/milvus-io/milvus/client/v2 v2.5.4 h1:jRAYg9BBIkQyIvztrDnBpMhdhDwGsLy/D3afXpde0Qc=
+github.com/milvus-io/milvus/client/v2 v2.5.4/go.mod h1:g1Zk29D3XWLgBJp1QLkbhQfTykmi3p7/fUWRG+E3VQU=
 github.com/milvus-io/milvus/pkg/v2 v2.5.11 h1:VcKHP9CD3PvwpYNTYzFaS9yp1edFoCWummiiOo7yPds=
 github.com/milvus-io/milvus/pkg/v2 v2.5.11/go.mod h1:aAevVNVTYJmlw/loEfMHjsvEiYZ9B0r3k0U1nCmj0J8=
 github.com/mitchellh/mapstructure v1.3.3/go.mod h1:bFUtVrKA4DC2yAKiSyO/QUcy7e+RRV2QTWOzhPopBRo=

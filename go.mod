@@ -1,15 +1,13 @@
 module github.com/qdrant/migration
 
-go 1.24.1
-
-toolchain go1.24.2
+go 1.24.2
 
 require (
 	github.com/alecthomas/kong v1.11.0
 	github.com/amikos-tech/chroma-go v0.2.3
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2
-	github.com/milvus-io/milvus/client/v2 v2.5.3
+	github.com/milvus-io/milvus/client/v2 v2.5.4
 	github.com/pinecone-io/go-pinecone/v3 v3.1.0
 	github.com/pterm/pterm v0.12.81
 	github.com/qdrant/go-client v1.14.0
@@ -92,7 +90,7 @@ require (
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
-	github.com/milvus-io/milvus-proto/go-api/v2 v2.5.11 // indirect
+	github.com/milvus-io/milvus-proto/go-api/v2 v2.5.13 // indirect
 	github.com/milvus-io/milvus/pkg/v2 v2.5.11 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
