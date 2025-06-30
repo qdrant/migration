@@ -3,7 +3,7 @@ module github.com/qdrant/migration
 go 1.24.2
 
 require (
-	github.com/alecthomas/kong v1.11.0
+	github.com/alecthomas/kong v1.12.0
 	github.com/amikos-tech/chroma-go v0.2.3
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2
