@@ -12,6 +12,7 @@ CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for res
 * Milvus
 * Weaviate
 * Redis
+* MongoDB
 * Another Qdrant instance
 
 ## Installation
@@ -272,6 +273,48 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.id-field`             | Field storing Redis IDs in Qdrant. Default: `"__id__"`         |
 
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
+
+</details>
+
+<details>
+<summary><h3>From MongoDB</h3></summary>
+
+Migrate data from a **MongoDB** database to **Qdrant**:
+
+> Important ⚠️:
+> You must [manually create](https://qdrant.tech/documentation/concepts/vectors/#named-vectors) a Qdrant collection before starting the migration.
+> Ensure that the **vector names and dimensions in Qdrant exactly match** those used in MongoDB.
+
+### 📥 Example
+
+```bash
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration mongo \
+    --mongodb.url 'mongodb+srv://<username>:<password>@<cluster-url>/myDatabase' \
+    --mongodb.database 'mydb' \
+    --mongodb.collection 'mycollection' \
+    --qdrant.url 'http://localhost:6334' \
+    --qdrant.collection 'target-collection' \
+    --migration.batch-size 64
+```
+
+#### MongoDB Options
+
+| Flag                   | Description               |
+| ---------------------- | ------------------------- |
+| `--mongodb.url`        | MongoDB connection string |
+| `--mongodb.database`   | MongoDB database name     |
+| `--mongodb.collection` | MongoDB collection name   |
+
+#### Qdrant Options
+
+| Flag                  | Description                                              |
+| --------------------- | -------------------------------------------------------- |
+| `--qdrant.url`        | Qdrant gRPC URL. Default: `"http://localhost:6334"`      |
+| `--qdrant.collection` | Target collection name                                   |
+| `--qdrant.api-key`    | Qdrant API key (optional)                                |
+| `--qdrant.id-field`   | Field storing MongoDB IDs in Qdrant. Default: `"__id__"` |
+
+See [Shared Migration Options](#shared-migration-options) for common migration parameters.
 
 </details>
 

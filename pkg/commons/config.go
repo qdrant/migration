@@ -71,3 +71,9 @@ type RedisConfig struct {
 	DB         int    `help:"Database to be selected after connecting to the server"`
 	Network    string `help:"Redis network type" enum:"tcp,unix" default:"tcp"`
 }
+
+type MongoDBConfig struct {
+	Url        string `help:"MongoDB connection URL" required:""`
+	Database   string `help:"MongoDB database name" required:""`
+	Collection string `help:"MongoDB collection name" required:""`
+}
