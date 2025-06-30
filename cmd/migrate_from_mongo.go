@@ -198,6 +198,7 @@ func (r *MigrateFromMongoDBCmd) migrateData(ctx context.Context, sourceClient *m
 			} else {
 				point.Vectors = qdrant.NewVectorsMap(map[string]*qdrant.Vector{})
 			}
+
 			jsonBytes, err := bson.MarshalExtJSON(payload, false, false)
 			if err != nil {
 				return fmt.Errorf("failed to marshal payload to JSON: %w", err)

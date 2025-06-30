@@ -86,7 +86,7 @@ func TestMigrateFromMongo(t *testing.T) {
 	require.NoError(t, err)
 
 	args := []string{
-		"mongo",
+		"mongodb",
 		fmt.Sprintf("--mongodb.url=mongodb://%s", mongoHost),
 		"--mongodb.database=testdb",
 		"--mongodb.collection=testcoll",

@@ -288,7 +288,7 @@ Migrate data from a **MongoDB** database to **Qdrant**:
 ### 📥 Example
 
 ```bash
-docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration mongo \
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration mongodb \
     --mongodb.url 'mongodb+srv://<username>:<password>@<cluster-url>/myDatabase' \
     --mongodb.database 'mydb' \
     --mongodb.collection 'mycollection' \
