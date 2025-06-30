@@ -107,3 +107,17 @@ func redisContainer(ctx context.Context, t *testing.T) testcontainers.Container 
 
 	return container
 }
+
+func mongoContainer(ctx context.Context, t *testing.T) testcontainers.Container {
+	req := testcontainers.ContainerRequest{
+		Image:        "mongo:6.0",
+		ExposedPorts: []string{"27017/tcp"},
+		WaitingFor:   wait.ForListeningPort("27017/tcp").WithStartupTimeout(30 * time.Second),
+	}
+	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	require.NoError(t, err)
+	return container
+}

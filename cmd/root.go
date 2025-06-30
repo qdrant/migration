@@ -23,6 +23,7 @@ type CLI struct {
 	Chroma   MigrateFromChromaCmd   `cmd:"" help:"Migrate data from a Chroma database to Qdrant."`
 	Weaviate MigrateFromWeaviateCmd `cmd:"" help:"Migrate data from a Weaviate database to Qdrant."`
 	Redis    MigrateFromRedisCmd    `cmd:"" help:"Migrate data from a Redis database to Qdrant."`
+	Mongodb  MigrateFromMongoDBCmd  `cmd:"" help:"Migrate data from a Mongo database to Qdrant."`
 }
 
 func Execute(projectVersion, projectBuild string) {
