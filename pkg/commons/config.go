@@ -77,3 +77,12 @@ type MongoDBConfig struct {
 	Database   string `help:"MongoDB database name" required:""`
 	Collection string `help:"MongoDB collection name" required:""`
 }
+
+type OpenSearchConfig struct {
+	Url                string `help:"OpenSearch URL" required:""`
+	Index              string `help:"OpenSearch index name" required:""`
+	Username           string `help:"OpenSearch username"`
+	Password           string `help:"OpenSearch password"`
+	APIKey             string `help:"OpenSearch API key"`
+	InsecureSkipVerify bool   `help:"Skip TLS certificate verification" default:"true"`
+}
