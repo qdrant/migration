@@ -328,7 +328,8 @@ Migrate data from an **OpenSearch** index to **Qdrant**:
 
 ```bash
 docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration opensearch \
-    --opensearch.url 'http://localhost:9200' \
+    --opensearch.url 'https://localhost:9200' \
+    --opensearch.insecure-skip-verify \
     --opensearch.index 'source-index' \
     --opensearch.username 'username' \
     --opensearch.password 'password' \

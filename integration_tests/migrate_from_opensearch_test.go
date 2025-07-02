@@ -110,6 +110,7 @@ func TestMigrateFromOpenSearch(t *testing.T) {
 		fmt.Sprintf("--qdrant.api-key=%s", qdrantAPIKey),
 		fmt.Sprintf("--qdrant.collection=%s", testCollectionName),
 		fmt.Sprintf("--qdrant.id-field=%s", idField),
+		"--opensearch.insecure-skip-verify",
 	}
 
 	runMigrationBinary(t, args)

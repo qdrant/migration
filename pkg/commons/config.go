@@ -84,5 +84,5 @@ type OpenSearchConfig struct {
 	Username           string `help:"OpenSearch username"`
 	Password           string `help:"OpenSearch password"`
 	APIKey             string `help:"OpenSearch API key"`
-	InsecureSkipVerify bool   `help:"Skip TLS certificate verification" default:"true"`
+	InsecureSkipVerify bool   `help:"Skip TLS certificate verification" default:"false"`
 }
