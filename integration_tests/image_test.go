@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/modules/opensearch"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
@@ -118,6 +119,13 @@ func mongoContainer(ctx context.Context, t *testing.T) testcontainers.Container 
 		ContainerRequest: req,
 		Started:          true,
 	})
+	require.NoError(t, err)
+	return container
+}
+
+func opensearchContainer(ctx context.Context, t *testing.T) testcontainers.Container {
+	container, err := opensearch.Run(ctx, "opensearchproject/opensearch:3.1.0")
+
 	require.NoError(t, err)
 	return container
 }
