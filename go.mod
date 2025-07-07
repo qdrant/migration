@@ -16,7 +16,7 @@ require (
 	github.com/testcontainers/testcontainers-go v0.37.0
 	github.com/weaviate/weaviate v1.27.0
 	github.com/weaviate/weaviate-go-client/v4 v4.16.1
-	go.mongodb.org/mongo-driver v1.14.0
+	go.mongodb.org/mongo-driver v1.17.4
 	go.mongodb.org/mongo-driver/v2 v2.2.2
 	google.golang.org/grpc v1.73.0
 	google.golang.org/protobuf v1.36.6
@@ -104,7 +104,7 @@ require (
 	github.com/moby/term v0.5.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
-	github.com/montanaflynn/stats v0.0.0-20171201202039-1bf9dbcd8cbe // indirect
+	github.com/montanaflynn/stats v0.7.1 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/oapi-codegen/runtime v1.1.1 // indirect
