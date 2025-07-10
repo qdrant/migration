@@ -43,7 +43,7 @@ func TestMigrateFromChroma(t *testing.T) {
 
 	qdrantHost, err := qdrantContainer.Host(ctx)
 	require.NoError(t, err)
-	qdrantPort, err := qdrantContainer.MappedPort(ctx, qdrantPort)
+	qdrantPort, err := qdrantContainer.MappedPort(ctx, qdrantGRPCPort)
 	require.NoError(t, err)
 
 	chromaClient, err := chroma.NewHTTPClient(chroma.WithBaseURL("http://" + chromaHost + ":" + chromaPort.Port()))

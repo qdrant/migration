@@ -11,7 +11,7 @@ import (
 
 const (
 	testCollectionName = "TestCollection"
-	qdrantPort         = "6334"
+	qdrantGRPCPort     = "6334"
 	qdrantAPIKey       = "00000000"
 	totalEntries       = 100
 	dimension          = 384
