@@ -345,9 +345,9 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | ----------------------------------- | ------------------------------------------------------ |
 | `--opensearch.url`                  | OpenSearch URL (e.g. `http://localhost:9200`).         |
 | `--opensearch.index`                | OpenSearch index name.                                 |
-| `--opensearch.username`             | Username for basic authentication. Optional.           |
-| `--opensearch.password`             | Password for basic authentication Optional.            |
-| `--opensearch.insecure-skip-verify` | Whether to skip TLS certificate verification Optional. |
+| `--opensearch.username`             | Username for basic authentication (optional)           |
+| `--opensearch.password`             | Password for basic authentication (optional)            |
+| `--opensearch.insecure-skip-verify` | Whether to skip TLS certificate verification (optional) |
 
 #### Qdrant Options
 
