@@ -13,6 +13,7 @@ CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for res
 * Weaviate
 * Redis
 * MongoDB
+* OpenSearch
 * Another Qdrant instance
 
 ## Installation
@@ -289,7 +290,7 @@ Migrate data from a **MongoDB** database to **Qdrant**:
 
 ```bash
 docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration mongodb \
-    --mongodb.url 'mongodb+srv://<username>:<password>@<cluster-url>/myDatabase' \
+    --mongodb.url 'mongodb+srv://<username>:<password>@<cluster-url>/mydb' \
     --mongodb.database 'mydb' \
     --mongodb.collection 'mycollection' \
     --qdrant.url 'http://localhost:6334' \
@@ -313,6 +314,49 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.collection` | Target collection name                                   |
 | `--qdrant.api-key`    | Qdrant API key (optional)                                |
 | `--qdrant.id-field`   | Field storing MongoDB IDs in Qdrant. Default: `"__id__"` |
+
+See [Shared Migration Options](#shared-migration-options) for common migration parameters.
+
+</details>
+
+<details>
+<summary><h3>From OpenSearch</h3></summary>
+
+Migrate data from an **OpenSearch** index to **Qdrant**:
+
+### 📥 Example
+
+```bash
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration opensearch \
+    --opensearch.url 'https://localhost:9200' \
+    --opensearch.insecure-skip-verify \
+    --opensearch.index 'source-index' \
+    --opensearch.username 'username' \
+    --opensearch.password 'password' \
+    --qdrant.url 'http://localhost:6334' \
+    --qdrant.api-key 'optional-qdrant-api-key' \
+    --qdrant.collection 'target-collection' \
+    --migration.batch-size 64
+```
+
+#### OpenSearch Options
+
+| Flag                                | Description                                            |
+| ----------------------------------- | ------------------------------------------------------ |
+| `--opensearch.url`                  | OpenSearch URL (e.g. `http://localhost:9200`).         |
+| `--opensearch.index`                | OpenSearch index name.                                 |
+| `--opensearch.username`             | Username for basic authentication (optional)           |
+| `--opensearch.password`             | Password for basic authentication (optional)            |
+| `--opensearch.insecure-skip-verify` | Whether to skip TLS certificate verification (optional) |
+
+#### Qdrant Options
+
+| Flag                  | Description                                                 |
+| --------------------- | ----------------------------------------------------------- |
+| `--qdrant.url`        | Qdrant gRPC URL. Default: `"http://localhost:6334"`         |
+| `--qdrant.collection` | Target collection name                                      |
+| `--qdrant.api-key`    | Qdrant API key (optional)                                   |
+| `--qdrant.id-field`   | Field storing OpenSearch IDs in Qdrant. Default: `"__id__"` |
 
 See [Shared Migration Options](#shared-migration-options) for common migration parameters.
 

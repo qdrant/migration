@@ -30,7 +30,7 @@ func TestMigrateFromWeaviate(t *testing.T) {
 
 	qdrantHost, err := qdrantCont.Host(ctx)
 	require.NoError(t, err)
-	mappedPort, err := qdrantCont.MappedPort(ctx, qdrantPort)
+	mappedPort, err := qdrantCont.MappedPort(ctx, qdrantGRPCPort)
 	require.NoError(t, err)
 	qdrantPort := mappedPort
 
