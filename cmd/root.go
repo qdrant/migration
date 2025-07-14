@@ -25,6 +25,7 @@ type CLI struct {
 	Redis      MigrateFromRedisCmd      `cmd:"" help:"Migrate data from a Redis database to Qdrant."`
 	Mongodb    MigrateFromMongoDBCmd    `cmd:"" help:"Migrate data from a Mongo database to Qdrant."`
 	OpenSearch MigrateFromOpenSearchCmd `cmd:"" name:"opensearch" help:"Migrate data from an OpenSearch database to Qdrant."`
+	PG         MigrateFromPGCmd         `cmd:"" name:"pg" help:"Migrate data from a PostgreSQL database to Qdrant."`
 }
 
 func Execute(projectVersion, projectBuild string) {
