@@ -23,7 +23,7 @@ type MigrateFromPGCmd struct {
 	PG             commons.PGConfig        `embed:"" prefix:"pg."`
 	Qdrant         commons.QdrantConfig    `embed:"" prefix:"qdrant."`
 	Migration      commons.MigrationConfig `embed:"" prefix:"migration."`
-	DistanceMetric map[string]string       `prefix:"qdrant." help:"Map of vector fields to distance metrics (cosine,dot,euclid,manhattan). Default cosine if missing."`
+	DistanceMetric map[string]string       `prefix:"qdrant." help:"Map of vector field names to distance metrics (cosine,dot,euclid,manhattan). Default is cosine if not specified."`
 
 	targetHost string
 	targetPort int
