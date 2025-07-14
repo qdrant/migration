@@ -366,7 +366,7 @@ See [Shared Migration Options](#shared-migration-options) for common migration p
 <details>
 <summary><h3>From Postgres</h3></summary>
 
-Migrate data from a **Postgres** database to **Qdrant**:
+Migrate data from a **Postgres** database with `pgvector` to **Qdrant**:
 
 ### 📥 Example
 
