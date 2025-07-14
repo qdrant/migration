@@ -266,18 +266,8 @@ func (r *MigrateFromPGCmd) migrateData(ctx context.Context, sourceConn *pgx.Conn
 
 			for col, val := range row {
 				if col == r.PG.KeyColumn {
-					switch val.(type) {
-					case int32, int64, string:
-						// We can use values of above types to generate deterministic UUIDs
-						// to be used as IDs in Qdrant.
-					default:
-						return fmt.Errorf("unsupported PK type for '%s': %T", col, val)
-					}
-
 					idStr := fmt.Sprint(val)
 					point.Id = arbitraryIDToUUID(idStr)
-					payload[col] = val
-					continue
 				}
 
 				switch v := val.(type) {
