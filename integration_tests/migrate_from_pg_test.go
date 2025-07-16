@@ -86,7 +86,7 @@ func setupPGTable(ctx context.Context, t *testing.T, connStr string) []pgEntry {
 	_, err = conn.Exec(ctx, "CREATE EXTENSION IF NOT EXISTS vector")
 	require.NoError(t, err)
 	_, err = conn.Exec(ctx, fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-		%s SERIAL PRIMARY KEY,
+		%s INTEGER PRIMARY KEY,
 		name TEXT,
 		age INTEGER,
 		height DOUBLE PRECISION,
