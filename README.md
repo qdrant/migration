@@ -371,7 +371,7 @@ Migrate data from an **S3 Vectors** index to **Qdrant**:
 ### 📥 Example
 
 > Important:
-> Set your AWS credentials using the AWS CLI's [configure](https://docs.aws.amazon.com/cli/latest/reference/configure/#examples)
+> Set your AWS credentials using the AWS CLI's [configure](https://docs.aws.amazon.com/cli/latest/reference/configure/#examples) command
 
 ```bash
 docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration s3 \
