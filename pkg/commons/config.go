@@ -86,3 +86,8 @@ type OpenSearchConfig struct {
 	APIKey             string `help:"OpenSearch API key"`
 	InsecureSkipVerify bool   `help:"Skip TLS certificate verification" default:"false"`
 }
+
+type S3VectorsConfig struct {
+	Bucket string `help:"S3 Vectors bucket name" required:"true"`
+	Index  string `help:"S3 Vectors index name" required:"true"`
+}
