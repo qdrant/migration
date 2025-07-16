@@ -116,7 +116,8 @@ func (r *MigrateFromPGCmd) connectToPG(ctx context.Context) (*pgx.Conn, error) {
 }
 
 func (r *MigrateFromPGCmd) countPGRows(ctx context.Context, conn *pgx.Conn) (uint64, error) {
-	row := conn.QueryRow(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s", r.PG.Table))
+	tableIdent := pgx.Identifier{r.PG.Table}.Sanitize()
+	row := conn.QueryRow(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s", tableIdent))
 
 	var count int64
 	err := row.Scan(&count)
@@ -128,6 +129,7 @@ func (r *MigrateFromPGCmd) countPGRows(ctx context.Context, conn *pgx.Conn) (uin
 }
 
 func getVectorColumns(ctx context.Context, conn *pgx.Conn, table string) (map[string]uint64, error) {
+	tableIdent := pgx.Identifier{table}.Sanitize()
 	query := `
 	SELECT
 		attname AS column_name,
@@ -140,7 +142,7 @@ func getVectorColumns(ctx context.Context, conn *pgx.Conn, table string) (map[st
 		AND NOT attisdropped
 		AND format_type(atttypid, atttypmod) LIKE 'vector%';
 	`
-	rows, err := conn.Query(ctx, query, table)
+	rows, err := conn.Query(ctx, query, tableIdent)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query vector columns: %w", err)
 	}
@@ -239,11 +241,16 @@ func (r *MigrateFromPGCmd) migrateData(ctx context.Context, sourceConn *pgx.Conn
 	for {
 		var selectColumns string
 		if len(r.PG.Columns) > 0 {
-			selectColumns = strings.Join(r.PG.Columns, ", ")
+			var quotedCols []string
+			for _, col := range r.PG.Columns {
+				quotedCols = append(quotedCols, pgx.Identifier{col}.Sanitize())
+			}
+			selectColumns = strings.Join(quotedCols, ", ")
 		} else {
 			selectColumns = "*"
 		}
-		query := fmt.Sprintf("SELECT %s FROM %s LIMIT $1 OFFSET $2", selectColumns, r.PG.Table)
+		tableIdent := pgx.Identifier{r.PG.Table}.Sanitize()
+		query := fmt.Sprintf("SELECT %s FROM %s LIMIT $1 OFFSET $2", selectColumns, tableIdent)
 		rows, err := sourceConn.Query(ctx, query, batchSize, offsetCount)
 		if err != nil {
 			return fmt.Errorf("failed to query PG: %w", err)
