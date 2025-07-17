@@ -14,7 +14,7 @@ CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for res
 * Redis
 * MongoDB
 * OpenSearch
-* Postgres
+* Postgres (pgvector)
 * S3 Vectors
 * Another Qdrant instance
 
