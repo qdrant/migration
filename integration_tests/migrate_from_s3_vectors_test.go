@@ -16,8 +16,6 @@ import (
 	"github.com/qdrant/go-client/qdrant"
 )
 
-const BUCKET = "qdrant-migration-bucket"
-
 func TestMigrateFromS3Vectors(t *testing.T) {
 	if os.Getenv("AWS_ACCESS_KEY_ID") == "" || os.Getenv("AWS_SECRET_ACCESS_KEY") == "" {
 		t.Skip("Skipping S3 source test. AWS credentials not set")
@@ -25,8 +23,14 @@ func TestMigrateFromS3Vectors(t *testing.T) {
 
 	ctx := context.Background()
 
+	s3Bucket := os.Getenv("AWS_S3_VECTOR_BUCKET")
+	if s3Bucket == "" {
+		s3Bucket = "test-qdrant-migration-bucket"
+	}
+	t.Log("Using S3 Vectors bucket:", s3Bucket)
+
 	s3Index := "test-vector-index" + fmt.Sprintf("-%d", rand.Int())
-	t.Log("Using S3 index:", s3Index)
+	t.Log("Using S3 Vectors index:", s3Index)
 
 	qdrantContainer := qdrantContainer(ctx, t, qdrantAPIKey)
 	defer func() {
@@ -49,20 +53,20 @@ func TestMigrateFromS3Vectors(t *testing.T) {
 
 	var bucketExists bool
 	for _, bucket := range buckets.VectorBuckets {
-		if *bucket.VectorBucketName == BUCKET {
+		if *bucket.VectorBucketName == s3Bucket {
 			bucketExists = true
 			break
 		}
 	}
 	if !bucketExists {
-		t.Logf("Creating S3 vector bucket: %s", BUCKET)
+		t.Logf("Creating S3 vector bucket: %s", s3Bucket)
 		_, err = s3Client.CreateVectorBucket(ctx, &s3vectors.CreateVectorBucketInput{
-			VectorBucketName: qdrant.PtrOf(BUCKET),
+			VectorBucketName: qdrant.PtrOf(s3Bucket),
 		})
 		require.NoError(t, err)
 	}
 	_, err = s3Client.CreateIndex(ctx, &s3vectors.CreateIndexInput{
-		VectorBucketName: qdrant.PtrOf(BUCKET),
+		VectorBucketName: qdrant.PtrOf(s3Bucket),
 		IndexName:        qdrant.PtrOf(s3Index),
 		Dimension:        qdrant.PtrOf(int32(dimension)),
 		DistanceMetric:   types.DistanceMetricEuclidean,
@@ -89,7 +93,7 @@ func TestMigrateFromS3Vectors(t *testing.T) {
 	}
 
 	_, err = s3Client.PutVectors(ctx, &s3vectors.PutVectorsInput{
-		VectorBucketName: qdrant.PtrOf(BUCKET),
+		VectorBucketName: qdrant.PtrOf(s3Bucket),
 		IndexName:        qdrant.PtrOf(s3Index),
 		Vectors:          vectors,
 	})
@@ -105,7 +109,7 @@ func TestMigrateFromS3Vectors(t *testing.T) {
 
 	args := []string{
 		"s3",
-		fmt.Sprintf("--s3.bucket=%s", BUCKET),
+		fmt.Sprintf("--s3.bucket=%s", s3Bucket),
 		fmt.Sprintf("--s3.index=%s", s3Index),
 		fmt.Sprintf("--qdrant.url=http://%s:%s", qdrantHost, qdrantPort.Port()),
 		fmt.Sprintf("--qdrant.collection=%s", testCollectionName),
@@ -159,7 +163,7 @@ func TestMigrateFromS3Vectors(t *testing.T) {
 	}
 
 	_, err = s3Client.DeleteIndex(ctx, &s3vectors.DeleteIndexInput{
-		VectorBucketName: qdrant.PtrOf(BUCKET),
+		VectorBucketName: qdrant.PtrOf(s3Bucket),
 		IndexName:        qdrant.PtrOf(s3Index),
 	})
 	require.NoError(t, err)
