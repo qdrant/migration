@@ -13,11 +13,10 @@ import (
 )
 
 const (
-	chromaPort       = "8000"
-	documentField    = "document"
-	sourceField      = "source"
-	denseVectorField = "dense_vector"
-	distance         = "euclid"
+	chromaPort    = "8000"
+	documentField = "document"
+	sourceField   = "source"
+	distance      = "euclid"
 )
 
 func TestMigrateFromChroma(t *testing.T) {
