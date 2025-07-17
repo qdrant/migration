@@ -16,6 +16,7 @@ const (
 	totalEntries       = 100
 	dimension          = 384
 	idField            = "__id__"
+	denseVectorField   = "dense_vector"
 )
 
 func randFloat32Values(n int) []float32 {

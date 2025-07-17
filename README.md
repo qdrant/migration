@@ -14,7 +14,8 @@ CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for res
 * Redis
 * MongoDB
 * OpenSearch
-* Postgres
+* Postgres (pgvector)
+* S3 Vectors
 * Another Qdrant instance
 
 ## Installation
@@ -397,6 +398,47 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.url`             | Qdrant gRPC URL. Default: `http://localhost:6334`                                                                   |
 | `--qdrant.api-key`         | Qdrant API key (optional)                                                                                           |
 | `--qdrant.distance-metric` | Map of vector names to distance metrics (`"cosine"`, `"dot"`, `"euclid"`, `"manhattan"`). Default: `"cosine"`       |
+
+* See [Shared Migration Options](#shared-migration-options) for common migration parameters.
+
+</details>
+
+<details>
+<summary><h3>From S3 Vectors</h3></summary>
+
+Migrate data from an **S3 Vectors** index to **Qdrant**:
+
+### 📥 Example
+
+> Important:
+> Set your AWS credentials using the AWS CLI's [configure](https://docs.aws.amazon.com/cli/latest/reference/configure/#examples) command or [environment variables](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-envvars.html).
+
+```bash
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration s3 \
+    --s3.bucket 'your-bucket-name' \
+    --s3.index 'your-index-name' \
+    --qdrant.url 'http://localhost:6334' \
+    --qdrant.api-key 'optional-qdrant-api-key' \
+    --qdrant.collection 'target-collection' \
+    --migration.batch-size 64
+```
+
+#### S3 Vectors Options
+
+| Flag             | Description                       |
+| ----------------| --------------------------------   |
+| `--s3.bucket`    | S3 Vectors bucket name (required) |
+| `--s3.index`     | S3 Vectors index name (required)  |
+
+#### Qdrant Options
+
+| Flag                    | Description                                                   |
+| ----------------------- | ------------------------------------------------------------- |
+| `--qdrant.url`          | Qdrant gRPC URL. Default: `"http://localhost:6334"`           |
+| `--qdrant.collection`   | Target collection name                                        |
+| `--qdrant.api-key`      | Qdrant API key (optional)                                     |
+| `--qdrant.id-field`     | Field storing S3 IDs in Qdrant. Default: `"__id__"`           |
+| `--qdrant.dense-vector` | Name of the dense vector in Qdrant. Default: `"dense_vector"` |
 
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
 
