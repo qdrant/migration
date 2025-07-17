@@ -322,7 +322,8 @@ func (r *MigrateFromPGCmd) migrateData(ctx context.Context, sourceConn *pgx.Conn
 // Otherwise, it returns the value as is.
 func sanitizeValue(val any) any {
 	switch v := val.(type) {
-	//Types supported by qdrant.NewValueMap()
+	// Types supported by qdrant.NewValueMap()
+	// https://github.com/qdrant/go-client/blob/cf8426be6063135411fe063e062cfac5b57c2ceb/qdrant/value_map.go#L29-L44
 	case nil, bool, int, int32, int64, uint, uint32, uint64, float32, float64, string, []byte:
 		return v
 	case time.Time:
