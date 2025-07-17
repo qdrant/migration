@@ -74,6 +74,14 @@ func TestMigrateFromS3Vectors(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	t.Cleanup(func() {
+		_, err := s3Client.DeleteIndex(ctx, &s3vectors.DeleteIndexInput{
+			VectorBucketName: qdrant.PtrOf(s3Bucket),
+			IndexName:        qdrant.PtrOf(s3Index),
+		})
+		require.NoError(t, err)
+	})
+
 	vectors := make([]types.PutInputVector, totalEntries)
 	for i := 0; i < totalEntries; i++ {
 		key := fmt.Sprintf("vector-%d", i)
@@ -161,10 +169,4 @@ func TestMigrateFromS3Vectors(t *testing.T) {
 		vector := point.Vectors.GetVectors().GetVectors()[denseVectorField].GetData()
 		require.Equal(t, exp.vector, vector)
 	}
-
-	_, err = s3Client.DeleteIndex(ctx, &s3vectors.DeleteIndexInput{
-		VectorBucketName: qdrant.PtrOf(s3Bucket),
-		IndexName:        qdrant.PtrOf(s3Index),
-	})
-	require.NoError(t, err)
 }
