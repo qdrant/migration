@@ -280,10 +280,8 @@ func (r *MigrateFromPGCmd) migrateData(ctx context.Context, sourceConn *pgx.Conn
 				switch v := val.(type) {
 				case pgvector.Vector:
 					vectors[col] = qdrant.NewVector(v.Slice()...)
-				case time.Time:
-					payload[col] = v.Format(time.RFC3339)
 				default:
-					payload[col] = v
+					payload[col] = sanitizeValue(val)
 				}
 			}
 
@@ -318,4 +316,30 @@ func (r *MigrateFromPGCmd) migrateData(ctx context.Context, sourceConn *pgx.Conn
 	pterm.Success.Printfln("Data migration finished successfully")
 
 	return nil
+}
+
+// Recursively converts value unsupported as payload in Qdrant to string.
+// Otherwise, it returns the value as is.
+func sanitizeValue(val any) any {
+	switch v := val.(type) {
+	//Types supported by qdrant.NewValueMap()
+	case nil, bool, int, int32, int64, uint, uint32, uint64, float32, float64, string, []byte:
+		return v
+	case time.Time:
+		return v.Format(time.RFC3339)
+	case []interface{}:
+		newArr := make([]interface{}, len(v))
+		for i, elem := range v {
+			newArr[i] = sanitizeValue(elem)
+		}
+		return newArr
+	case map[string]interface{}:
+		newMap := make(map[string]interface{}, len(v))
+		for k, elem := range v {
+			newMap[k] = sanitizeValue(elem)
+		}
+		return newMap
+	default:
+		return fmt.Sprint(v)
+	}
 }
