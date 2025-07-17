@@ -97,7 +97,7 @@ func TestMigrateFromChroma(t *testing.T) {
 		fmt.Sprintf("--qdrant.collection=%s", testCollectionName),
 		fmt.Sprintf("--qdrant.id-field=%s", idField),
 		fmt.Sprintf("--qdrant.document-field=%s", documentField),
-		fmt.Sprintf("--qdrant.distance=%s", distance),
+		fmt.Sprintf("--qdrant.distance-metric=%s", distance),
 		fmt.Sprintf("--qdrant.dense-vector=%s", denseVectorField),
 	}
 

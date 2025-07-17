@@ -14,6 +14,7 @@ CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for res
 * Redis
 * MongoDB
 * OpenSearch
+* Postgres
 * S3 Vectors
 * Another Qdrant instance
 
@@ -74,7 +75,7 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.api-key`        | Qdrant API key. Optional.                                                                                        |
 | `--qdrant.dense-vector`   | Name of the dense vector in Qdrant. Default: `"dense_vector"`                                                    |
 | `--qdrant.id-field`       | Field storing Chroma IDs in Qdrant. Default: `"__id__"`                                                          |
-| `--qdrant.distance`       | Distance metric for the Qdrant collection. `"cosine"`, `"dot"`, `"manhattan"` or `"euclid"`. Default: `"euclid"` |
+| `--qdrant.distance-metric`| Distance metric for the Qdrant collection. `"cosine"`, `"dot"`, `"manhattan"` or `"euclid"`. Default: `"euclid"` |
 | `--qdrant.document-field` | Field storing Chroma documents in Qdrant. Default: `"document"`                                                  |
 
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
@@ -169,7 +170,7 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.url`             | Qdrant gRPC URL. Default: `"http://localhost:6334"`                                                              |
 | `--qdrant.collection`      | Target collection name                                                                                           |
 | `--qdrant.api-key`         | Qdrant API key                                                                                                   |
-| `--qdrant.distance-metric` | Map of vector field names to distance metrics (`"cosine"`,`"dot"`,`"euclid"`,`"manhattan"`). Default: `"cosine"` |
+| `--qdrant.distance-metric` | Map of vector names to distance metrics (`"cosine"`,`"dot"`,`"euclid"`,`"manhattan"`). Default: `"cosine"`       |
 
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
 
@@ -360,6 +361,45 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.id-field`   | Field storing OpenSearch IDs in Qdrant. Default: `"__id__"` |
 
 See [Shared Migration Options](#shared-migration-options) for common migration parameters.
+
+</details>
+
+<details>
+<summary><h3>From Postgres</h3></summary>
+
+Migrate data from a **Postgres** database with `pgvector` to **Qdrant**:
+
+### 📥 Example
+
+```bash
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration pg \
+    --pg.url 'postgres://user:password@localhost:5432/dbname' \
+    --pg.table 'your_table' \
+    --pg.key-column 'id' \
+    --qdrant.url 'http://localhost:6334' \
+    --qdrant.collection 'target-collection' \
+    --migration.batch-size 64
+```
+
+#### Postgres Options
+
+| Flag                | Description                                                                 |
+|---------------------|-----------------------------------------------------------------------------|
+| `--pg.url`          | Postgres connection string (e.g., `postgres://user:pass@host:port/dbname`). |
+| `--pg.table`        | Name of the table containing vector data.                                   |
+| `--pg.key-column`   | Column with unique values to be hashed as point IDs in Qdrant.              |
+| `--pg.columns`      | Columns to migrate. Must include the key column. Defaults to all columns.   |
+
+#### Qdrant Options
+
+| Flag                       | Description                                                                                                         |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `--qdrant.collection`      | Target collection name                                                                                              |
+| `--qdrant.url`             | Qdrant gRPC URL. Default: `http://localhost:6334`                                                                   |
+| `--qdrant.api-key`         | Qdrant API key (optional)                                                                                           |
+| `--qdrant.distance-metric` | Map of vector names to distance metrics (`"cosine"`, `"dot"`, `"euclid"`, `"manhattan"`). Default: `"cosine"`       |
+
+* See [Shared Migration Options](#shared-migration-options) for common migration parameters.
 
 </details>
 

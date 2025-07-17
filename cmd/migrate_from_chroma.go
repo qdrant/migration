@@ -19,13 +19,13 @@ import (
 )
 
 type MigrateFromChromaCmd struct {
-	Chroma        commons.ChromaConfig    `embed:"" prefix:"chroma."`
-	Qdrant        commons.QdrantConfig    `embed:"" prefix:"qdrant."`
-	Migration     commons.MigrationConfig `embed:"" prefix:"migration."`
-	IdField       string                  `prefix:"qdrant." help:"Field storing Chroma IDs in Qdrant." default:"__id__"`
-	DenseVector   string                  `prefix:"qdrant." help:"Name of the dense vector in Qdrant" default:"dense_vector"`
-	Distance      string                  `prefix:"qdrant." enum:"cosine,dot,euclid,manhattan" help:"Distance metric for the Qdrant collection" default:"euclid"`
-	DocumentField string                  `prefix:"qdrant." help:"Field storing Chroma documents in Qdrant." default:"document"`
+	Chroma         commons.ChromaConfig    `embed:"" prefix:"chroma."`
+	Qdrant         commons.QdrantConfig    `embed:"" prefix:"qdrant."`
+	Migration      commons.MigrationConfig `embed:"" prefix:"migration."`
+	IdField        string                  `prefix:"qdrant." help:"Field storing Chroma IDs in Qdrant." default:"__id__"`
+	DenseVector    string                  `prefix:"qdrant." help:"Name of the dense vector in Qdrant" default:"dense_vector"`
+	DistanceMetric string                  `prefix:"qdrant." enum:"cosine,dot,euclid,manhattan" help:"Distance metric for the Qdrant collection" default:"euclid"`
+	DocumentField  string                  `prefix:"qdrant." help:"Field storing Chroma documents in Qdrant." default:"document"`
 
 	targetHost string
 	targetPort int
@@ -185,7 +185,7 @@ func (r *MigrateFromChromaCmd) prepareTargetCollection(ctx context.Context, coll
 		VectorsConfig: qdrant.NewVectorsConfigMap(map[string]*qdrant.VectorParams{
 			r.DenseVector: {
 				Size:     uint64(collection.Dimension()),
-				Distance: distanceMapping[r.Distance],
+				Distance: distanceMapping[r.DistanceMetric],
 			},
 		}),
 	}

@@ -129,3 +129,24 @@ func opensearchContainer(ctx context.Context, t *testing.T) testcontainers.Conta
 	require.NoError(t, err)
 	return container
 }
+
+func pgContainer(ctx context.Context, t *testing.T) testcontainers.Container {
+	req := testcontainers.ContainerRequest{
+		Image:        "pgvector/pgvector:pg17",
+		ExposedPorts: []string{"5432/tcp"},
+		Env: map[string]string{
+			"POSTGRES_USER":     "postgres",
+			"POSTGRES_PASSWORD": "postgres",
+			"POSTGRES_DB":       "postgres",
+		},
+		WaitingFor: wait.ForAll(
+			wait.ForListeningPort("5432/tcp").WithStartupTimeout(30 * time.Second),
+		),
+	}
+	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	require.NoError(t, err)
+	return container
+}
