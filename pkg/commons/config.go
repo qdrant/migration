@@ -86,3 +86,10 @@ type OpenSearchConfig struct {
 	APIKey             string `help:"OpenSearch API key"`
 	InsecureSkipVerify bool   `help:"Skip TLS certificate verification" default:"false"`
 }
+
+type PGConfig struct {
+	Url       string   `help:"Postgres connection string (e.g., postgres://user:pass@host:port/dbname)." required:""`
+	Table     string   `help:"Name of the table containing vector data." required:""`
+	KeyColumn string   `help:"Column with unique values to be hashed as point IDs in Qdrant." required:""`
+	Columns   []string `help:"Columns to migrate. Must include the key column. Defaults to all columns."`
+}
