@@ -11,7 +11,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2
 	github.com/jackc/pgx/v5 v5.7.5
-	github.com/milvus-io/milvus/client/v2 v2.5.4
+	github.com/milvus-io/milvus/client/v2 v2.5.5
 	github.com/opensearch-project/opensearch-go v1.1.0
 	github.com/opensearch-project/opensearch-go/v2 v2.3.0
 	github.com/pgvector/pgvector-go v0.3.0
@@ -116,7 +116,7 @@ require (
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
-	github.com/milvus-io/milvus-proto/go-api/v2 v2.5.13 // indirect
+	github.com/milvus-io/milvus-proto/go-api/v2 v2.5.14 // indirect
 	github.com/milvus-io/milvus/pkg/v2 v2.5.11 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
