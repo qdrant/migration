@@ -17,7 +17,7 @@ require (
 	github.com/pgvector/pgvector-go v0.3.0
 	github.com/pinecone-io/go-pinecone/v3 v3.1.0
 	github.com/pterm/pterm v0.12.81
-	github.com/qdrant/go-client v1.14.1
+	github.com/qdrant/go-client v1.15.0
 	github.com/redis/go-redis/v9 v9.11.0
 	github.com/stretchr/testify v1.10.0
 	github.com/testcontainers/testcontainers-go v0.38.0
