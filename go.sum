@@ -527,8 +527,8 @@ github.com/testcontainers/testcontainers-go v0.38.0 h1:d7uEapLcv2P8AvH8ahLqDMMxd
 github.com/testcontainers/testcontainers-go v0.38.0/go.mod h1:C52c9MoHpWO+C4aqmgSU+hxlR5jlEayWtgYrb8Pzz1w=
 github.com/testcontainers/testcontainers-go/modules/chroma v0.36.0 h1:aP1Xifh3Igcr3diGj/rP4MGasyjdb26hvkN/KCDPLyg=
 github.com/testcontainers/testcontainers-go/modules/chroma v0.36.0/go.mod h1:4VyK3KXTZ6ATn08mKfW6BdCTknMzj9wTd6ANFCkZ1N4=
-github.com/testcontainers/testcontainers-go/modules/opensearch v0.37.0 h1:bamwpenM3zl8NCxDEHdR0gpauDS1gK/FOr9yfmVKJug=
-github.com/testcontainers/testcontainers-go/modules/opensearch v0.37.0/go.mod h1:2jEljlB96QHSHF7Vo9S8zEDisPPrfsddzSvsCR1ihNQ=
+github.com/testcontainers/testcontainers-go/modules/opensearch v0.38.0 h1:+ndHb4j4SxJYSflYJZQen/8Cj4rjNT96toYFMCTQgd8=
+github.com/testcontainers/testcontainers-go/modules/opensearch v0.38.0/go.mod h1:IhutRBtJkqtEG9bTp4dYbaOuHkBqilBNGfVujlFo7/0=
 github.com/tidwall/gjson v1.18.0 h1:FIDeeyB800efLX89e5a8Y0BNH+LOngJyGrIWxG2FKQY=
 github.com/tidwall/gjson v1.18.0/go.mod h1:/wbyibRr2FHMks5tjHJ5F8dMZh3AcwJEMf5vlfC0lxk=
 github.com/tidwall/match v1.1.1 h1:+Ho715JplO36QYgwN9PGYNhgZvoUSc9X2c80KVTi+GA=
