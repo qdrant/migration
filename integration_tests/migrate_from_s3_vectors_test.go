@@ -123,7 +123,6 @@ func TestMigrateFromS3Vectors(t *testing.T) {
 		fmt.Sprintf("--qdrant.collection=%s", testCollectionName),
 		fmt.Sprintf("--qdrant.api-key=%s", qdrantAPIKey),
 		fmt.Sprintf("--qdrant.id-field=%s", idField),
-		fmt.Sprintf("--qdrant.dense-vector=%s", denseVectorField),
 	}
 	runMigrationBinary(t, args)
 
@@ -166,7 +165,7 @@ func TestMigrateFromS3Vectors(t *testing.T) {
 		require.Equal(t, exp.name, payload["name"].GetStringValue())
 		require.Equal(t, exp.city, payload["city"].GetStringValue())
 		require.Equal(t, exp.age, payload["age"].GetIntegerValue())
-		vector := point.Vectors.GetVectors().GetVectors()[denseVectorField].GetData()
+		vector := point.Vectors.GetVector().GetData()
 		require.Equal(t, exp.vector, vector)
 	}
 }

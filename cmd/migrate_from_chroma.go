@@ -23,7 +23,6 @@ type MigrateFromChromaCmd struct {
 	Qdrant         commons.QdrantConfig    `embed:"" prefix:"qdrant."`
 	Migration      commons.MigrationConfig `embed:"" prefix:"migration."`
 	IdField        string                  `prefix:"qdrant." help:"Field storing Chroma IDs in Qdrant." default:"__id__"`
-	DenseVector    string                  `prefix:"qdrant." help:"Name of the dense vector in Qdrant" default:"dense_vector"`
 	DistanceMetric string                  `prefix:"qdrant." enum:"cosine,dot,euclid,manhattan" help:"Distance metric for the Qdrant collection" default:"euclid"`
 	DocumentField  string                  `prefix:"qdrant." help:"Field storing Chroma documents in Qdrant." default:"document"`
 
@@ -182,11 +181,9 @@ func (r *MigrateFromChromaCmd) prepareTargetCollection(ctx context.Context, coll
 
 	createReq := &qdrant.CreateCollection{
 		CollectionName: r.Qdrant.Collection,
-		VectorsConfig: qdrant.NewVectorsConfigMap(map[string]*qdrant.VectorParams{
-			r.DenseVector: {
-				Size:     uint64(collection.Dimension()),
-				Distance: distanceMapping[r.DistanceMetric],
-			},
+		VectorsConfig: qdrant.NewVectorsConfig(&qdrant.VectorParams{
+			Size:     uint64(collection.Dimension()),
+			Distance: distanceMapping[r.DistanceMetric],
 		}),
 	}
 
@@ -258,9 +255,7 @@ func (r *MigrateFromChromaCmd) migrateData(ctx context.Context, collection chrom
 				Id: arbitraryIDToUUID(string(id)),
 			}
 
-			vectorMap := make(map[string]*qdrant.Vector)
-			vectorMap[r.DenseVector] = qdrant.NewVectorDense(embedding.ContentAsFloat32())
-			point.Vectors = qdrant.NewVectorsMap(vectorMap)
+			point.Vectors = qdrant.NewVectorsDense(embedding.ContentAsFloat32())
 
 			payload := qdrant.NewValueMap(metadataValue)
 			payload[r.IdField] = qdrant.NewValueString(string(id))
