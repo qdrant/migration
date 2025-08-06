@@ -38,11 +38,14 @@ func randIndices(n int) []uint32 {
 func runMigrationBinary(t *testing.T, args []string) {
 	binaryPath := filepath.Join(t.TempDir(), "migration")
 	cmd := exec.Command("go", "build", "-o", binaryPath, "main.go")
+	// Run the build from the root of the project
 	cmd.Dir = ".."
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, "build failed: %s", string(out))
 
 	cmd = exec.Command(binaryPath, args...)
+	// Run the migration binary from the root of the project
+	cmd.Dir = ".."
 	out, err = cmd.CombinedOutput()
 	require.NoError(t, err, "migration failed: %s", string(out))
 }
