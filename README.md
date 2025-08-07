@@ -453,7 +453,7 @@ Migrate data from a **FAISS** index file to **Qdrant**:
 ### 📥 Example
 
 > Important ⚠️:
-> Vectors from quantizedindexes cannot be migrated since they don't store the original vectors.
+> Vectors from quantized FAISS indexes cannot be migrated since they don't store the original vectors.
 > `IndexFlatL2`, `IndexFlatIP`, `IndexHNSWFlat`, `IndexIVFFlat` are supported.
 
 ```bash
