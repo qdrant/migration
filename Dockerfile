@@ -14,11 +14,12 @@ RUN CGO_ENABLED=1 go build -ldflags "-X 'main.projectVersion=${VERSION:-0.0.0}' 
 
 FROM python:3.11-slim AS runtime
 
-RUN python3 -m pip install --no-cache-dir --no-compile --prefer-binary \
-    faiss-cpu==1.11.0.post1 \
-    numpy==2.3.2 \
-    tqdm==4.67.1 \
-    qdrant-client==1.15.1
+RUN python3 -m pip install --no-cache-dir --no-compile --upgrade pip==25.2 setuptools==80.9.0 && \
+    python3 -m pip install --no-cache-dir --no-compile --prefer-binary \
+      faiss-cpu==1.11.0.post1 \
+      numpy==2.3.2 \
+      tqdm==4.67.1 \
+      qdrant-client==1.15.1
 
 COPY --from=builder /app/bin/qdrant-migration /opt/
 COPY cmd/faiss_to_qdrant.py /opt/cmd/faiss_to_qdrant.py
