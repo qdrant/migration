@@ -457,8 +457,10 @@ Migrate data from a **FAISS** index file to **Qdrant**:
 > `IndexFlatL2`, `IndexFlatIP`, `IndexHNSWFlat`, `IndexIVFFlat` are supported.
 
 ```bash
-docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration faiss \
-    --faiss.index-path '/path/to/faiss/index.file' \
+docker run --net=host --rm -it \
+  -v /path/to/faiss_index:/mnt/index \ # Mount the FAISS index file into container
+  registry.cloud.qdrant.io/library/qdrant-migration faiss \
+    --faiss.index-path '/mnt/index' \
     --qdrant.url 'http://localhost:6334' \
     --qdrant.api-key 'optional-qdrant-api-key' \
     --qdrant.collection 'target-collection' \

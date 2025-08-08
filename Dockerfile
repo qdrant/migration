@@ -12,9 +12,18 @@ WORKDIR /app
 
 RUN CGO_ENABLED=1 go build -ldflags "-X 'main.projectVersion=${VERSION:-0.0.0}' -X 'main.projectBuild=${BUILD:-dev}'" -o bin/qdrant-migration main.go
 
-FROM registry.suse.com/bci/bci-minimal:15.6
+FROM python:3.11-slim AS runtime
+
+RUN python3 -m pip install --no-cache-dir --no-compile --prefer-binary \
+    faiss-cpu==1.11.0.post1 \
+    numpy==2.3.2 \
+    tqdm==4.67.1 \
+    qdrant-client==1.15.1
 
 COPY --from=builder /app/bin/qdrant-migration /opt/
+COPY cmd/faiss_to_qdrant.py /opt/cmd/faiss_to_qdrant.py
+
+WORKDIR /opt
 
 USER 1000
 

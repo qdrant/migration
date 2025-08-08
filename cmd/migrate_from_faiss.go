@@ -98,7 +98,7 @@ func (r *MigrateFromFaissCmd) Run(globals *Globals) error {
 }
 
 func (r *MigrateFromFaissCmd) getFaissDimension(ctx context.Context) (int, error) {
-	pythonPath, err := exec.LookPath("python")
+	pythonPath, err := exec.LookPath("python3")
 	if err != nil {
 		return 0, fmt.Errorf("python not found in PATH")
 	}
@@ -117,7 +117,7 @@ func (r *MigrateFromFaissCmd) getFaissDimension(ctx context.Context) (int, error
 }
 
 func (r *MigrateFromFaissCmd) getFaissTotal(ctx context.Context) (int, error) {
-	pythonPath, err := exec.LookPath("python")
+	pythonPath, err := exec.LookPath("python3")
 	if err != nil {
 		return 0, fmt.Errorf("python3 not found in PATH")
 	}
