@@ -97,7 +97,6 @@ func TestMigrateFromChroma(t *testing.T) {
 		fmt.Sprintf("--qdrant.id-field=%s", idField),
 		fmt.Sprintf("--qdrant.document-field=%s", documentField),
 		fmt.Sprintf("--qdrant.distance-metric=%s", distance),
-		fmt.Sprintf("--qdrant.dense-vector=%s", denseVectorField),
 	}
 
 	runMigrationBinary(t, args)
@@ -138,7 +137,7 @@ func TestMigrateFromChroma(t *testing.T) {
 		require.Equal(t, expected.document, point.Payload[documentField].GetStringValue())
 		require.Equal(t, expected.source, point.Payload[sourceField].GetStringValue())
 
-		vector := point.Vectors.GetVectors().GetVectors()[denseVectorField].GetData()
+		vector := point.Vectors.GetVector().GetData()
 		require.Equal(t, expected.vector, vector)
 	}
 }
