@@ -15,7 +15,12 @@ import (
 	"github.com/qdrant/go-client/qdrant"
 )
 
-const HTTPS = "https"
+const (
+	HTTPS = "https"
+
+	DefaultHTTPPort  = 80
+	DefaultHTTPSPort = 443
+)
 
 func connectToQdrant(globals *Globals, host string, port int, apiKey string, useTLS bool, maxMessageSize int) (*qdrant.Client, error) {
 	debugLogger := logging.LoggerFunc(func(ctx context.Context, lvl logging.Level, msg string, fields ...any) {
@@ -71,10 +76,10 @@ func getPort(u *url.URL) (int, error) {
 		}
 		return sourcePort, nil
 	} else if u.Scheme == HTTPS {
-		return 443, nil
+		return DefaultHTTPSPort, nil
 	}
 
-	return 80, nil
+	return DefaultHTTPPort, nil
 }
 
 func parseQdrantUrl(urlStr string) (host string, port int, tls bool, err error) {
@@ -95,7 +100,7 @@ func parseQdrantUrl(urlStr string) (host string, port int, tls bool, err error) 
 
 func validateBatchSize(batchSize int) error {
 	if batchSize < 1 {
-		return fmt.Errorf("batch size must be greater than 0")
+		return fmt.Errorf("batch size must be greater than 0, got: %d", batchSize)
 	}
 	return nil
 }

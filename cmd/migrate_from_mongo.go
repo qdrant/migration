@@ -68,6 +68,7 @@ func (r *MigrateFromMongoDBCmd) Run(globals *Globals) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to Qdrant target: %w", err)
 	}
+	defer targetClient.Close()
 
 	err = commons.PrepareOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient)
 	if err != nil {

@@ -75,10 +75,13 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to source: %w", err)
 	}
+	defer sourceClient.Close()
+
 	targetClient, err := connectToQdrant(globals, r.targetHost, r.targetPort, r.Target.APIKey, r.targetTLS, 0)
 	if err != nil {
 		return fmt.Errorf("failed to connect to target: %w", err)
 	}
+	defer targetClient.Close()
 
 	err = commons.PrepareOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient)
 	if err != nil {
@@ -93,7 +96,7 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 		return fmt.Errorf("failed to count points in source: %w", err)
 	}
 
-	err = r.perpareTargetCollection(ctx, sourceClient, r.Source.Collection, targetClient, r.Target.Collection)
+	err = r.prepareTargetCollection(ctx, sourceClient, r.Source.Collection, targetClient, r.Target.Collection)
 	if err != nil {
 		return fmt.Errorf("error preparing target collection: %w", err)
 	}
@@ -118,7 +121,7 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 	return nil
 }
 
-func (r *MigrateFromQdrantCmd) perpareTargetCollection(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string) error {
+func (r *MigrateFromQdrantCmd) prepareTargetCollection(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string) error {
 	sourceCollectionInfo, err := sourceClient.GetCollectionInfo(ctx, sourceCollection)
 	if err != nil {
 		return fmt.Errorf("failed to get source collection info: %w", err)
@@ -183,7 +186,7 @@ func (r *MigrateFromQdrantCmd) perpareTargetCollection(ctx context.Context, sour
 				},
 			)
 			if err != nil {
-				return fmt.Errorf("failed creating index on tagrget collection %w", err)
+				return fmt.Errorf("failed creating index on target collection: %w", err)
 			}
 		}
 	}
@@ -240,7 +243,7 @@ func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qd
 			WithVectors:    qdrant.NewWithVectors(true),
 		})
 		if err != nil {
-			return fmt.Errorf("failed to scroll date from source: %w", err)
+			return fmt.Errorf("failed to scroll data from source: %w", err)
 		}
 
 		points := resp.GetResult()
