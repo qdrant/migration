@@ -10,11 +10,12 @@ COPY . /app
 
 WORKDIR /app
 
-RUN CGO_ENABLED=1 go build -ldflags "-X 'main.projectVersion=${VERSION:-0.0.0}' -X 'main.projectBuild=${BUILD:-dev}'" -o bin/qdrant-migration main.go
+RUN zypper update -y && \
+    CGO_ENABLED=1 go build -ldflags "-X 'main.projectVersion=${VERSION:-0.0.0}' -X 'main.projectBuild=${BUILD:-dev}'" -o bin/qdrant-migration main.go
 
-FROM python:3.11-slim AS runtime
+FROM registry.suse.com/bci/python:3.13 AS runtime
 
-RUN python3 -m pip install --no-cache-dir --no-compile --upgrade pip==25.2 setuptools==80.9.0 && \
+RUN zypper update -y && \
     python3 -m pip install --no-cache-dir --no-compile --prefer-binary \
       faiss-cpu==1.11.0.post1 \
       numpy==2.3.2 \
