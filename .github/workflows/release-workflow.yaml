@@ -16,7 +16,7 @@ jobs:
       id-token: write # needed for cosign keyless signing with OIDC
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Extract build info
         id: extract_build_info
