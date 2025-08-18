@@ -15,7 +15,7 @@ jobs:
 
     steps:
       - name: Pull Main Branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Update Release Draft
         uses: release-drafter/release-drafter@v6
