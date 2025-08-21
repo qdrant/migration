@@ -16,6 +16,7 @@ RUN zypper update -y && \
 FROM registry.suse.com/bci/python:3.13 AS runtime
 
 RUN zypper update -y && \
+    zypper install -y python313-dbm && \
     python3 -m pip install --no-cache-dir --no-compile --prefer-binary \
       faiss-cpu==1.11.0.post1 \
       numpy==2.3.2 \
