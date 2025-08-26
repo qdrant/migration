@@ -20,7 +20,6 @@ type MigrateFromPineconeCmd struct {
 	Qdrant       commons.QdrantConfig    `embed:"" prefix:"qdrant."`
 	Migration    commons.MigrationConfig `embed:"" prefix:"migration."`
 	IdField      string                  `prefix:"qdrant." help:"Field storing Pinecone IDs in Qdrant." default:"__id__"`
-	DenseVector  string                  `prefix:"qdrant." help:"Name of the dense vector in Qdrant" default:"dense_vector"`
 	SparseVector string                  `prefix:"qdrant." help:"Name of the sparse vector in Qdrant" default:"sparse_vector"`
 
 	targetHost string
@@ -172,11 +171,9 @@ func (r *MigrateFromPineconeCmd) prepareTargetCollection(ctx context.Context, so
 	case "dense":
 		createReq = &qdrant.CreateCollection{
 			CollectionName: r.Qdrant.Collection,
-			VectorsConfig: qdrant.NewVectorsConfigMap(map[string]*qdrant.VectorParams{
-				r.DenseVector: {
-					Size:     uint64(*foundIndex.Dimension),
-					Distance: distanceMapping[foundIndex.Metric],
-				},
+			VectorsConfig: qdrant.NewVectorsConfig(&qdrant.VectorParams{
+				Size:     uint64(*foundIndex.Dimension),
+				Distance: distanceMapping[foundIndex.Metric],
 			}),
 		}
 	case "sparse":
@@ -257,7 +254,7 @@ func (r *MigrateFromPineconeCmd) migrateData(ctx context.Context, sourceIndexCon
 			vectorMap := make(map[string]*qdrant.Vector)
 
 			if vec.Values != nil {
-				vectorMap[r.DenseVector] = qdrant.NewVectorDense(*vec.Values)
+				vectorMap[""] = qdrant.NewVectorDense(*vec.Values)
 			}
 
 			if vec.SparseValues != nil {
