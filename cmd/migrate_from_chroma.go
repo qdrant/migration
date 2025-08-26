@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -68,6 +67,7 @@ func (r *MigrateFromChromaCmd) Run(globals *Globals) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to Qdrant target: %w", err)
 	}
+	defer targetClient.Close()
 
 	err = commons.PrepareOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient)
 	if err != nil {
@@ -241,12 +241,12 @@ func (r *MigrateFromChromaCmd) migrateData(ctx context.Context, collection chrom
 		metadatas := resp.GetMetadatas()
 		jsonData, err := json.Marshal(metadatas)
 		if err != nil {
-			log.Fatalf("Error marshaling metadata: %v", err)
+			return fmt.Errorf("failed to marshal metadata: %w", err)
 		}
 		var metadatasGeneric []map[string]any
 		err = json.Unmarshal(jsonData, &metadatasGeneric)
 		if err != nil {
-			log.Fatalf("Error unmarshaling metadata: %v", err)
+			return fmt.Errorf("failed to unmarshal metadata: %w", err)
 		}
 
 		for i := 0; i < count; i++ {
