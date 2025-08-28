@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -98,6 +99,12 @@ func (r *MigrateFromFaissCmd) Run(globals *Globals) error {
 }
 
 func getPythonPath() (string, error) {
+	// Prefer python3 from VIRTUAL_ENV if set
+	if venv := os.Getenv("VIRTUAL_ENV"); venv != "" {
+		return filepath.Join(venv, "bin", "python3"), nil
+	}
+
+	// Fallback to python3 in PATH
 	pythonPath, err := exec.LookPath("python3")
 	if err != nil {
 		return "", fmt.Errorf("python3 not found in PATH")

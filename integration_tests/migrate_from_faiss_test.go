@@ -58,7 +58,7 @@ func TestMigrateFromFaiss(t *testing.T) {
 		"--migration.create-collection=true",
 	}
 
-	runMigrationBinary(t, args)
+	runMigrationBinary(t, args, "VIRTUAL_ENV="+venvDir)
 
 	client, err := qdrant.NewClient(&qdrant.Config{
 		Host:                   qdrantHost,
@@ -107,8 +107,9 @@ func createFaissIndex(t *testing.T, ctx context.Context, pythonPath string) (str
 		vector := make([]float32, dimension)
 		for j := range dimension {
 			// Keep upto 5 decimal places only to avoid precision issues
-			val := int(rand.Float32()*100000) / 100000
-			vector[j] = float32(val)
+			val := float32(int(rand.Float32()*10000)) / 10000.0
+
+			vector[j] = val
 		}
 
 		expectedEntries[i] = faissEntry{
