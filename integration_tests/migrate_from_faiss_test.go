@@ -28,6 +28,11 @@ type faissEntry struct {
 func TestMigrateFromFaiss(t *testing.T) {
 	ctx := context.Background()
 
+	venvPython, venvDir := setupVenv(t, ctx)
+	defer func() {
+		_ = os.RemoveAll(venvDir)
+	}()
+
 	qdrantContainer := qdrantContainer(ctx, t, qdrantAPIKey)
 	defer func() {
 		if err := qdrantContainer.Terminate(ctx); err != nil {
@@ -40,7 +45,7 @@ func TestMigrateFromFaiss(t *testing.T) {
 	qdrantPort, err := qdrantContainer.MappedPort(ctx, qdrantGRPCPort)
 	require.NoError(t, err)
 
-	faissIndexPath, expectedEntries := createFaissIndex(t, ctx)
+	faissIndexPath, expectedEntries := createFaissIndex(t, ctx, venvPython)
 
 	args := []string{
 		"faiss",
@@ -91,7 +96,7 @@ func TestMigrateFromFaiss(t *testing.T) {
 	os.Remove(faissIndexPath)
 }
 
-func createFaissIndex(t *testing.T, ctx context.Context) (string, []faissEntry) {
+func createFaissIndex(t *testing.T, ctx context.Context, pythonPath string) (string, []faissEntry) {
 	tempDir := t.TempDir()
 	faissIndexPath := filepath.Join(tempDir, faissIndexName)
 
@@ -120,7 +125,7 @@ func createFaissIndex(t *testing.T, ctx context.Context) (string, []faissEntry) 
 
 	scriptPath := "create_faiss_index.py"
 
-	cmdArgs := []string{"python3", scriptPath, fmt.Sprintf("%d", dimension), fmt.Sprintf("%d", totalEntries), faissIndexPath}
+	cmdArgs := []string{pythonPath, scriptPath, fmt.Sprintf("%d", dimension), fmt.Sprintf("%d", totalEntries), faissIndexPath}
 	cmdArgs = append(cmdArgs, vectorsData...)
 
 	cmd := exec.CommandContext(ctx, cmdArgs[0], cmdArgs[1:]...)
@@ -132,4 +137,24 @@ func createFaissIndex(t *testing.T, ctx context.Context) (string, []faissEntry) 
 	require.NoError(t, err, "FAISS index file was not created")
 
 	return faissIndexPath, expectedEntries
+}
+
+func setupVenv(t *testing.T, ctx context.Context) (string, string) {
+	t.Helper()
+
+	baseDir := t.TempDir()
+	venvDir := filepath.Join(baseDir, ".venv")
+
+	cmdVenv := exec.CommandContext(ctx, "python3", "-m", "venv", venvDir)
+	output, err := cmdVenv.CombinedOutput()
+	require.NoError(t, err, "failed to create venv: %s", string(output))
+
+	venvPython := filepath.Join(venvDir, "bin", "python")
+
+	reqPath := filepath.Join("..", "requirements.txt")
+	cmdPip := exec.CommandContext(ctx, venvPython, "-m", "pip", "install", "--no-cache-dir", "--no-compile", "--prefer-binary", "-r", reqPath)
+	output, err = cmdPip.CombinedOutput()
+	require.NoError(t, err, "failed to install requirements: %s", string(output))
+
+	return venvPython, venvDir
 }
