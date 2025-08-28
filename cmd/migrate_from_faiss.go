@@ -97,14 +97,35 @@ func (r *MigrateFromFaissCmd) Run(globals *Globals) error {
 	return nil
 }
 
-func (r *MigrateFromFaissCmd) getFaissDimension(ctx context.Context) (int, error) {
+func getPythonPath() (string, error) {
 	pythonPath, err := exec.LookPath("python3")
 	if err != nil {
-		return 0, fmt.Errorf("python not found in PATH")
+		return "", fmt.Errorf("python3 not found in PATH")
 	}
+	return pythonPath, nil
+}
 
-	dimCmd := exec.CommandContext(ctx, pythonPath, PythonScript, "--action", "get-dim", "--faiss-index", r.FaissIndex.IndexPath)
-	dimOut, err := dimCmd.Output()
+func newPythonCmdOutput(ctx context.Context, args ...string) ([]byte, error) {
+	pythonPath, err := getPythonPath()
+	if err != nil {
+		return nil, err
+	}
+	fullArgs := append([]string{PythonScript}, args...)
+	cmd := exec.CommandContext(ctx, pythonPath, fullArgs...)
+	return cmd.Output()
+}
+
+func newPythonCmd(ctx context.Context, args ...string) (*exec.Cmd, error) {
+	pythonPath, err := getPythonPath()
+	if err != nil {
+		return nil, err
+	}
+	fullArgs := append([]string{PythonScript}, args...)
+	return exec.CommandContext(ctx, pythonPath, fullArgs...), nil
+}
+
+func (r *MigrateFromFaissCmd) getFaissDimension(ctx context.Context) (int, error) {
+	dimOut, err := newPythonCmdOutput(ctx, "--action", "get-dim", "--faiss-index", r.FaissIndex.IndexPath)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get dimension from FAISS index: %w", err)
 	}
@@ -117,13 +138,7 @@ func (r *MigrateFromFaissCmd) getFaissDimension(ctx context.Context) (int, error
 }
 
 func (r *MigrateFromFaissCmd) getFaissTotal(ctx context.Context) (int, error) {
-	pythonPath, err := exec.LookPath("python3")
-	if err != nil {
-		return 0, fmt.Errorf("python3 not found in PATH")
-	}
-
-	totalCmd := exec.CommandContext(ctx, pythonPath, PythonScript, "--action", "get-total", "--faiss-index", r.FaissIndex.IndexPath)
-	totalOut, err := totalCmd.Output()
+	totalOut, err := newPythonCmdOutput(ctx, "--action", "get-total", "--faiss-index", r.FaissIndex.IndexPath)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get total vector count from FAISS index: %w", err)
 	}
@@ -180,13 +195,7 @@ func (r *MigrateFromFaissCmd) migrateData(ctx context.Context, targetClient *qdr
 	bar, _ := pterm.DefaultProgressbar.WithTotal(total).Start()
 	displayMigrationProgress(bar, currentOffset)
 
-	pythonPath, err := exec.LookPath("python3")
-	if err != nil {
-		return fmt.Errorf("python3 not found in PATH")
-	}
-
 	args := []string{
-		PythonScript,
 		"--action", "migrate",
 		"--faiss-index", r.FaissIndex.IndexPath,
 		"--qdrant-url", r.Qdrant.Url,
@@ -198,7 +207,10 @@ func (r *MigrateFromFaissCmd) migrateData(ctx context.Context, targetClient *qdr
 		args = append(args, "--qdrant-api-key", r.Qdrant.APIKey)
 	}
 
-	cmd := exec.CommandContext(ctx, pythonPath, args...)
+	cmd, err := newPythonCmd(ctx, args...)
+	if err != nil {
+		return err
+	}
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
 		return fmt.Errorf("failed to get stdout pipe: %w", err)
