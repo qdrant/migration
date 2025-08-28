@@ -83,6 +83,7 @@ jobs:
           disable-autolabeler: true
           commitish: ${{ github.ref }}
           tag: ${{ steps.extract_build_info.outputs.tag }}
+          name: ${{ steps.extract_build_info.outputs.tag }}
           publish: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
