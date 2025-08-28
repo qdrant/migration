@@ -79,9 +79,10 @@ func TestMigrateFromWeaviate(t *testing.T) {
 	}
 
 	qdrantClient, err := qdrant.NewClient(&qdrant.Config{
-		Host:   qdrantHost,
-		Port:   qdrantPort.Int(),
-		APIKey: qdrantAPIKey,
+		Host:                   qdrantHost,
+		Port:                   qdrantPort.Int(),
+		APIKey:                 qdrantAPIKey,
+		SkipCompatibilityCheck: true,
 	})
 	require.NoError(t, err)
 	defer qdrantClient.Close()
