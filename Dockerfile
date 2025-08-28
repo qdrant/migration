@@ -15,13 +15,11 @@ RUN zypper update -y && \
 
 FROM registry.suse.com/bci/python:3.13 AS runtime
 
+COPY requirements.txt /opt/cmd/requirements.txt
+
 RUN zypper update -y && \
     zypper install -y python313-dbm && \
-    python3 -m pip install --no-cache-dir --no-compile --prefer-binary \
-      faiss-cpu==1.11.0.post1 \
-      numpy==2.3.2 \
-      tqdm==4.67.1 \
-      qdrant-client==1.15.1
+    python3 -m pip install --no-cache-dir --no-compile --prefer-binary -r /opt/cmd/requirements.txt
 
 COPY --from=builder /app/bin/qdrant-migration /opt/
 COPY cmd/faiss_to_qdrant.py /opt/cmd/faiss_to_qdrant.py
