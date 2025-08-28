@@ -19,11 +19,10 @@ import (
 )
 
 type MigrateFromS3VectorsCmd struct {
-	S3          commons.S3VectorsConfig `embed:"" prefix:"s3."`
-	Qdrant      commons.QdrantConfig    `embed:"" prefix:"qdrant."`
-	Migration   commons.MigrationConfig `embed:"" prefix:"migration."`
-	IdField     string                  `prefix:"qdrant." help:"Field storing S3 IDs in Qdrant." default:"__id__"`
-	DenseVector string                  `prefix:"qdrant." help:"Name of the dense vector in Qdrant" default:"dense_vector"`
+	S3        commons.S3VectorsConfig `embed:"" prefix:"s3."`
+	Qdrant    commons.QdrantConfig    `embed:"" prefix:"qdrant."`
+	Migration commons.MigrationConfig `embed:"" prefix:"migration."`
+	IdField   string                  `prefix:"qdrant." help:"Field storing S3 IDs in Qdrant." default:"__id__"`
 
 	targetHost string
 	targetPort int
@@ -64,6 +63,7 @@ func (r *MigrateFromS3VectorsCmd) Run(globals *Globals) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to Qdrant target: %w", err)
 	}
+	defer targetClient.Close()
 
 	err = commons.PrepareOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient)
 	if err != nil {
@@ -140,11 +140,9 @@ func (r *MigrateFromS3VectorsCmd) prepareTargetCollection(ctx context.Context, s
 
 	createReq := &qdrant.CreateCollection{
 		CollectionName: r.Qdrant.Collection,
-		VectorsConfig: qdrant.NewVectorsConfigMap(map[string]*qdrant.VectorParams{
-			r.DenseVector: {
-				Size:     uint64(*indexInfo.Index.Dimension),
-				Distance: dist,
-			},
+		VectorsConfig: qdrant.NewVectorsConfig(&qdrant.VectorParams{
+			Size:     uint64(*indexInfo.Index.Dimension),
+			Distance: dist,
 		}),
 	}
 
@@ -212,10 +210,7 @@ func (r *MigrateFromS3VectorsCmd) migrateData(ctx context.Context, sourceClient 
 				return fmt.Errorf("unexpected vector data type")
 			}
 
-			vectorMap := map[string]*qdrant.Vector{
-				r.DenseVector: qdrant.NewVector(vData.Value...),
-			}
-			point.Vectors = qdrant.NewVectorsMap(vectorMap)
+			point.Vectors = qdrant.NewVectorsDense(vData.Value)
 
 			payload := make(map[string]*qdrant.Value)
 			if vec.Metadata != nil {

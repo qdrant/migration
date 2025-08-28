@@ -13,7 +13,6 @@ import (
 )
 
 const (
-	denseVectorName  = "dense_vector"
 	sparseVectorName = "sparse_vector"
 )
 
@@ -72,7 +71,6 @@ func TestMigrateFromPineconeDense(t *testing.T) {
 		fmt.Sprintf("--qdrant.api-key=%s", qdrantAPIKey),
 		fmt.Sprintf("--qdrant.collection=%s", testCollectionName),
 		fmt.Sprintf("--qdrant.id-field=%s", idField),
-		fmt.Sprintf("--qdrant.dense-vector=%s", denseVectorName),
 	}
 
 	runMigrationBinary(t, args)
@@ -107,7 +105,7 @@ func TestMigrateFromPineconeDense(t *testing.T) {
 
 		require.Equal(t, expected.source, point.Payload["source"].GetStringValue())
 
-		vector := point.Vectors.GetVectors().GetVectors()[denseVectorName].GetData()
+		vector := point.Vectors.GetVector().GetData()
 		require.Equal(t, expected.vector, vector)
 	}
 }
