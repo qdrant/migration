@@ -1,0 +1,4 @@
+faiss-cpu==1.11.0.post1
+numpy==2.3.2
+tqdm==4.67.1
+qdrant-client==1.15.1

@@ -53,9 +53,10 @@ func TestMigrateFromPineconeDense(t *testing.T) {
 	require.NoError(t, err)
 
 	qdrantClient, err := qdrant.NewClient(&qdrant.Config{
-		Host:   qdrantHost,
-		Port:   qdrantPort,
-		APIKey: qdrantAPIKey,
+		Host:                   qdrantHost,
+		Port:                   qdrantPort,
+		APIKey:                 qdrantAPIKey,
+		SkipCompatibilityCheck: true,
 	})
 	require.NoError(t, err)
 	defer qdrantClient.Close()
@@ -141,9 +142,10 @@ func TestMigrateFromPineconeSparse(t *testing.T) {
 	require.NoError(t, err)
 
 	qdrantClient, err := qdrant.NewClient(&qdrant.Config{
-		Host:   qdrantHost,
-		Port:   qdrantPort,
-		APIKey: qdrantAPIKey,
+		Host:                   qdrantHost,
+		Port:                   qdrantPort,
+		APIKey:                 qdrantAPIKey,
+		SkipCompatibilityCheck: true,
 	})
 	require.NoError(t, err)
 	defer qdrantClient.Close()

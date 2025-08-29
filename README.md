@@ -16,6 +16,7 @@ CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for res
 * OpenSearch
 * Postgres (pgvector)
 * S3 Vectors
+* FAISS
 * Another Qdrant instance
 
 ## Installation
@@ -408,7 +409,7 @@ Migrate data from an **S3 Vectors** index to **Qdrant**:
 
 ### 📥 Example
 
-> Important:
+> Important ⚠️:
 > Set your AWS credentials using the AWS CLI's [configure](https://docs.aws.amazon.com/cli/latest/reference/configure/#examples) command or [environment variables](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-envvars.html).
 
 ```bash
@@ -436,6 +437,47 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.collection`   | Target collection name                                        |
 | `--qdrant.api-key`      | Qdrant API key (optional)                                     |
 | `--qdrant.id-field`     | Field storing S3 IDs in Qdrant. Default: `"__id__"`           |
+
+* See [Shared Migration Options](#shared-migration-options) for common migration parameters.
+
+</details>
+
+<details>
+<summary><h3>From FAISS</h3></summary>
+
+Migrate data from a **FAISS** index file to **Qdrant**:
+
+### 📥 Example
+
+> Important ⚠️:
+> Vectors from quantized FAISS indexes cannot be migrated since they don't store the original vectors.
+> `IndexFlatL2`, `IndexFlatIP`, `IndexHNSWFlat`, `IndexIVFFlat` are supported.
+
+```bash
+docker run --net=host --rm -it \
+  -v /path/to/faiss_index:/mnt/index \ # Mount the FAISS index file into container
+  registry.cloud.qdrant.io/library/qdrant-migration faiss \
+    --faiss.index-path '/mnt/index' \
+    --qdrant.url 'http://localhost:6334' \
+    --qdrant.api-key 'optional-qdrant-api-key' \
+    --qdrant.collection 'target-collection' \
+    --migration.batch-size 64
+```
+
+#### FAISS Options
+
+| Flag                 | Description                             |
+| -------------------- | --------------------------------------- |
+| `--faiss.index-path` | Path to the FAISS index file (required) |
+
+#### Qdrant Options
+
+| Flag                       | Description                                                                                                      |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `--qdrant.url`             | Qdrant gRPC URL. Default: `"http://localhost:6334"`                                                              |
+| `--qdrant.collection`      | Target collection name                                                                                           |
+| `--qdrant.api-key`         | Qdrant API key (optional)                                                                                        |
+| `--qdrant.distance-metric` | Distance metric for the Qdrant collection. `"cosine"`, `"dot"`, `"manhattan"` or `"euclid"`. Default: `"cosine"` |
 
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
 
