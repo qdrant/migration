@@ -102,3 +102,8 @@ type S3VectorsConfig struct {
 type FaissConfig struct {
 	IndexPath string `help:"Path to the FAISS index file" required:"true"`
 }
+
+type DatabricksConfig struct {
+	IndexName  string `help:"Databricks Vector Search index name (e.g., workspace.default.myindex)" required:"true"`
+	PrimaryKey string `help:"Field used to derive point IDs." required:"true"`
+}
