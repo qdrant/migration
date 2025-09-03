@@ -16,6 +16,7 @@ CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for res
 * OpenSearch
 * Postgres (pgvector)
 * S3 Vectors
+* Databricks Vector Search
 * FAISS
 * Another Qdrant instance
 
@@ -437,6 +438,46 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.collection`   | Target collection name                                        |
 | `--qdrant.api-key`      | Qdrant API key (optional)                                     |
 | `--qdrant.id-field`     | Field storing S3 IDs in Qdrant. Default: `"__id__"`           |
+
+* See [Shared Migration Options](#shared-migration-options) for common migration parameters.
+
+</details>
+
+<details>
+
+<summary><h3>From Databricks</h3></summary>
+
+Migrate data from a Databricks Vector Search index to Qdrant:
+
+> Important ⚠️:
+> Databricks index schemas with their vector dimensions are not exposed after creation.
+> Therefore, you must [manually create](https://qdrant.tech/documentation/concepts/vectors/#named-vectors) a Qdrant collection before starting the migration.
+> Ensure that the vector names and dimensions in Qdrant exactly match those present in your Databricks index.
+
+### 📥 Example
+
+```bash
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration databricks \
+    --databricks.index-name 'workspace.default.peopleidx' \
+    --qdrant.url 'http://localhost:6334' \
+    --qdrant.collection 'peopleidx' \
+    --migration.batch-size 100
+```
+
+#### Databricks Options
+
+| Flag                        | Description                                                                    |
+| --------------------------- | ------------------------------------------------------------------------------ |
+| `--databricks.index-name`   | Databricks Vector Search index name (e.g., `workspace.default.myindex`). Required. |
+| `--databricks.primary-key`  | Field used to derive point IDs. Required. |
+
+#### Qdrant Options
+
+| Flag                  | Description                                                 |
+| --------------------- | ----------------------------------------------------------- |
+| `--qdrant.url`        | Qdrant gRPC URL. Default: `"http://localhost:6334"`         |
+| `--qdrant.collection` | Target collection name                                      |
+| `--qdrant.api-key`    | Qdrant API key (optional)                                   |
 
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
 
