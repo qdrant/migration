@@ -62,7 +62,7 @@ jobs:
             BUILD=${{ steps.extract_build_info.outputs.commit_short }}
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@v3.10.0
+        uses: sigstore/cosign-installer@v4.0.0
 
       - name: Sign container image at registry.cloud.qdrant.io
         run: |
