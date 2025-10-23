@@ -210,10 +210,10 @@ func (r *MigrateFromElasticsearchCmd) extractVectorFields(mapping map[string]any
 	}
 
 	distanceMapping := map[string]qdrant.Distance{
-		"l2":          qdrant.Distance_Euclid,
-		"cosine":      qdrant.Distance_Cosine,
-		"dot_product": qdrant.Distance_Dot,
-		"l1":          qdrant.Distance_Manhattan,
+		"l2_norm":           qdrant.Distance_Euclid,
+		"cosine":            qdrant.Distance_Cosine,
+		"dot_product":       qdrant.Distance_Dot,
+		"max_inner_product": qdrant.Distance_Dot,
 	}
 
 	for fieldName, fieldDef := range properties {
@@ -262,28 +262,22 @@ func (r *MigrateFromElasticsearchCmd) migrateData(ctx context.Context, sourceCli
 	batchSize := r.Migration.BatchSize
 
 	offsetCount := uint64(0)
-	var lastSortValue any
+	from := 0
 
 	if !r.Migration.Restart {
-		id, count, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.Elasticsearch.Index)
+		_, count, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.Elasticsearch.Index)
 		if err != nil {
 			return fmt.Errorf("failed to get start offset: %w", err)
 		}
 		offsetCount = count
-		if id != nil {
-			if id.GetUuid() != "" {
-				lastSortValue = id.GetUuid()
-			} else if id.GetNum() != 0 {
-				lastSortValue = id.GetNum()
-			}
-		}
+		from = int(count)
 	}
 
 	bar, _ := pterm.DefaultProgressbar.WithTotal(int(sourcePointCount)).Start()
 	displayMigrationProgress(bar, offsetCount)
 
 	for {
-		hits, err := r.searchWithPagination(ctx, sourceClient, batchSize, lastSortValue)
+		hits, err := r.searchWithPagination(ctx, sourceClient, batchSize, from)
 		if err != nil {
 			return fmt.Errorf("failed to search documents: %w", err)
 		}
@@ -313,11 +307,7 @@ func (r *MigrateFromElasticsearchCmd) migrateData(ctx context.Context, sourceCli
 				}
 			}
 
-			if len(vectors) > 0 {
-				point.Vectors = qdrant.NewVectorsMap(vectors)
-			} else {
-				point.Vectors = qdrant.NewVectorsMap(map[string]*qdrant.Vector{})
-			}
+			point.Vectors = qdrant.NewVectorsMap(vectors)
 
 			point.Payload = qdrant.NewValueMap(payload)
 			targetPoints = append(targetPoints, point)
@@ -333,21 +323,9 @@ func (r *MigrateFromElasticsearchCmd) migrateData(ctx context.Context, sourceCli
 		}
 
 		offsetCount += uint64(len(targetPoints))
+		from += len(targetPoints)
 
-		lastDoc := hits[len(hits)-1].(map[string]any)
-		lastSortValue = lastDoc["_seq_no"]
-
-		var offsetID *qdrant.PointId
-		switch v := lastSortValue.(type) {
-		case string:
-			offsetID = qdrant.NewID(v)
-		case float64:
-			offsetID = qdrant.NewIDNum(uint64(v))
-		case int64:
-			offsetID = qdrant.NewIDNum(uint64(v))
-		default:
-			offsetID = qdrant.NewID(fmt.Sprintf("%v", v))
-		}
+		offsetID := qdrant.NewIDNum(offsetCount)
 
 		err = commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.Elasticsearch.Index, offsetID, offsetCount)
 		if err != nil {
@@ -361,19 +339,13 @@ func (r *MigrateFromElasticsearchCmd) migrateData(ctx context.Context, sourceCli
 	return nil
 }
 
-func (r *MigrateFromElasticsearchCmd) searchWithPagination(ctx context.Context, client *elasticsearch.Client, size int, searchAfter any) ([]any, error) {
+func (r *MigrateFromElasticsearchCmd) searchWithPagination(ctx context.Context, client *elasticsearch.Client, size int, from int) ([]any, error) {
 	searchRequest := map[string]any{
 		"size": size,
-		"sort": []map[string]any{
-			{"_seq_no": map[string]string{"order": "asc"}},
-		},
+		"from": from,
 		"query": map[string]any{
 			"match_all": map[string]any{},
 		},
-	}
-
-	if searchAfter != nil {
-		searchRequest["search_after"] = []any{searchAfter}
 	}
 
 	requestBody, err := json.Marshal(searchRequest)
@@ -390,13 +362,17 @@ func (r *MigrateFromElasticsearchCmd) searchWithPagination(ctx context.Context, 
 	}
 	defer res.Body.Close()
 
+	if res.IsError() {
+		var errorResp map[string]any
+		if err := json.NewDecoder(res.Body).Decode(&errorResp); err != nil {
+			return nil, fmt.Errorf("elasticsearch request failed with status %d", res.StatusCode)
+		}
+		return nil, fmt.Errorf("elasticsearch error: %v", errorResp)
+	}
+
 	var searchResp map[string]any
 	if err := json.NewDecoder(res.Body).Decode(&searchResp); err != nil {
 		return nil, fmt.Errorf("failed to decode search response: %w", err)
-	}
-
-	if errorInfo, exists := searchResp["error"]; exists {
-		return nil, fmt.Errorf("elasticsearch error: %v", errorInfo)
 	}
 
 	hitsContainer, ok := searchResp["hits"].(map[string]any)
@@ -415,6 +391,9 @@ func (r *MigrateFromElasticsearchCmd) searchWithPagination(ctx context.Context, 
 func extractElasticsearchVector(value any) ([]float32, bool) {
 	switch v := value.(type) {
 	case []any:
+		if len(v) == 0 {
+			return nil, false
+		}
 		vector := make([]float32, len(v))
 		for i, item := range v {
 			switch n := item.(type) {
@@ -422,9 +401,23 @@ func extractElasticsearchVector(value any) ([]float32, bool) {
 				vector[i] = n
 			case float64:
 				vector[i] = float32(n)
+			case int:
+				vector[i] = float32(n)
+			case int32:
+				vector[i] = float32(n)
+			case int64:
+				vector[i] = float32(n)
 			default:
 				return nil, false
 			}
+		}
+		return vector, true
+	case []float32:
+		return v, true
+	case []float64:
+		vector := make([]float32, len(v))
+		for i, val := range v {
+			vector[i] = float32(val)
 		}
 		return vector, true
 	default:

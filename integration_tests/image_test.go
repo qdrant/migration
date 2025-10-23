@@ -141,8 +141,8 @@ func elasticsearchContainer(ctx context.Context, t *testing.T) testcontainers.Co
 			"ES_JAVA_OPTS":                      "-Xms512m -Xmx512m",
 		},
 		WaitingFor: wait.ForAll(
-			wait.ForListeningPort("9200/tcp").WithStartupTimeout(30*time.Second),
-			wait.ForHTTP("/").WithPort("9200/tcp").WithStartupTimeout(30*time.Second),
+			wait.ForListeningPort("9200/tcp").WithStartupTimeout(60*time.Second),
+			wait.ForHTTP("/").WithPort("9200/tcp").WithStartupTimeout(60*time.Second),
 		),
 	}
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{

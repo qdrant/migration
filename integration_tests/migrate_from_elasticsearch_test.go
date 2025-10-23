@@ -47,7 +47,7 @@ func TestMigrateFromElasticsearch(t *testing.T) {
 					"type":       "dense_vector",
 					"dims":       dimension,
 					"index":      true,
-					"similarity": "cosine",
+					"similarity": "l2_norm",
 				},
 				"doc":    map[string]interface{}{"type": "text"},
 				"source": map[string]interface{}{"type": "text"},
