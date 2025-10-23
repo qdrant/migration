@@ -4,7 +4,7 @@ go 1.24.2
 
 require (
 	github.com/alecthomas/kong v1.12.1
-	github.com/amikos-tech/chroma-go v0.2.3
+	github.com/amikos-tech/chroma-go v0.2.5
 	github.com/aws/aws-sdk-go-v2/config v1.31.13
 	github.com/aws/aws-sdk-go-v2/service/s3vectors v1.2.0
 	github.com/aws/smithy-go v1.23.1
