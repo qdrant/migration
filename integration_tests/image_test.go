@@ -130,6 +130,29 @@ func opensearchContainer(ctx context.Context, t *testing.T) testcontainers.Conta
 	return container
 }
 
+func elasticsearchContainer(ctx context.Context, t *testing.T) testcontainers.Container {
+	req := testcontainers.ContainerRequest{
+		Image:        "elasticsearch:9.1.5",
+		ExposedPorts: []string{"9200/tcp"},
+		Env: map[string]string{
+			"discovery.type":                    "single-node",
+			"xpack.security.enabled":            "false",
+			"xpack.security.enrollment.enabled": "false",
+			"ES_JAVA_OPTS":                      "-Xms512m -Xmx512m",
+		},
+		WaitingFor: wait.ForAll(
+			wait.ForListeningPort("9200/tcp").WithStartupTimeout(60*time.Second),
+			wait.ForHTTP("/").WithPort("9200/tcp").WithStartupTimeout(60*time.Second),
+		),
+	}
+	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	require.NoError(t, err)
+	return container
+}
+
 func pgContainer(ctx context.Context, t *testing.T) testcontainers.Container {
 	req := testcontainers.ContainerRequest{
 		Image:        "pgvector/pgvector:pg17",
