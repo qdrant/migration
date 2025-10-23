@@ -2,9 +2,6 @@
 
 CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for resumable transfers in case of interruptions.
 
-> [!WARNING]  
-> This project is in beta. The API may change in future releases.
-
 ## Supported Sources
 
 * Chroma
