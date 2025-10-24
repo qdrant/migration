@@ -87,6 +87,15 @@ type OpenSearchConfig struct {
 	InsecureSkipVerify bool   `help:"Skip TLS certificate verification" default:"false"`
 }
 
+type ElasticsearchConfig struct {
+	Url                string `help:"Elasticsearch URL" required:""`
+	Index              string `help:"Elasticsearch index name" required:""`
+	Username           string `help:"Elasticsearch username"`
+	Password           string `help:"Elasticsearch password"`
+	APIKey             string `help:"Elasticsearch API key"`
+	InsecureSkipVerify bool   `help:"Skip TLS certificate verification" default:"false"`
+}
+
 type PGConfig struct {
 	Url       string   `help:"Postgres connection string (e.g., postgres://user:pass@host:port/dbname)." required:""`
 	Table     string   `help:"Name of the table containing vector data." required:""`

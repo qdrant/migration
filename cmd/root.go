@@ -17,17 +17,18 @@ type Globals struct {
 type CLI struct {
 	Globals
 
-	Qdrant     MigrateFromQdrantCmd     `cmd:"" help:"Migrate data from a Qdrant database to Qdrant."`
-	Milvus     MigrateFromMilvusCmd     `cmd:"" help:"Migrate data from a Milvus database to Qdrant."`
-	Pinecone   MigrateFromPineconeCmd   `cmd:"" help:"Migrate data from a Pinecone database to Qdrant."`
-	Chroma     MigrateFromChromaCmd     `cmd:"" help:"Migrate data from a Chroma database to Qdrant."`
-	Weaviate   MigrateFromWeaviateCmd   `cmd:"" help:"Migrate data from a Weaviate database to Qdrant."`
-	Redis      MigrateFromRedisCmd      `cmd:"" help:"Migrate data from a Redis database to Qdrant."`
-	Mongodb    MigrateFromMongoDBCmd    `cmd:"" help:"Migrate data from a Mongo database to Qdrant."`
-	OpenSearch MigrateFromOpenSearchCmd `cmd:"" name:"opensearch" help:"Migrate data from an OpenSearch database to Qdrant."`
-	PG         MigrateFromPGCmd         `cmd:"" name:"pg" help:"Migrate data from a PostgreSQL database to Qdrant."`
-	S3Vectors  MigrateFromS3VectorsCmd  `cmd:"" name:"s3" help:"Migrate data from S3 Vectors to Qdrant."`
-	Faiss      MigrateFromFaissCmd      `cmd:"" help:"Migrate data from a FAISS index to Qdrant."`
+	Qdrant        MigrateFromQdrantCmd        `cmd:"" help:"Migrate data from a Qdrant database to Qdrant."`
+	Milvus        MigrateFromMilvusCmd        `cmd:"" help:"Migrate data from a Milvus database to Qdrant."`
+	Pinecone      MigrateFromPineconeCmd      `cmd:"" help:"Migrate data from a Pinecone database to Qdrant."`
+	Chroma        MigrateFromChromaCmd        `cmd:"" help:"Migrate data from a Chroma database to Qdrant."`
+	Weaviate      MigrateFromWeaviateCmd      `cmd:"" help:"Migrate data from a Weaviate database to Qdrant."`
+	Redis         MigrateFromRedisCmd         `cmd:"" help:"Migrate data from a Redis database to Qdrant."`
+	Mongodb       MigrateFromMongoDBCmd       `cmd:"" help:"Migrate data from a Mongo database to Qdrant."`
+	OpenSearch    MigrateFromOpenSearchCmd    `cmd:"" name:"opensearch" help:"Migrate data from an OpenSearch database to Qdrant."`
+	Elasticsearch MigrateFromElasticsearchCmd `cmd:"" help:"Migrate data from an Elasticsearch database to Qdrant."`
+	PG            MigrateFromPGCmd            `cmd:"" name:"pg" help:"Migrate data from a PostgreSQL database to Qdrant."`
+	S3Vectors     MigrateFromS3VectorsCmd     `cmd:"" name:"s3" help:"Migrate data from S3 Vectors to Qdrant."`
+	Faiss         MigrateFromFaissCmd         `cmd:"" help:"Migrate data from a FAISS index to Qdrant."`
 }
 
 func Execute(projectVersion, projectBuild string) {
