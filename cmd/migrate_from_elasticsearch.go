@@ -288,9 +288,18 @@ func (r *MigrateFromElasticsearchCmd) migrateData(ctx context.Context, sourceCli
 
 		var targetPoints []*qdrant.PointStruct
 		for _, hit := range hits {
-			doc := hit.(map[string]any)
-			source := doc["_source"].(map[string]any)
-			docID := doc["_id"].(string)
+			doc, ok := hit.(map[string]any)
+			if !ok {
+				return fmt.Errorf("invalid hit format: expected map[string]any, got %T", hit)
+			}
+			source, ok := doc["_source"].(map[string]any)
+			if !ok {
+				return fmt.Errorf("invalid _source format: expected map[string]any, got %T", doc["_source"])
+			}
+			docID, ok := doc["_id"].(string)
+			if !ok {
+				return fmt.Errorf("invalid _id format: expected string, got %T", doc["_id"])
+			}
 
 			point := &qdrant.PointStruct{}
 			vectors := make(map[string]*qdrant.Vector)
