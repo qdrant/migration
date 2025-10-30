@@ -62,6 +62,9 @@ func connectToQdrant(globals *Globals, host string, port int, apiKey string, use
 		SkipCompatibilityCheck: true,
 	})
 	if err != nil {
+		if port != 6443 {
+			pterm.Error.Println("The connection to Qdrant failed. Since you specified a port other than 6443, the likely reason is that you did not connect to Qdrant's GRPC endpoint, which defaults to port 6443.")
+		}
 		return nil, fmt.Errorf("failed to create client: %w", err)
 	}
 
