@@ -43,7 +43,7 @@ func GetStartOffset(ctx context.Context, migrationOffsetsCollectionName string, 
 
 	offsetCountValue, ok := offsetCount.GetKind().(*qdrant.Value_IntegerValue)
 	if !ok {
-		return nil, 0, fmt.Errorf("failed to get offset count: %w", err)
+		return nil, 0, fmt.Errorf("failed to get offset count: invalid type")
 	}
 
 	offsetIntegerValue, ok := offset.GetKind().(*qdrant.Value_IntegerValue)

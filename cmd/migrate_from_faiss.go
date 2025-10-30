@@ -60,6 +60,7 @@ func (r *MigrateFromFaissCmd) Run(globals *Globals) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to Qdrant target: %w", err)
 	}
+	defer targetClient.Close()
 
 	err = commons.PrepareOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient)
 	if err != nil {
@@ -151,7 +152,7 @@ func (r *MigrateFromFaissCmd) getFaissTotal(ctx context.Context) (int, error) {
 	}
 	var total int
 	_, err = fmt.Sscanf(string(totalOut), "%d", &total)
-	if err != nil || total <= 0 {
+	if err != nil || total < 0 {
 		return 0, fmt.Errorf("invalid total returned from FAISS index: %s", string(totalOut))
 	}
 	return total, nil
