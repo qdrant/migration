@@ -237,7 +237,7 @@ func (r *MigrateFromElasticsearchCmd) extractVectorFields(mapping map[string]any
 			return nil, fmt.Errorf("invalid dimension type for field %s: expected int, got %T", fieldName, dimValue)
 		}
 
-		var distance qdrant.Distance
+		distance := qdrant.Distance_Cosine
 		if similarity, ok := fieldProps["similarity"].(string); ok {
 			if mappedDistance, exists := distanceMapping[strings.ToLower(similarity)]; exists {
 				distance = mappedDistance
@@ -245,8 +245,6 @@ func (r *MigrateFromElasticsearchCmd) extractVectorFields(mapping map[string]any
 				distance = qdrant.Distance_Cosine
 				pterm.Warning.Printfln("Unsupported similarity '%s' for field '%s', defaulting to cosine distance", similarity, fieldName)
 			}
-		} else {
-			distance = qdrant.Distance_Cosine
 		}
 
 		vectorParamsMap[fieldName] = &qdrant.VectorParams{
