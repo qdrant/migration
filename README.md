@@ -11,6 +11,7 @@ CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for res
 * Redis
 * MongoDB
 * OpenSearch
+* Elasticsearch
 * Postgres (pgvector)
 * S3 Vectors
 * FAISS
@@ -326,7 +327,7 @@ Migrate data from an **OpenSearch** index to **Qdrant**:
 
 ```bash
 docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration opensearch \
-    --opensearch.url 'https://localhost:9200' \
+    --opensearch.url 'http://localhost:9200' \
     --opensearch.insecure-skip-verify \
     --opensearch.index 'source-index' \
     --opensearch.username 'username' \
@@ -355,6 +356,50 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.collection` | Target collection name                                      |
 | `--qdrant.api-key`    | Qdrant API key (optional)                                   |
 | `--qdrant.id-field`   | Field storing OpenSearch IDs in Qdrant. Default: `"__id__"` |
+
+See [Shared Migration Options](#shared-migration-options) for common migration parameters.
+
+</details>
+
+<details>
+<summary><h3>From Elasticsearch</h3></summary>
+
+Migrate data from an **Elasticsearch** index to **Qdrant**:
+
+### 📥 Example
+
+```bash
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration elasticsearch \
+    --elasticsearch.url 'http://localhost:9200' \
+    --elasticsearch.insecure-skip-verify \
+    --elasticsearch.index 'source-index' \
+    --elasticsearch.username 'username' \
+    --elasticsearch.password 'password' \
+    --qdrant.url 'http://localhost:6334' \
+    --qdrant.api-key 'optional-qdrant-api-key' \
+    --qdrant.collection 'target-collection' \
+    --migration.batch-size 64
+```
+
+#### Elasticsearch Options
+
+| Flag                                   | Description                                             |
+| -------------------------------------- | ------------------------------------------------------- |
+| `--elasticsearch.url`                  | Elasticsearch URL (e.g. `http://localhost:9200`).       |
+| `--elasticsearch.index`                | Elasticsearch index name.                               |
+| `--elasticsearch.username`             | Username for basic authentication (optional)            |
+| `--elasticsearch.password`             | Password for basic authentication (optional)            |
+| `--elasticsearch.api-key`              | API key for authentication (optional)                   |
+| `--elasticsearch.insecure-skip-verify` | Whether to skip TLS certificate verification (optional) |
+
+#### Qdrant Options
+
+| Flag                  | Description                                                    |
+| --------------------- | -------------------------------------------------------------- |
+| `--qdrant.url`        | Qdrant gRPC URL. Default: `"http://localhost:6334"`            |
+| `--qdrant.collection` | Target collection name                                         |
+| `--qdrant.api-key`    | Qdrant API key (optional)                                      |
+| `--qdrant.id-field`   | Field storing Elasticsearch IDs in Qdrant. Default: `"__id__"` |
 
 See [Shared Migration Options](#shared-migration-options) for common migration parameters.
 
