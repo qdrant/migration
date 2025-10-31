@@ -218,6 +218,7 @@ func (r *MigrateFromRedisCmd) migrateData(ctx context.Context, rdb *redis.Client
 	return nil
 }
 
+// Ref: https://redis.io/docs/latest/develop/clients/go/vecsearch/#add-a-helper-function
 func bytesToFloats(b []byte) []float32 {
 	if len(b)%4 != 0 {
 		log.Printf("Warning: byte slice length %d is not a multiple of 4, truncating", len(b))
@@ -236,7 +237,11 @@ func parseFieldValue(attrType string, val string) interface{} {
 	// redis.SearchFieldTypeVector is handled
 	// before invoking this function.
 	if attrType == redis.SearchFieldTypeNumeric.String() {
-		f, _ := strconv.ParseFloat(val, 64)
+		f, err := strconv.ParseFloat(val, 64)
+		if err != nil {
+			log.Printf("Warning: failed to parse numeric value '%s': %v", val, err)
+			return val
+		}
 		return f
 	}
 	return val

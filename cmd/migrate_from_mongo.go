@@ -136,7 +136,7 @@ func (r *MigrateFromMongoDBCmd) migrateData(ctx context.Context, sourceClient *m
 			return fmt.Errorf("failed to get start offset: %w", err)
 		}
 		offsetCount = count
-		page = uint64(offsetCount / batchSize)
+		page = offsetCount / batchSize
 	}
 
 	bar, _ := pterm.DefaultProgressbar.WithTotal(int(sourcePointCount)).Start()

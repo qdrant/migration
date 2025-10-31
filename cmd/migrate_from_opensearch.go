@@ -239,10 +239,12 @@ func (r *MigrateFromOpenSearchCmd) extractVectorFields(mapping map[string]any) (
 		if spaceType, ok := fieldProps["space_type"].(string); ok {
 			if mappedDistance, exists := distanceMapping[strings.ToLower(spaceType)]; exists {
 				distance = mappedDistance
-			} else {
-				distance = qdrant.Distance_Cosine
-				pterm.Warning.Printfln("Unsupported space type '%s' for field '%s', defaulting to cosine distance", spaceType, fieldName)
 			}
+		}
+
+		if distance == qdrant.Distance_UnknownDistance {
+			distance = qdrant.Distance_Cosine
+			pterm.Warning.Printfln("Unsupported space type for field '%s', defaulting to cosine distance", fieldName)
 		}
 
 		vectorParamsMap[fieldName] = &qdrant.VectorParams{
@@ -290,9 +292,18 @@ func (r *MigrateFromOpenSearchCmd) migrateData(ctx context.Context, sourceClient
 
 		var targetPoints []*qdrant.PointStruct
 		for _, hit := range hits {
-			doc := hit.(map[string]any)
-			source := doc["_source"].(map[string]any)
-			docID := doc["_id"].(string)
+			doc, ok := hit.(map[string]any)
+			if !ok {
+				return fmt.Errorf("invalid hit format: expected map[string]any, got %T", hit)
+			}
+			source, ok := doc["_source"].(map[string]any)
+			if !ok {
+				return fmt.Errorf("invalid _source format: expected map[string]any, got %T", doc["_source"])
+			}
+			docID, ok := doc["_id"].(string)
+			if !ok {
+				return fmt.Errorf("invalid _id format: expected string, got %T", doc["_id"])
+			}
 
 			point := &qdrant.PointStruct{}
 			vectors := make(map[string]*qdrant.Vector)
@@ -330,7 +341,10 @@ func (r *MigrateFromOpenSearchCmd) migrateData(ctx context.Context, sourceClient
 
 		offsetCount += uint64(len(targetPoints))
 
-		lastDoc := hits[len(hits)-1].(map[string]any)
+		lastDoc, ok := hits[len(hits)-1].(map[string]any)
+		if !ok {
+			return fmt.Errorf("invalid last hit format: expected map[string]any, got %T", hits[len(hits)-1])
+		}
 		lastSortValue = lastDoc["_id"]
 
 		var offsetID *qdrant.PointId
