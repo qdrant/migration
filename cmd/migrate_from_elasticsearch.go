@@ -262,22 +262,28 @@ func (r *MigrateFromElasticsearchCmd) migrateData(ctx context.Context, sourceCli
 	batchSize := r.Migration.BatchSize
 
 	offsetCount := uint64(0)
-	from := 0
+	var lastSortValue any
 
 	if !r.Migration.Restart {
-		_, count, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.Elasticsearch.Index)
+		id, count, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.Elasticsearch.Index)
 		if err != nil {
 			return fmt.Errorf("failed to get start offset: %w", err)
 		}
 		offsetCount = count
-		from = int(count)
+		if id != nil {
+			if id.GetUuid() != "" {
+				lastSortValue = id.GetUuid()
+			} else if id.GetNum() != 0 {
+				lastSortValue = id.GetNum()
+			}
+		}
 	}
 
 	bar, _ := pterm.DefaultProgressbar.WithTotal(int(sourcePointCount)).Start()
 	displayMigrationProgress(bar, offsetCount)
 
 	for {
-		hits, err := r.searchWithPagination(ctx, sourceClient, batchSize, from)
+		hits, err := r.searchWithPagination(ctx, sourceClient, batchSize, lastSortValue)
 		if err != nil {
 			return fmt.Errorf("failed to search documents: %w", err)
 		}
@@ -332,9 +338,27 @@ func (r *MigrateFromElasticsearchCmd) migrateData(ctx context.Context, sourceCli
 		}
 
 		offsetCount += uint64(len(targetPoints))
-		from += len(targetPoints)
 
-		offsetID := qdrant.NewIDNum(offsetCount)
+		lastDoc, ok := hits[len(hits)-1].(map[string]any)
+		if !ok {
+			return fmt.Errorf("invalid last hit format: expected map[string]any, got %T", hits[len(hits)-1])
+		}
+
+		sortValues, ok := lastDoc["sort"].([]any)
+		if !ok || len(sortValues) == 0 {
+			return fmt.Errorf("sort values not found in response - this should not happen with _doc sorting")
+		}
+		lastSortValue = sortValues[0]
+
+		var offsetID *qdrant.PointId
+		switch v := lastSortValue.(type) {
+		case float64:
+			offsetID = qdrant.NewIDNum(uint64(v))
+		case int64:
+			offsetID = qdrant.NewIDNum(uint64(v))
+		default:
+			offsetID = qdrant.NewID(fmt.Sprintf("%v", v))
+		}
 
 		err = commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.Elasticsearch.Index, offsetID, offsetCount)
 		if err != nil {
@@ -348,13 +372,17 @@ func (r *MigrateFromElasticsearchCmd) migrateData(ctx context.Context, sourceCli
 	return nil
 }
 
-func (r *MigrateFromElasticsearchCmd) searchWithPagination(ctx context.Context, client *elasticsearch.Client, size int, from int) ([]any, error) {
+func (r *MigrateFromElasticsearchCmd) searchWithPagination(ctx context.Context, client *elasticsearch.Client, size int, searchAfter any) ([]any, error) {
 	searchRequest := map[string]any{
 		"size": size,
-		"from": from,
+		"sort": []string{"_doc"},
 		"query": map[string]any{
 			"match_all": map[string]any{},
 		},
+	}
+
+	if searchAfter != nil {
+		searchRequest["search_after"] = []any{searchAfter}
 	}
 
 	requestBody, err := json.Marshal(searchRequest)
