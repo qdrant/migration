@@ -20,7 +20,7 @@ require (
 	github.com/pterm/pterm v0.12.82
 	github.com/qdrant/go-client v1.15.2
 	github.com/redis/go-redis/v9 v9.16.0
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.39.0
 	github.com/testcontainers/testcontainers-go/modules/opensearch v0.39.0
 	github.com/weaviate/weaviate v1.27.0
