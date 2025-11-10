@@ -132,7 +132,7 @@ func opensearchContainer(ctx context.Context, t *testing.T) testcontainers.Conta
 
 func elasticsearchContainer(ctx context.Context, t *testing.T) testcontainers.Container {
 	req := testcontainers.ContainerRequest{
-		Image:        "elasticsearch:9.1.5",
+		Image:        "elasticsearch:9.2.0",
 		ExposedPorts: []string{"9200/tcp"},
 		Env: map[string]string{
 			"discovery.type":                    "single-node",
