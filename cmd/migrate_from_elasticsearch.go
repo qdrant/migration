@@ -148,20 +148,6 @@ func (r *MigrateFromElasticsearchCmd) countElasticsearchDocuments(ctx context.Co
 }
 
 func (r *MigrateFromElasticsearchCmd) prepareTargetCollection(ctx context.Context, sourceClient *elasticsearch.Client, targetClient *qdrant.Client) error {
-	if !r.Migration.CreateCollection {
-		return nil
-	}
-
-	targetCollectionExists, err := targetClient.CollectionExists(ctx, r.Qdrant.Collection)
-	if err != nil {
-		return fmt.Errorf("failed to check if collection exists: %w", err)
-	}
-
-	if targetCollectionExists {
-		pterm.Info.Printfln("Target collection %q already exists. Skipping creation.", r.Qdrant.Collection)
-		return nil
-	}
-
 	mappingRes, err := esapi.IndicesGetMappingRequest{
 		Index: []string{r.Elasticsearch.Index},
 	}.Do(ctx, sourceClient)
@@ -178,6 +164,20 @@ func (r *MigrateFromElasticsearchCmd) prepareTargetCollection(ctx context.Contex
 	vectorParamsMap, err := r.extractVectorFields(mapping)
 	if err != nil {
 		return fmt.Errorf("failed to extract vector fields: %w", err)
+	}
+
+	if !r.Migration.CreateCollection {
+		return nil
+	}
+
+	targetCollectionExists, err := targetClient.CollectionExists(ctx, r.Qdrant.Collection)
+	if err != nil {
+		return fmt.Errorf("failed to check if collection exists: %w", err)
+	}
+
+	if targetCollectionExists {
+		pterm.Info.Printfln("Target collection %q already exists. Skipping creation.", r.Qdrant.Collection)
+		return nil
 	}
 
 	err = targetClient.CreateCollection(ctx, &qdrant.CreateCollection{
@@ -313,7 +313,7 @@ func (r *MigrateFromElasticsearchCmd) migrateData(ctx context.Context, sourceCli
 			point.Id = arbitraryIDToUUID(docID)
 			payload[r.IdField] = docID
 
-			// Process regular source fields
+			// Process regular "_source" fields
 			for fieldName, value := range source {
 				if vector, ok := extractElasticsearchVector(value); ok {
 					vectors[fieldName] = qdrant.NewVector(vector...)
@@ -322,7 +322,7 @@ func (r *MigrateFromElasticsearchCmd) migrateData(ctx context.Context, sourceCli
 				}
 			}
 
-			// Process fields from the fields API (for dense_vector fields)
+			// Look for vectors within "fields"
 			// Ref: https://www.elastic.co/search-labs/blog/elasticsearch-exclude-vectors-from-source
 			if fieldsData, ok := doc["fields"].(map[string]any); ok {
 				for fieldName, value := range fieldsData {
