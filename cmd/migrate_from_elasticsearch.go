@@ -26,9 +26,10 @@ type MigrateFromElasticsearchCmd struct {
 	Migration     commons.MigrationConfig     `embed:"" prefix:"migration."`
 	IdField       string                      `prefix:"qdrant." help:"Field storing Elasticsearch IDs in Qdrant." default:"__id__"`
 
-	targetHost string
-	targetPort int
-	targetTLS  bool
+	targetHost   string
+	targetPort   int
+	targetTLS    bool
+	vectorFields []string
 }
 
 func (r *MigrateFromElasticsearchCmd) Parse() error {
@@ -147,20 +148,6 @@ func (r *MigrateFromElasticsearchCmd) countElasticsearchDocuments(ctx context.Co
 }
 
 func (r *MigrateFromElasticsearchCmd) prepareTargetCollection(ctx context.Context, sourceClient *elasticsearch.Client, targetClient *qdrant.Client) error {
-	if !r.Migration.CreateCollection {
-		return nil
-	}
-
-	targetCollectionExists, err := targetClient.CollectionExists(ctx, r.Qdrant.Collection)
-	if err != nil {
-		return fmt.Errorf("failed to check if collection exists: %w", err)
-	}
-
-	if targetCollectionExists {
-		pterm.Info.Printfln("Target collection %q already exists. Skipping creation.", r.Qdrant.Collection)
-		return nil
-	}
-
 	mappingRes, err := esapi.IndicesGetMappingRequest{
 		Index: []string{r.Elasticsearch.Index},
 	}.Do(ctx, sourceClient)
@@ -179,6 +166,20 @@ func (r *MigrateFromElasticsearchCmd) prepareTargetCollection(ctx context.Contex
 		return fmt.Errorf("failed to extract vector fields: %w", err)
 	}
 
+	if !r.Migration.CreateCollection {
+		return nil
+	}
+
+	targetCollectionExists, err := targetClient.CollectionExists(ctx, r.Qdrant.Collection)
+	if err != nil {
+		return fmt.Errorf("failed to check if collection exists: %w", err)
+	}
+
+	if targetCollectionExists {
+		pterm.Info.Printfln("Target collection %q already exists. Skipping creation.", r.Qdrant.Collection)
+		return nil
+	}
+
 	err = targetClient.CreateCollection(ctx, &qdrant.CreateCollection{
 		CollectionName: r.Qdrant.Collection,
 		VectorsConfig:  qdrant.NewVectorsConfigMap(vectorParamsMap),
@@ -193,6 +194,7 @@ func (r *MigrateFromElasticsearchCmd) prepareTargetCollection(ctx context.Contex
 
 func (r *MigrateFromElasticsearchCmd) extractVectorFields(mapping map[string]any) (map[string]*qdrant.VectorParams, error) {
 	vectorParamsMap := make(map[string]*qdrant.VectorParams)
+	var vectorFieldNames []string
 
 	indexMapping, ok := mapping[r.Elasticsearch.Index].(map[string]any)
 	if !ok {
@@ -253,7 +255,10 @@ func (r *MigrateFromElasticsearchCmd) extractVectorFields(mapping map[string]any
 			Size:     uint64(dimension),
 			Distance: distance,
 		}
+		vectorFieldNames = append(vectorFieldNames, fieldName)
 	}
+
+	r.vectorFields = vectorFieldNames
 
 	return vectorParamsMap, nil
 }
@@ -314,11 +319,22 @@ func (r *MigrateFromElasticsearchCmd) migrateData(ctx context.Context, sourceCli
 			point.Id = arbitraryIDToUUID(docID)
 			payload[r.IdField] = docID
 
+			// Process regular "_source" fields
 			for fieldName, value := range source {
 				if vector, ok := extractElasticsearchVector(value); ok {
 					vectors[fieldName] = qdrant.NewVector(vector...)
 				} else {
 					payload[fieldName] = value
+				}
+			}
+
+			// Look for vectors within "fields"
+			// Ref: https://www.elastic.co/search-labs/blog/elasticsearch-exclude-vectors-from-source
+			if fieldsData, ok := doc["fields"].(map[string]any); ok {
+				for fieldName, value := range fieldsData {
+					if vector, ok := extractElasticsearchVector(value); ok {
+						vectors[fieldName] = qdrant.NewVector(vector...)
+					}
 				}
 			}
 
@@ -379,6 +395,10 @@ func (r *MigrateFromElasticsearchCmd) searchWithPagination(ctx context.Context, 
 		"query": map[string]any{
 			"match_all": map[string]any{},
 		},
+	}
+
+	if len(r.vectorFields) > 0 {
+		searchRequest["fields"] = r.vectorFields
 	}
 
 	if searchAfter != nil {
