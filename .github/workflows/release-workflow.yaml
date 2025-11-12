@@ -66,7 +66,7 @@ jobs:
 
       - name: Sign container image at registry.cloud.qdrant.io
         run: |
-          cosign sign --yes "${TAGS}@${DIGEST}"
+          cosign sign --new-bundle-format=false --use-signing-config=false --yes "${TAGS}@${DIGEST}"
         env:
           TAGS: registry.cloud.qdrant.io/library/qdrant-migration:${{ steps.extract_build_info.outputs.tag }}
           DIGEST: ${{ steps.build-and-push.outputs.digest }}
