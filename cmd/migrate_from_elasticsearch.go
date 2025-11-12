@@ -399,7 +399,7 @@ func (r *MigrateFromElasticsearchCmd) searchWithPagination(ctx context.Context, 
 
 	if len(r.vectorFields) > 0 {
 		searchRequest["fields"] = r.vectorFields
-  }
+	}
 
 	if searchAfter != nil {
 		searchRequest["search_after"] = []any{searchAfter}
