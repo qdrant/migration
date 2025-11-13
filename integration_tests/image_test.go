@@ -17,8 +17,10 @@ func qdrantContainer(ctx context.Context, t *testing.T, apiKey string) testconta
 		Image:        "qdrant/qdrant:v1.14.1",
 		ExposedPorts: []string{"6334/tcp"},
 		Env: map[string]string{
+			"QDRANT__CLUSTER__ENABLED": "true",
 			"QDRANT__SERVICE__API_KEY": apiKey,
 		},
+		Cmd: []string{"./qdrant", "--uri", "http://qdrant_node_1:6335"},
 		WaitingFor: wait.ForAll(
 			wait.ForListeningPort("6334/tcp").WithStartupTimeout(5 * time.Second),
 		),

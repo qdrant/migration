@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/pterm/pterm"
@@ -234,6 +235,8 @@ func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qd
 	bar, _ := pterm.DefaultProgressbar.WithTotal(int(sourcePointCount)).Start()
 	displayMigrationProgress(bar, offsetCount)
 
+	createdShardKeys := make(map[string]bool)
+
 	for {
 		resp, err := sourceClient.GetPointsClient().Scroll(ctx, &qdrant.ScrollPoints{
 			CollectionName: sourceCollection,
@@ -249,7 +252,6 @@ func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qd
 		points := resp.GetResult()
 		offsetId = resp.GetNextPageOffset()
 
-		var targetPoints []*qdrant.PointStruct
 		getVector := func(vector *qdrant.VectorOutput) *qdrant.Vector {
 			if vector == nil {
 				return nil
@@ -295,22 +297,66 @@ func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qd
 			}
 			return nil
 		}
+
+		pointsByShardKey := make(map[string][]*qdrant.PointStruct)
+		shardKeyMap := make(map[string]*qdrant.ShardKey)
+
 		for _, point := range points {
-			targetPoints = append(targetPoints, &qdrant.PointStruct{
+			targetPoint := &qdrant.PointStruct{
 				Id:      point.Id,
 				Payload: point.Payload,
 				Vectors: getVectorsFromPoint(point),
-			})
+			}
+
+			shardKey := point.GetShardKey()
+			var shardKeyStr string
+
+			if shardKey == nil {
+				shardKeyStr = ""
+			} else {
+				if keyword := shardKey.GetKeyword(); keyword != "" {
+					shardKeyStr = keyword
+				} else {
+					shardKeyStr = fmt.Sprintf("%d", shardKey.GetNumber())
+				}
+				shardKeyMap[shardKeyStr] = shardKey
+			}
+
+			pointsByShardKey[shardKeyStr] = append(pointsByShardKey[shardKeyStr], targetPoint)
 		}
 
-		_, err = targetClient.Upsert(ctx, &qdrant.UpsertPoints{
-			CollectionName: targetCollection,
-			Points:         targetPoints,
-			Wait:           qdrant.PtrOf(true),
-		})
+		for shardKeyStr, targetPoints := range pointsByShardKey {
+			upsertRequest := &qdrant.UpsertPoints{
+				CollectionName: targetCollection,
+				Points:         targetPoints,
+				Wait:           qdrant.PtrOf(true),
+			}
 
-		if err != nil {
-			return fmt.Errorf("failed to insert data into target: %w", err)
+			if shardKeyStr != "" {
+				if !createdShardKeys[shardKeyStr] {
+					err = targetClient.CreateShardKey(ctx, targetCollection, &qdrant.CreateShardKey{
+						ShardKey: shardKeyMap[shardKeyStr],
+					})
+					if err != nil {
+						// Check if the error is because the shard key already exists
+						// In that case, we can safely ignore it and continue
+						if !strings.Contains(err.Error(), "already exists for collection") {
+							return fmt.Errorf("failed to create shard key %s: %w", shardKeyStr, err)
+						}
+					}
+
+					createdShardKeys[shardKeyStr] = true
+				}
+
+				upsertRequest.ShardKeySelector = &qdrant.ShardKeySelector{
+					ShardKeys: []*qdrant.ShardKey{shardKeyMap[shardKeyStr]},
+				}
+			}
+
+			_, err = targetClient.Upsert(ctx, upsertRequest)
+			if err != nil {
+				return fmt.Errorf("failed to insert data into target: %w", err)
+			}
 		}
 
 		offsetCount += uint64(len(points))
