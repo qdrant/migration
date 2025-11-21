@@ -14,7 +14,7 @@ import (
 //nolint:unparam
 func qdrantContainer(ctx context.Context, t *testing.T, apiKey string) testcontainers.Container {
 	req := testcontainers.ContainerRequest{
-		Image:        "qdrant/qdrant:v1.14.1",
+		Image:        "qdrant/qdrant:v1.16.0",
 		ExposedPorts: []string{"6334/tcp"},
 		Env: map[string]string{
 			"QDRANT__CLUSTER__ENABLED": "true",
@@ -36,7 +36,7 @@ func qdrantContainer(ctx context.Context, t *testing.T, apiKey string) testconta
 
 func chromaContainer(ctx context.Context, t *testing.T) testcontainers.Container {
 	req := testcontainers.ContainerRequest{
-		Image:        "chromadb/chroma:1.0.12",
+		Image:        "chromadb/chroma:1.2.2",
 		ExposedPorts: []string{"8000/tcp"},
 		WaitingFor: wait.ForAll(
 			wait.ForListeningPort("8000/tcp").WithStartupTimeout(5 * time.Second),
@@ -53,7 +53,7 @@ func chromaContainer(ctx context.Context, t *testing.T) testcontainers.Container
 
 func weaviateContainer(ctx context.Context, t *testing.T) testcontainers.Container {
 	req := testcontainers.ContainerRequest{
-		Image:        "cr.weaviate.io/semitechnologies/weaviate:1.31.0",
+		Image:        "cr.weaviate.io/semitechnologies/weaviate:1.34.0",
 		ExposedPorts: []string{"8080/tcp"},
 		Env: map[string]string{
 			"QUERY_DEFAULTS_LIMIT":                    "25",
@@ -97,7 +97,7 @@ func pineconeContainer(ctx context.Context, t *testing.T) testcontainers.Contain
 
 func redisContainer(ctx context.Context, t *testing.T) testcontainers.Container {
 	req := testcontainers.ContainerRequest{
-		Image:        "redis/redis-stack:7.2.0-v17",
+		Image:        "redis/redis-stack:7.4.0-v8",
 		ExposedPorts: []string{"6379/tcp"},
 		WaitingFor:   wait.ForListeningPort("6379/tcp"),
 	}
@@ -126,7 +126,7 @@ func mongoContainer(ctx context.Context, t *testing.T) testcontainers.Container 
 }
 
 func opensearchContainer(ctx context.Context, t *testing.T) testcontainers.Container {
-	container, err := opensearch.Run(ctx, "opensearchproject/opensearch:3.1.0")
+	container, err := opensearch.Run(ctx, "opensearchproject/opensearch:3.3.2")
 
 	require.NoError(t, err)
 	return container
@@ -134,7 +134,7 @@ func opensearchContainer(ctx context.Context, t *testing.T) testcontainers.Conta
 
 func elasticsearchContainer(ctx context.Context, t *testing.T) testcontainers.Container {
 	req := testcontainers.ContainerRequest{
-		Image:        "elasticsearch:9.2.0",
+		Image:        "elasticsearch:9.2.1",
 		ExposedPorts: []string{"9200/tcp"},
 		Env: map[string]string{
 			"discovery.type":                    "single-node",

@@ -299,11 +299,12 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 
 #### MongoDB Options
 
-| Flag                   | Description               |
-| ---------------------- | ------------------------- |
-| `--mongodb.url`        | MongoDB connection string |
-| `--mongodb.database`   | MongoDB database name     |
-| `--mongodb.collection` | MongoDB collection name   |
+| Flag                      | Description                                           |
+| ------------------------- | ----------------------------------------------------- |
+| `--mongodb.url`           | MongoDB connection string                             |
+| `--mongodb.database`      | MongoDB database name                                 |
+| `--mongodb.collection`    | MongoDB collection name                               |
+| `--mongodb.vector-fields` | MongoDB vector fields, comma separated **(required)** |
 
 #### Qdrant Options
 

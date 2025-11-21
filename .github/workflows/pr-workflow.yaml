@@ -17,7 +17,7 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-          go-version: '1.24'
+          go-version: '1.25'
           cache: false
 
       - name: Check Go Formatting
@@ -27,7 +27,7 @@ jobs:
       - name: Golang CI Lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.1.2 # Specify the golangci-lint version, so we are stable
+          version: v2.6.2 # Specify the golangci-lint version, so we are stable
           args: --timeout 10m # Increase the timeout to 10 minutes
 
   tests:
@@ -37,14 +37,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Free Disk Space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          # this might remove tools that are actually needed,
+          tool-cache: false
+          # all of these default to true, but feel free to set to
+          # "false" if necessary for your workflow
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
       - uses: actions/setup-go@v6
         with:
-          go-version: '1.24'
+          go-version: '1.25'
           cache-dependency-path: go.sum
 
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.11'
+          python-version: '3.13'
 
       - name: Unit tests
         env:
