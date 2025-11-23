@@ -24,7 +24,7 @@ type MigrateFromMongoDBCmd struct {
 	Qdrant       commons.QdrantConfig    `embed:"" prefix:"qdrant."`
 	Migration    commons.MigrationConfig `embed:"" prefix:"migration."`
 	IdField      string                  `prefix:"qdrant." help:"Field storing MongoDB IDs in Qdrant." default:"__id__"`
-	VectorFields []string                `prefix:"mongodb." help:"Fields to use as vector."`
+	VectorFields []string                `required:"true" prefix:"mongodb." help:"Fields to use as vector."`
 
 	targetHost string
 	targetPort int
@@ -188,23 +188,14 @@ func (r *MigrateFromMongoDBCmd) migrateData(ctx context.Context, sourceClient *m
 				if fieldName == "_id" {
 					continue
 				}
-				if len(r.VectorFields) > 0 {
-					if slices.Contains(r.VectorFields, fieldName) {
-						if vector, ok := extractVector(value); ok {
-							vectors[fieldName] = qdrant.NewVector(vector...)
-						} else {
-							payload[fieldName] = value
-						}
-					} else {
-
-						payload[fieldName] = value
-					}
-				} else {
+				if slices.Contains(r.VectorFields, fieldName) {
 					if vector, ok := extractVector(value); ok {
 						vectors[fieldName] = qdrant.NewVector(vector...)
 					} else {
 						payload[fieldName] = value
 					}
+				} else {
+					payload[fieldName] = value
 				}
 			}
 
