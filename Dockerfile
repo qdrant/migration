@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 ARG BUILDKIT_SBOM_SCAN_CONTEXT=true
 ARG BUILDKIT_SBOM_SCAN_STAGE=builder
-FROM registry.suse.com/bci/golang:1.24 AS builder
+FROM registry.suse.com/bci/golang:1.25 AS builder
 
 ARG VERSION
 ARG BUILD
