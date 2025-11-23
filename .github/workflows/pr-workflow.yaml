@@ -37,6 +37,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Free Disk Space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          # this might remove tools that are actually needed,
+          tool-cache: false
+          # all of these default to true, but feel free to set to
+          # "false" if necessary for your workflow
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
       - uses: actions/setup-go@v6
         with:
           go-version: '1.24'
