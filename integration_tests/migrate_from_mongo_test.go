@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	// Test multiple vectors
+	// Test multiple vectors.
 	vectorFieldText  = "text_embedding"
 	vectorFieldImage = "image_embedding"
 	nonVectorField   = "non_vector"
