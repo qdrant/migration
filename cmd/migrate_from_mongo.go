@@ -19,10 +19,11 @@ import (
 )
 
 type MigrateFromMongoDBCmd struct {
-	MongoDB   commons.MongoDBConfig   `embed:"" prefix:"mongodb."`
-	Qdrant    commons.QdrantConfig    `embed:"" prefix:"qdrant."`
-	Migration commons.MigrationConfig `embed:"" prefix:"migration."`
-	IdField   string                  `prefix:"qdrant." help:"Field storing MongoDB IDs in Qdrant." default:"__id__"`
+	MongoDB     commons.MongoDBConfig   `embed:"" prefix:"mongodb."`
+	Qdrant      commons.QdrantConfig    `embed:"" prefix:"qdrant."`
+	Migration   commons.MigrationConfig `embed:"" prefix:"migration."`
+	IdField     string                  `prefix:"qdrant." help:"Field storing MongoDB IDs in Qdrant." default:"__id__"`
+	VectorField string                  `prefix:"mongodb." help:"Field to use as vector array."`
 
 	targetHost string
 	targetPort int
@@ -186,11 +187,22 @@ func (r *MigrateFromMongoDBCmd) migrateData(ctx context.Context, sourceClient *m
 				if fieldName == "_id" {
 					continue
 				}
-
-				if vector, ok := extractVector(value); ok {
-					vectors[fieldName] = qdrant.NewVector(vector...)
+				// If VectorField is specified, we only use that as vector
+				if r.VectorField != "" {
+					if fieldName == r.VectorField {
+						if vector, ok := extractVector(value); ok {
+							vectors[fieldName] = qdrant.NewVector(vector...)
+						}
+					} else {
+						// All other fields (including other arrays) are treated as payload.
+						payload[fieldName] = value
+					}
 				} else {
-					payload[fieldName] = value
+					if vector, ok := extractVector(value); ok {
+						vectors[fieldName] = qdrant.NewVector(vector...)
+					} else {
+						payload[fieldName] = value
+					}
 				}
 			}
 
