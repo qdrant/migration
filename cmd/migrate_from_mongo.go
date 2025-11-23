@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"slices"
 	"syscall"
 
 	"github.com/pterm/pterm"
@@ -19,10 +20,11 @@ import (
 )
 
 type MigrateFromMongoDBCmd struct {
-	MongoDB   commons.MongoDBConfig   `embed:"" prefix:"mongodb."`
-	Qdrant    commons.QdrantConfig    `embed:"" prefix:"qdrant."`
-	Migration commons.MigrationConfig `embed:"" prefix:"migration."`
-	IdField   string                  `prefix:"qdrant." help:"Field storing MongoDB IDs in Qdrant." default:"__id__"`
+	MongoDB      commons.MongoDBConfig   `embed:"" prefix:"mongodb."`
+	Qdrant       commons.QdrantConfig    `embed:"" prefix:"qdrant."`
+	Migration    commons.MigrationConfig `embed:"" prefix:"migration."`
+	IdField      string                  `prefix:"qdrant." help:"Field storing MongoDB IDs in Qdrant." default:"__id__"`
+	VectorFields []string                `required:"true" prefix:"mongodb." help:"Fields to use as vector."`
 
 	targetHost string
 	targetPort int
@@ -186,9 +188,12 @@ func (r *MigrateFromMongoDBCmd) migrateData(ctx context.Context, sourceClient *m
 				if fieldName == "_id" {
 					continue
 				}
-
-				if vector, ok := extractVector(value); ok {
-					vectors[fieldName] = qdrant.NewVector(vector...)
+				if slices.Contains(r.VectorFields, fieldName) {
+					if vector, ok := extractVector(value); ok {
+						vectors[fieldName] = qdrant.NewVector(vector...)
+					} else {
+						payload[fieldName] = value
+					}
 				} else {
 					payload[fieldName] = value
 				}
