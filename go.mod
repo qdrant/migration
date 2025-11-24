@@ -22,7 +22,7 @@ require (
 	github.com/redis/go-redis/v9 v9.17.0
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.40.0
-	github.com/testcontainers/testcontainers-go/modules/opensearch v0.39.0
+	github.com/testcontainers/testcontainers-go/modules/opensearch v0.40.0
 	github.com/weaviate/weaviate v1.34.0
 	github.com/weaviate/weaviate-go-client/v5 v5.5.0
 	go.mongodb.org/mongo-driver v1.17.6
