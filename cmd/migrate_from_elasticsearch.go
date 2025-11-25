@@ -139,9 +139,13 @@ func (r *MigrateFromElasticsearchCmd) countElasticsearchDocuments(ctx context.Co
 		return 0, fmt.Errorf("failed to decode count response: %w", err)
 	}
 
+	if res.IsError() {
+		return 0, handleElasticOpenSearchHTTPError(res.StatusCode, result, "Elasticsearch")
+	}
+
 	count, ok := result["count"].(float64)
 	if !ok {
-		return 0, fmt.Errorf("invalid count response format")
+		return 0, fmt.Errorf("invalid count response format - expected 'count' field, got: %v", result)
 	}
 
 	return int64(count), nil
@@ -430,6 +434,10 @@ func (r *MigrateFromElasticsearchCmd) searchWithPagination(ctx context.Context, 
 	var searchResp map[string]any
 	if err := json.NewDecoder(res.Body).Decode(&searchResp); err != nil {
 		return nil, fmt.Errorf("failed to decode search response: %w", err)
+	}
+
+	if res.IsError() {
+		return nil, handleElasticOpenSearchHTTPError(res.StatusCode, searchResp, "Elasticsearch")
 	}
 
 	hitsContainer, ok := searchResp["hits"].(map[string]any)
