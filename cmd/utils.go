@@ -147,3 +147,17 @@ func arbitraryIDToUUID(id string) *qdrant.PointId {
 	deterministicUUID := uuid.NewSHA1(uuid.NameSpaceURL, []byte(id))
 	return qdrant.NewIDUUID(deterministicUUID.String())
 }
+
+// Provides helpful error messages for HTTP responses from ElasticSearch/OpenSearch.
+func handleElasticOpenSearchHTTPError(statusCode int, responseBody map[string]any, source string) error {
+	if statusCode == 401 {
+		return fmt.Errorf("failed to authenticate with %s (status 401): please verify your credentials (username, password, or API key)", source)
+	}
+
+	// Check if response contains error details
+	if errorInfo, ok := responseBody["error"]; ok {
+		return fmt.Errorf("%s returned error (status %d): %v", source, statusCode, errorInfo)
+	}
+
+	return fmt.Errorf("%s request failed with status %d", source, statusCode)
+}

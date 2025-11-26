@@ -136,9 +136,13 @@ func (r *MigrateFromOpenSearchCmd) countOpenSearchDocuments(ctx context.Context,
 		return 0, fmt.Errorf("failed to decode count response: %w", err)
 	}
 
+	if res.StatusCode >= 400 {
+		return 0, handleElasticOpenSearchHTTPError(res.StatusCode, result, "OpenSearch")
+	}
+
 	count, ok := result["count"].(float64)
 	if !ok {
-		return 0, fmt.Errorf("invalid count response format")
+		return 0, fmt.Errorf("invalid count response format - expected 'count' field, got: %v", result)
 	}
 
 	return int64(count), nil
@@ -408,6 +412,10 @@ func (r *MigrateFromOpenSearchCmd) searchWithPagination(ctx context.Context, cli
 
 	if errorInfo, exists := searchResp["error"]; exists {
 		return nil, fmt.Errorf("OpenSearch error: %v", errorInfo)
+	}
+
+	if res.StatusCode >= 400 {
+		return nil, handleElasticOpenSearchHTTPError(res.StatusCode, searchResp, "OpenSearch")
 	}
 
 	hitsContainer, ok := searchResp["hits"].(map[string]any)
