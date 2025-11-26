@@ -148,7 +148,6 @@ func arbitraryIDToUUID(id string) *qdrant.PointId {
 	return qdrant.NewIDUUID(deterministicUUID.String())
 }
 
-
 // Provides helpful error messages for HTTP responses from ElasticSearch/OpenSearch.
 func handleElasticOpenSearchHTTPError(statusCode int, responseBody map[string]any, source string) error {
 	if statusCode == 401 {
