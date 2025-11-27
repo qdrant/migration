@@ -5,8 +5,12 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"runtime"
+	"sort"
 	"strings"
+	"sync"
 	"syscall"
+	"time"
 
 	"github.com/pterm/pterm"
 
@@ -15,12 +19,18 @@ import (
 	"github.com/qdrant/migration/pkg/commons"
 )
 
+const (
+	MAX_RETRIES            = 3
+	SAMPLE_SIZE_PER_WORKER = 10
+)
+
 type MigrateFromQdrantCmd struct {
 	Source               commons.QdrantConfig    `embed:"" prefix:"source."`
 	Target               commons.QdrantConfig    `embed:"" prefix:"target."`
 	Migration            commons.MigrationConfig `embed:"" prefix:"migration."`
 	MaxMessageSize       int                     `help:"Maximum gRPC message size in bytes (default: 33554432 = 32MB)" default:"33554432" prefix:"source."`
 	EnsurePayloadIndexes bool                    `help:"Ensure payload indexes are created" default:"true" prefix:"target."`
+	NumWorkers           int                     `help:"Number of parallel workers for data migration (0 = number of CPU cores)" default:"0" prefix:"migration."`
 
 	sourceHost string
 	sourcePort int
@@ -36,12 +46,10 @@ func (r *MigrateFromQdrantCmd) Parse() error {
 	if err != nil {
 		return fmt.Errorf("failed to parse source URL: %w", err)
 	}
-
 	r.targetHost, r.targetPort, r.targetTLS, err = parseQdrantUrl(r.Target.Url)
 	if err != nil {
 		return fmt.Errorf("failed to parse target URL: %w", err)
 	}
-
 	return nil
 }
 
@@ -53,20 +61,21 @@ func (r *MigrateFromQdrantCmd) ValidateParsedValues() error {
 	if r.sourceHost == r.targetHost && r.sourcePort == r.targetPort && r.Source.Collection == r.Target.Collection {
 		return fmt.Errorf("source and target collections must be different")
 	}
-
 	return nil
 }
 
 func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 	pterm.DefaultHeader.WithFullWidth().Println("Qdrant Data Migration")
 
-	err := r.Parse()
-	if err != nil {
+	if err := r.Parse(); err != nil {
 		return fmt.Errorf("failed to parse input: %w", err)
 	}
-	err = r.ValidateParsedValues()
-	if err != nil {
+	if err := r.ValidateParsedValues(); err != nil {
 		return fmt.Errorf("failed to validate input: %w", err)
+	}
+
+	if r.NumWorkers == 0 {
+		r.NumWorkers = runtime.NumCPU()
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -84,8 +93,7 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 	}
 	defer targetClient.Close()
 
-	err = commons.PrepareOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient)
-	if err != nil {
+	if err := commons.PrepareOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient); err != nil {
 		return fmt.Errorf("failed to prepare migration marker collection: %w", err)
 	}
 
@@ -97,15 +105,13 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 		return fmt.Errorf("failed to count points in source: %w", err)
 	}
 
-	err = r.prepareTargetCollection(ctx, sourceClient, r.Source.Collection, targetClient, r.Target.Collection)
-	if err != nil {
+	if err := r.prepareTargetCollection(ctx, sourceClient, r.Source.Collection, targetClient, r.Target.Collection); err != nil {
 		return fmt.Errorf("error preparing target collection: %w", err)
 	}
 
 	displayMigrationStart("qdrant", r.Source.Collection, r.Target.Collection)
 
-	err = r.migrateData(ctx, sourceClient, r.Source.Collection, targetClient, r.Target.Collection, sourcePointCount)
-	if err != nil {
+	if err := r.migrateData(ctx, sourceClient, r.Source.Collection, targetClient, r.Target.Collection, sourcePointCount); err != nil {
 		return fmt.Errorf("failed to migrate data: %w", err)
 	}
 
@@ -118,7 +124,6 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 	}
 
 	pterm.Info.Printfln("Target collection has %d points\n", targetPointCount)
-
 	return nil
 }
 
@@ -129,31 +134,30 @@ func (r *MigrateFromQdrantCmd) prepareTargetCollection(ctx context.Context, sour
 	}
 
 	if r.Migration.CreateCollection {
-		targetCollectionExists, err := targetClient.CollectionExists(ctx, targetCollection)
+		exists, err := targetClient.CollectionExists(ctx, targetCollection)
 		if err != nil {
 			return fmt.Errorf("failed to check if collection exists: %w", err)
 		}
-
-		if targetCollectionExists {
+		if exists {
 			fmt.Print("\n")
 			pterm.Info.Printfln("Target collection '%s' already exists. Skipping creation.", targetCollection)
 		} else {
-			err = targetClient.CreateCollection(ctx, &qdrant.CreateCollection{
+			params := sourceCollectionInfo.Config.GetParams()
+			if err := targetClient.CreateCollection(ctx, &qdrant.CreateCollection{
 				CollectionName:         targetCollection,
 				HnswConfig:             sourceCollectionInfo.Config.GetHnswConfig(),
 				WalConfig:              sourceCollectionInfo.Config.GetWalConfig(),
 				OptimizersConfig:       sourceCollectionInfo.Config.GetOptimizerConfig(),
-				ShardNumber:            &sourceCollectionInfo.Config.GetParams().ShardNumber,
-				OnDiskPayload:          &sourceCollectionInfo.Config.GetParams().OnDiskPayload,
-				VectorsConfig:          sourceCollectionInfo.Config.GetParams().VectorsConfig,
-				ReplicationFactor:      sourceCollectionInfo.Config.GetParams().ReplicationFactor,
-				WriteConsistencyFactor: sourceCollectionInfo.Config.GetParams().WriteConsistencyFactor,
+				ShardNumber:            &params.ShardNumber,
+				OnDiskPayload:          &params.OnDiskPayload,
+				VectorsConfig:          params.VectorsConfig,
+				ReplicationFactor:      params.ReplicationFactor,
+				WriteConsistencyFactor: params.WriteConsistencyFactor,
 				QuantizationConfig:     sourceCollectionInfo.Config.GetQuantizationConfig(),
-				ShardingMethod:         sourceCollectionInfo.Config.GetParams().ShardingMethod,
-				SparseVectorsConfig:    sourceCollectionInfo.Config.GetParams().SparseVectorsConfig,
+				ShardingMethod:         params.ShardingMethod,
+				SparseVectorsConfig:    params.SparseVectorsConfig,
 				StrictModeConfig:       sourceCollectionInfo.Config.GetStrictModeConfig(),
-			})
-			if err != nil {
+			}); err != nil {
 				return fmt.Errorf("failed to create target collection: %w", err)
 			}
 		}
@@ -176,22 +180,17 @@ func (r *MigrateFromQdrantCmd) prepareTargetCollection(ctx context.Context, sour
 				continue
 			}
 
-			_, err = targetClient.CreateFieldIndex(
-				ctx,
-				&qdrant.CreateFieldIndexCollection{
-					CollectionName:   r.Target.Collection,
-					FieldName:        name,
-					FieldType:        fieldType,
-					FieldIndexParams: schemaInfo.GetParams(),
-					Wait:             qdrant.PtrOf(true),
-				},
-			)
-			if err != nil {
+			if _, err := targetClient.CreateFieldIndex(ctx, &qdrant.CreateFieldIndexCollection{
+				CollectionName:   r.Target.Collection,
+				FieldName:        name,
+				FieldType:        fieldType,
+				FieldIndexParams: schemaInfo.GetParams(),
+				Wait:             qdrant.PtrOf(true),
+			}); err != nil {
 				return fmt.Errorf("failed creating index on target collection: %w", err)
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -217,31 +216,167 @@ func getFieldType(dataType qdrant.PayloadSchemaType) *qdrant.FieldType {
 	return nil
 }
 
-func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string, sourcePointCount uint64) error {
-	limit := uint32(r.Migration.BatchSize)
+type pointIDKey struct {
+	num uint64
+	str string
+}
 
-	var offsetId *qdrant.PointId
-	offsetCount := uint64(0)
+type rangeSpec struct {
+	id    int
+	start *qdrant.PointId
+	end   *pointIDKey
+}
+
+func idToKey(id *qdrant.PointId) pointIDKey {
+	if id == nil {
+		return pointIDKey{}
+	}
+	return pointIDKey{num: id.GetNum(), str: id.GetUuid()}
+}
+
+// Compare point IDs. Usually Qdrant collections use either numeric or UUID IDs, not both.
+// Still, if mixed, numeric IDs (str="") sort before UUIDs since "" < any non-empty string.
+func (a pointIDKey) less(b pointIDKey) bool {
+	if a.str != "" || b.str != "" {
+		return a.str < b.str
+	}
+	return a.num < b.num
+}
+
+func convertVector(v *qdrant.VectorOutput) *qdrant.Vector {
+	if v == nil {
+		return nil
+	}
+	return &qdrant.Vector{Data: v.GetData(), Indices: v.GetIndices(), VectorsCount: v.VectorsCount}
+}
+
+func convertVectors(p *qdrant.RetrievedPoint) *qdrant.Vectors {
+	if p.Vectors == nil {
+		return nil
+	}
+	if v := p.Vectors.GetVector(); v != nil {
+		return &qdrant.Vectors{VectorsOptions: &qdrant.Vectors_Vector{Vector: convertVector(v)}}
+	}
+	if vs := p.Vectors.GetVectors(); vs != nil {
+		named := make(map[string]*qdrant.Vector, len(vs.GetVectors()))
+		for k, v := range vs.GetVectors() {
+			named[k] = convertVector(v)
+		}
+		return &qdrant.Vectors{VectorsOptions: &qdrant.Vectors_Vectors{Vectors: &qdrant.NamedVectors{Vectors: named}}}
+	}
+	return nil
+}
+
+func (r *MigrateFromQdrantCmd) samplePointIDs(ctx context.Context, client *qdrant.Client, collection string, pointCount uint64) ([]*qdrant.PointId, error) {
+	// TODO(Anush008): Check if there's a more optimal value for SAMPLE_SIZE_PER_WORKER.
+	sampleSize := r.NumWorkers * SAMPLE_SIZE_PER_WORKER
+
+	if uint64(sampleSize) > pointCount {
+		sampleSize = int(pointCount)
+	}
+
+	points, err := client.Query(ctx, &qdrant.QueryPoints{
+		CollectionName: collection,
+		Query:          qdrant.NewQuerySample(qdrant.Sample_Random),
+		Limit:          qdrant.PtrOf(uint64(sampleSize)),
+		WithPayload:    qdrant.NewWithPayload(false),
+		WithVectors:    qdrant.NewWithVectors(false),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// The ranges will look like: (nil, A], (A, B], (B, C], (C, nil)
+	ids := make([]*qdrant.PointId, len(points))
+	for i, p := range points {
+		ids[i] = p.Id
+	}
+	sort.Slice(ids, func(i, j int) bool { return idToKey(ids[i]).less(idToKey(ids[j])) })
+	return ids, nil
+}
+
+func (r *MigrateFromQdrantCmd) processBatch(ctx context.Context, points []*qdrant.RetrievedPoint, targetClient *qdrant.Client, targetCollection string, shardKeys *sync.Map, wait bool) error {
+	byShardKey := make(map[string][]*qdrant.PointStruct)
+	shardKeyObjs := make(map[string]*qdrant.ShardKey)
+
+	for _, p := range points {
+		key := ""
+		if sk := p.GetShardKey(); sk != nil {
+			if kw := sk.GetKeyword(); kw != "" {
+				key = kw
+			} else {
+				key = fmt.Sprintf("%d", sk.GetNumber())
+			}
+			shardKeyObjs[key] = sk
+		}
+		byShardKey[key] = append(byShardKey[key], &qdrant.PointStruct{
+			Id:      p.Id,
+			Payload: p.Payload,
+			Vectors: convertVectors(p),
+		})
+	}
+
+	for key, pts := range byShardKey {
+		req := &qdrant.UpsertPoints{
+			CollectionName: targetCollection,
+			Points:         pts,
+			Wait:           qdrant.PtrOf(wait),
+		}
+		if key != "" {
+			if _, ok := shardKeys.Load(key); !ok {
+				err := targetClient.CreateShardKey(ctx, targetCollection, &qdrant.CreateShardKey{ShardKey: shardKeyObjs[key]})
+				if err != nil && !strings.Contains(err.Error(), "already exists") {
+					return fmt.Errorf("failed to create shard key %s: %w", key, err)
+				}
+				shardKeys.Store(key, true)
+			}
+			req.ShardKeySelector = &qdrant.ShardKeySelector{ShardKeys: []*qdrant.ShardKey{shardKeyObjs[key]}}
+		}
+		var err error
+		// Upsert with retries.
+		// This is to handle Qdrant's transient consistency errors during parallel writes.
+		for attempt := 0; attempt < MAX_RETRIES; attempt++ {
+			_, err = targetClient.Upsert(ctx, req)
+			if err == nil || !strings.Contains(err.Error(), "Please retry") {
+				break
+			}
+			time.Sleep(time.Duration(attempt+1) * 100 * time.Millisecond)
+		}
+		if err != nil {
+			return fmt.Errorf("failed to insert data into target: %w", err)
+		}
+	}
+	return nil
+}
+
+func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string, sourcePointCount uint64) error {
+	if r.NumWorkers > 1 {
+		return r.migrateDataParallel(ctx, sourceClient, sourceCollection, targetClient, targetCollection, sourcePointCount)
+	}
+	return r.migrateDataSequential(ctx, sourceClient, sourceCollection, targetClient, targetCollection, sourcePointCount)
+}
+
+func (r *MigrateFromQdrantCmd) migrateDataSequential(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string, sourcePointCount uint64) error {
+	var offset *qdrant.PointId
+	var count uint64
 
 	if !r.Migration.Restart {
-		id, count, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, sourceCollection)
+		var err error
+		offset, count, err = commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, sourceCollection)
 		if err != nil {
 			return fmt.Errorf("failed to get start offset: %w", err)
 		}
-		offsetId = id
-		offsetCount = count
 	}
 
 	bar, _ := pterm.DefaultProgressbar.WithTotal(int(sourcePointCount)).Start()
-	displayMigrationProgress(bar, offsetCount)
-
-	createdShardKeys := make(map[string]bool)
+	displayMigrationProgress(bar, count)
+	shardKeys := &sync.Map{}
 
 	for {
 		resp, err := sourceClient.GetPointsClient().Scroll(ctx, &qdrant.ScrollPoints{
 			CollectionName: sourceCollection,
-			Offset:         offsetId,
-			Limit:          &limit,
+			Offset:         offset,
+			Limit:          qdrant.PtrOf(uint32(r.Migration.BatchSize)),
 			WithPayload:    qdrant.NewWithPayload(true),
 			WithVectors:    qdrant.NewWithVectors(true),
 		})
@@ -250,131 +385,137 @@ func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qd
 		}
 
 		points := resp.GetResult()
-		offsetId = resp.GetNextPageOffset()
-
-		getVector := func(vector *qdrant.VectorOutput) *qdrant.Vector {
-			if vector == nil {
-				return nil
-			}
-			return &qdrant.Vector{
-				Data:         vector.GetData(),
-				Indices:      vector.GetIndices(),
-				VectorsCount: vector.VectorsCount,
-			}
-		}
-		getNamedVectors := func(vectors map[string]*qdrant.VectorOutput) map[string]*qdrant.Vector {
-			result := make(map[string]*qdrant.Vector, len(vectors))
-			for k, v := range vectors {
-				result[k] = getVector(v)
-			}
-			return result
-		}
-		getVectors := func(vectors *qdrant.NamedVectorsOutput) *qdrant.NamedVectors {
-			if vectors == nil {
-				return nil
-			}
-			return &qdrant.NamedVectors{
-				Vectors: getNamedVectors(vectors.GetVectors()),
-			}
-		}
-		getVectorsFromPoint := func(point *qdrant.RetrievedPoint) *qdrant.Vectors {
-			if point.Vectors == nil {
-				return nil
-			}
-			if vector := point.Vectors.GetVector(); vector != nil {
-				return &qdrant.Vectors{
-					VectorsOptions: &qdrant.Vectors_Vector{
-						Vector: getVector(vector),
-					},
-				}
-			}
-			if vectors := point.Vectors.GetVectors(); vectors != nil {
-				return &qdrant.Vectors{
-					VectorsOptions: &qdrant.Vectors_Vectors{
-						Vectors: getVectors(vectors),
-					},
-				}
-			}
-			return nil
+		if err := r.processBatch(ctx, points, targetClient, targetCollection, shardKeys, true); err != nil {
+			return err
 		}
 
-		pointsByShardKey := make(map[string][]*qdrant.PointStruct)
-		shardKeyMap := make(map[string]*qdrant.ShardKey)
+		count += uint64(len(points))
+		bar.Add(len(points))
+		offset = resp.GetNextPageOffset()
 
-		for _, point := range points {
-			targetPoint := &qdrant.PointStruct{
-				Id:      point.Id,
-				Payload: point.Payload,
-				Vectors: getVectorsFromPoint(point),
-			}
-
-			shardKey := point.GetShardKey()
-			var shardKeyStr string
-
-			if shardKey == nil {
-				shardKeyStr = ""
-			} else {
-				if keyword := shardKey.GetKeyword(); keyword != "" {
-					shardKeyStr = keyword
-				} else {
-					shardKeyStr = fmt.Sprintf("%d", shardKey.GetNumber())
-				}
-				shardKeyMap[shardKeyStr] = shardKey
-			}
-
-			pointsByShardKey[shardKeyStr] = append(pointsByShardKey[shardKeyStr], targetPoint)
-		}
-
-		for shardKeyStr, targetPoints := range pointsByShardKey {
-			upsertRequest := &qdrant.UpsertPoints{
-				CollectionName: targetCollection,
-				Points:         targetPoints,
-				Wait:           qdrant.PtrOf(true),
-			}
-
-			if shardKeyStr != "" {
-				if !createdShardKeys[shardKeyStr] {
-					err = targetClient.CreateShardKey(ctx, targetCollection, &qdrant.CreateShardKey{
-						ShardKey: shardKeyMap[shardKeyStr],
-					})
-					if err != nil {
-						// Check if the error is because the shard key already exists
-						// In that case, we can safely ignore it and continue
-						if !strings.Contains(err.Error(), "already exists for collection") {
-							return fmt.Errorf("failed to create shard key %s: %w", shardKeyStr, err)
-						}
-					}
-
-					createdShardKeys[shardKeyStr] = true
-				}
-
-				upsertRequest.ShardKeySelector = &qdrant.ShardKeySelector{
-					ShardKeys: []*qdrant.ShardKey{shardKeyMap[shardKeyStr]},
-				}
-			}
-
-			_, err = targetClient.Upsert(ctx, upsertRequest)
-			if err != nil {
-				return fmt.Errorf("failed to insert data into target: %w", err)
-			}
-		}
-
-		offsetCount += uint64(len(points))
-
-		err = commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, sourceCollection, offsetId, offsetCount)
-		if err != nil {
+		if err := commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, sourceCollection, offset, count); err != nil {
 			return fmt.Errorf("failed to store offset: %w", err)
 		}
-
-		bar.Add(len(points))
-
-		if offsetId == nil {
+		if offset == nil {
 			break
 		}
-
 	}
 
 	pterm.Success.Printfln("Data migration finished successfully")
+	return nil
+}
 
+func (r *MigrateFromQdrantCmd) migrateDataParallel(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string, sourcePointCount uint64) error {
+	pterm.Info.Printfln("Using parallel migration with %d workers", r.NumWorkers)
+
+	ids, err := r.samplePointIDs(ctx, sourceClient, sourceCollection, sourcePointCount)
+	if err != nil {
+		return err
+	}
+
+	ranges := make([]rangeSpec, len(ids)+1)
+	for i, id := range ids {
+		endKey := idToKey(id)
+		ranges[i] = rangeSpec{id: i, end: &endKey}
+		if i > 0 {
+			ranges[i].start = ids[i-1]
+		}
+	}
+	ranges[len(ids)] = rangeSpec{id: len(ids), start: ids[len(ids)-1]}
+
+	var totalProcessed uint64
+	if !r.Migration.Restart {
+		for i := range ranges {
+			offsetKey := fmt.Sprintf("%s-range-%d", sourceCollection, ranges[i].id)
+			offsetID, count, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, offsetKey)
+			if err != nil {
+				return fmt.Errorf("failed to get start offset: %w", err)
+			}
+			if offsetID != nil {
+				ranges[i].start = offsetID
+				totalProcessed += count
+				pterm.Info.Printfln("Resuming range %d from offset (already processed %d points)", ranges[i].id, count)
+			}
+		}
+	}
+
+	bar, _ := pterm.DefaultProgressbar.WithTotal(int(sourcePointCount)).Start()
+	displayMigrationProgress(bar, totalProcessed)
+
+	shardKeys := &sync.Map{}
+	errs := make(chan error, len(ranges))
+	sem := make(chan struct{}, r.NumWorkers)
+
+	for _, rg := range ranges {
+		sem <- struct{}{}
+		go func(rg rangeSpec) {
+			errs <- r.migrateRange(ctx, sourceCollection, targetCollection, sourceClient, targetClient, rg, shardKeys, bar)
+			<-sem
+		}(rg)
+	}
+
+	var firstErr error
+	for range ranges {
+		if err := <-errs; err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	if firstErr != nil {
+		return firstErr
+	}
+	pterm.Success.Printfln("Data migration finished successfully")
+	return nil
+}
+
+func (r *MigrateFromQdrantCmd) migrateRange(ctx context.Context, sourceCollection, targetCollection string, sourceClient, targetClient *qdrant.Client, rg rangeSpec, shardKeys *sync.Map, bar *pterm.ProgressbarPrinter) error {
+	offsetKey := fmt.Sprintf("%s-range-%d", sourceCollection, rg.id)
+	offset := rg.start
+	var count uint64
+
+	for {
+		resp, err := sourceClient.GetPointsClient().Scroll(ctx, &qdrant.ScrollPoints{
+			CollectionName: sourceCollection,
+			Offset:         offset,
+			Limit:          qdrant.PtrOf(uint32(r.Migration.BatchSize)),
+			WithPayload:    qdrant.NewWithPayload(true),
+			WithVectors:    qdrant.NewWithVectors(true),
+		})
+		if err != nil {
+			return err
+		}
+
+		points := resp.GetResult()
+		if len(points) == 0 {
+			break
+		}
+
+		if rg.end != nil {
+			for i, p := range points {
+				if rg.end.less(idToKey(p.Id)) {
+					points = points[:i]
+					break
+				}
+			}
+			if len(points) == 0 {
+				break
+			}
+		}
+
+		if err := r.processBatch(ctx, points, targetClient, targetCollection, shardKeys, false); err != nil {
+			return err
+		}
+
+		count += uint64(len(points))
+		bar.Add(len(points))
+
+		if err := commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, offsetKey, points[len(points)-1].Id, count); err != nil {
+			return fmt.Errorf("failed to store offset: %w", err)
+		}
+
+		offset = resp.GetNextPageOffset()
+		if offset == nil || (rg.end != nil && !idToKey(points[len(points)-1].Id).less(*rg.end)) {
+			break
+		}
+	}
 	return nil
 }

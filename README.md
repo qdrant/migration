@@ -563,6 +563,12 @@ NOTE: If the target collection already exists, its vector size and dimensions mu
 | `--target.api-key`                | API key for target instance                         |
 | `--target.ensure-payload-indexes` | Ensure payload indexes exist. Default: true         |
 
+#### Additional Options
+
+| Flag                              | Description                                                    |
+| --------------------------------- | -------------------------------------------------------------- |
+| `--migration.num-workers`         | Number of parallel workers to use. Default: Number of CPU cores|
+
 See [Shared Migration Options](#shared-migration-options) for shared parameters.
 
 </details>
