@@ -11,7 +11,7 @@ import (
 	"github.com/qdrant/go-client/qdrant"
 )
 
-func TestMigrateFromQdrantWithShardKeys(t *testing.T) {
+func testMigrateFromQdrantWithShardKeys(t *testing.T, sourceCollectionName, targetCollectionName string, numWorkers int) {
 	ctx := context.Background()
 
 	sourceContainer := qdrantContainer(ctx, t, qdrantAPIKey)
@@ -56,9 +56,6 @@ func TestMigrateFromQdrantWithShardKeys(t *testing.T) {
 	require.NoError(t, err)
 	defer targetClient.Close()
 
-	sourceCollectionName := "source_collection"
-	targetCollectionName := "target_collection"
-
 	err = sourceClient.CreateCollection(ctx, &qdrant.CreateCollection{
 		CollectionName: sourceCollectionName,
 		VectorsConfig: qdrant.NewVectorsConfig(&qdrant.VectorParams{
@@ -66,7 +63,6 @@ func TestMigrateFromQdrantWithShardKeys(t *testing.T) {
 			Distance: qdrant.Distance_Dot,
 		}),
 		ShardingMethod: qdrant.ShardingMethod_Custom.Enum(),
-		ShardNumber:    qdrant.PtrOf(uint32(2)),
 	})
 	require.NoError(t, err)
 
@@ -78,7 +74,6 @@ func TestMigrateFromQdrantWithShardKeys(t *testing.T) {
 		})
 		require.NoError(t, err)
 	}
-	pointsByShard := make(map[string][]*qdrant.PointStruct)
 
 	expectedPointsByID := make(map[string][]float32)
 
@@ -97,7 +92,6 @@ func TestMigrateFromQdrantWithShardKeys(t *testing.T) {
 				}),
 			})
 		}
-		pointsByShard[shardKey] = points
 
 		_, err = sourceClient.Upsert(ctx, &qdrant.UpsertPoints{
 			CollectionName: sourceCollectionName,
@@ -118,6 +112,7 @@ func TestMigrateFromQdrantWithShardKeys(t *testing.T) {
 		fmt.Sprintf("--target.url=http://%s:%s", targetHost, targetPort.Port()),
 		fmt.Sprintf("--target.api-key=%s", qdrantAPIKey),
 		fmt.Sprintf("--target.collection=%s", targetCollectionName),
+		fmt.Sprintf("--migration.num-workers=%d", numWorkers),
 		"--migration.create-collection=true",
 	}
 
@@ -153,4 +148,12 @@ func TestMigrateFromQdrantWithShardKeys(t *testing.T) {
 			require.Equal(t, expectedVector, actualVector)
 		}
 	}
+}
+
+func TestMigrateFromQdrantWithShardKeys(t *testing.T) {
+	testMigrateFromQdrantWithShardKeys(t, "source_collection", "target_collection", 1)
+}
+
+func TestMigrateFromQdrantWithShardKeysParallel(t *testing.T) {
+	testMigrateFromQdrantWithShardKeys(t, "source_collection_parallel", "target_collection_parallel", 4)
 }
