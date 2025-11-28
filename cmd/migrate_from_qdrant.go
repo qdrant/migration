@@ -26,8 +26,6 @@ const (
 	SAMPLE_SIZE_PER_WORKER = 10
 )
 
-// MigrateFromQdrantCmd holds the command-line arguments and logic for migrating data
-// from one Qdrant collection to another.
 type MigrateFromQdrantCmd struct {
 	Source               commons.QdrantConfig    `embed:"" prefix:"source."`
 	Target               commons.QdrantConfig    `embed:"" prefix:"target."`
@@ -44,7 +42,6 @@ type MigrateFromQdrantCmd struct {
 	targetTLS  bool
 }
 
-// Parse parses the source and target Qdrant URLs into host, port, and TLS settings.
 func (r *MigrateFromQdrantCmd) Parse() error {
 	var err error
 	r.sourceHost, r.sourcePort, r.sourceTLS, err = parseQdrantUrl(r.Source.Url)
@@ -58,12 +55,10 @@ func (r *MigrateFromQdrantCmd) Parse() error {
 	return nil
 }
 
-// Validate checks if the batch size is valid.
 func (r *MigrateFromQdrantCmd) Validate() error {
 	return validateBatchSize(r.Migration.BatchSize)
 }
 
-// ValidateParsedValues ensures that the source and target collections are not identical.
 func (r *MigrateFromQdrantCmd) ValidateParsedValues() error {
 	if r.sourceHost == r.targetHost && r.sourcePort == r.targetPort && r.Source.Collection == r.Target.Collection {
 		return fmt.Errorf("source and target collections must be different")
@@ -71,7 +66,6 @@ func (r *MigrateFromQdrantCmd) ValidateParsedValues() error {
 	return nil
 }
 
-// Run executes the main logic of the migration command.
 func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 	pterm.DefaultHeader.WithFullWidth().Println("Qdrant Data Migration")
 
@@ -87,7 +81,6 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 		r.NumWorkers = runtime.NumCPU()
 	}
 
-	// Set up a context that listens for interrupt signals for graceful shutdown.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -103,13 +96,11 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 	}
 	defer targetClient.Close()
 
-	// Prepare a collection to store migration progress (offsets).
 	if err := commons.PrepareOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient); err != nil {
 		return fmt.Errorf("failed to prepare migration marker collection: %w", err)
 	}
 
 	sourcePointCount, err := sourceClient.Count(ctx, &qdrant.CountPoints{
-		// Count all points in the source collection.
 		CollectionName: r.Source.Collection,
 		Exact:          qdrant.PtrOf(true),
 	})
@@ -117,7 +108,6 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 		return fmt.Errorf("failed to count points in source: %w", err)
 	}
 
-	// Prepare the target collection based on the source collection's configuration.
 	if err := r.prepareTargetCollection(ctx, sourceClient, r.Source.Collection, targetClient, r.Target.Collection); err != nil {
 		return fmt.Errorf("error preparing target collection: %w", err)
 	}
@@ -129,7 +119,6 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 	}
 
 	targetPointCount, err := targetClient.Count(ctx, &qdrant.CountPoints{
-		// Count all points in the target collection after migration.
 		CollectionName: r.Target.Collection,
 		Exact:          qdrant.PtrOf(true),
 	})
@@ -149,7 +138,6 @@ func (r *MigrateFromQdrantCmd) prepareTargetCollection(ctx context.Context, sour
 		return fmt.Errorf("failed to get source collection info: %w", err)
 	}
 
-	// If CreateCollection is enabled, create the target collection if it doesn't exist.
 	if r.Migration.CreateCollection {
 		exists, err := targetClient.CollectionExists(ctx, targetCollection)
 		if err != nil {
@@ -159,7 +147,6 @@ func (r *MigrateFromQdrantCmd) prepareTargetCollection(ctx context.Context, sour
 			fmt.Print("\n")
 			pterm.Info.Printfln("Target collection '%s' already exists. Skipping creation.", targetCollection)
 		} else {
-			// Copy configuration from the source collection to the new target collection.
 			params := sourceCollectionInfo.Config.GetParams()
 			if err := targetClient.CreateCollection(ctx, &qdrant.CreateCollection{
 				CollectionName:         targetCollection,
@@ -299,7 +286,7 @@ func convertVectors(p *qdrant.RetrievedPoint) *qdrant.Vectors {
 func (r *MigrateFromQdrantCmd) samplePointIDs(ctx context.Context, client *qdrant.Client, collection string, pointCount uint64) ([]*qdrant.PointId, error) {
 	// TODO(Anush008): Check if there's a more optimal value for SAMPLE_SIZE_PER_WORKER.
 	sampleSize := r.NumWorkers * SAMPLE_SIZE_PER_WORKER
-	// Don't sample more points than exist in the collection.
+	// Don't sample more points than are available in the collection.
 	if uint64(sampleSize) > pointCount {
 		sampleSize = int(pointCount)
 	}
@@ -428,18 +415,15 @@ func (r *MigrateFromQdrantCmd) migrateDataSequential(ctx context.Context, source
 		}
 
 		points := resp.GetResult()
-		// Process and upsert the batch of points.
 		if err := r.processBatch(ctx, points, targetClient, targetCollection, shardKeys, true); err != nil {
 			return err
 		}
 
 		count += uint64(len(points))
 		bar.Add(len(points))
-		// Get the offset for the next page.
 		offset = resp.GetNextPageOffset()
 
 		if err := commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, sourceCollection, offset, count); err != nil {
-			// Store the current progress.
 			return fmt.Errorf("failed to store offset: %w", err)
 		}
 		if offset == nil {
@@ -557,7 +541,6 @@ func (r *MigrateFromQdrantCmd) migrateRange(ctx context.Context, sourceCollectio
 			}
 		}
 
-		// Process and upsert the batch.
 		if err := r.processBatch(ctx, points, targetClient, targetCollection, shardKeys, false); err != nil {
 			return err
 		}
