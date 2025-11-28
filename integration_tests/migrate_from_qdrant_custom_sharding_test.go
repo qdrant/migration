@@ -63,7 +63,6 @@ func testMigrateFromQdrantWithShardKeys(t *testing.T, sourceCollectionName, targ
 			Distance: qdrant.Distance_Dot,
 		}),
 		ShardingMethod: qdrant.ShardingMethod_Custom.Enum(),
-		ShardNumber:    qdrant.PtrOf(uint32(2)),
 	})
 	require.NoError(t, err)
 
