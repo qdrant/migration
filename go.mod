@@ -24,7 +24,7 @@ require (
 	github.com/testcontainers/testcontainers-go v0.40.0
 	github.com/testcontainers/testcontainers-go/modules/opensearch v0.40.0
 	github.com/weaviate/weaviate v1.34.0
-	github.com/weaviate/weaviate-go-client/v5 v5.5.0
+	github.com/weaviate/weaviate-go-client/v5 v5.6.0
 	go.mongodb.org/mongo-driver v1.17.6
 	go.mongodb.org/mongo-driver/v2 v2.4.0
 	google.golang.org/grpc v1.77.0
