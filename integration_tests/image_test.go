@@ -14,23 +14,23 @@ import (
 //nolint:unparam
 func qdrantContainer(ctx context.Context, t *testing.T, apiKey string) testcontainers.Container {
 	req := testcontainers.ContainerRequest{
-		Image:        "qdrant/qdrant:v1.16.0",
-		ExposedPorts: []string{"6334/tcp"},
+		Image:        "qdrant/qdrant:v1.16.1",
+		ExposedPorts: []string{"6333/tcp", "6334/tcp"},
 		Env: map[string]string{
 			"QDRANT__CLUSTER__ENABLED": "true",
 			"QDRANT__SERVICE__API_KEY": apiKey,
 		},
-		Cmd: []string{"./qdrant", "--uri", "http://qdrant_node_1:6335"},
-		WaitingFor: wait.ForAll(
-			wait.ForListeningPort("6334/tcp").WithStartupTimeout(5 * time.Second),
-		),
+		Cmd: []string{"./qdrant", "--uri", "http://localhost:6335"},
+		WaitingFor: wait.ForHTTP("/readyz").
+			WithPort("6333/tcp").
+			WithStartupTimeout(5 * time.Second),
 	}
+
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
 		Started:          true,
 	})
 	require.NoError(t, err)
-
 	return container
 }
 
