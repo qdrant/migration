@@ -458,9 +458,10 @@ func (r *MigrateFromQdrantCmd) migrateDataParallel(ctx context.Context, sourceCl
 
 	var totalProcessed uint64
 	// If not restarting, load the progress for each range.
+	// The offset key includes NumWorkers, so changing num-workers will start a fresh migration.
 	if !r.Migration.Restart {
 		for i := range ranges {
-			offsetKey := fmt.Sprintf("%s-range-%d", sourceCollection, ranges[i].id)
+			offsetKey := fmt.Sprintf("%s-workers-%d-range-%d", sourceCollection, r.NumWorkers, ranges[i].id)
 			offsetID, count, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, offsetKey)
 			if err != nil {
 				return fmt.Errorf("failed to get start offset: %w", err)
@@ -507,7 +508,7 @@ func (r *MigrateFromQdrantCmd) migrateDataParallel(ctx context.Context, sourceCl
 // migrateRange is the function executed by each worker in parallel migration.
 // It scrolls through a specific range of points and upserts them to the target.
 func (r *MigrateFromQdrantCmd) migrateRange(ctx context.Context, sourceCollection, targetCollection string, sourceClient, targetClient *qdrant.Client, rg rangeSpec, shardKeys *sync.Map, bar *pterm.ProgressbarPrinter) error {
-	offsetKey := fmt.Sprintf("%s-range-%d", sourceCollection, rg.id)
+	offsetKey := fmt.Sprintf("%s-workers-%d-range-%d", sourceCollection, r.NumWorkers, rg.id)
 	offset := rg.start
 	var count uint64
 
