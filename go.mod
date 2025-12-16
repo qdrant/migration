@@ -26,7 +26,7 @@ require (
 	github.com/weaviate/weaviate v1.34.5
 	github.com/weaviate/weaviate-go-client/v5 v5.6.0
 	go.mongodb.org/mongo-driver v1.17.6
-	go.mongodb.org/mongo-driver/v2 v2.4.0
+	go.mongodb.org/mongo-driver/v2 v2.4.1
 	google.golang.org/grpc v1.77.0
 	google.golang.org/protobuf v1.36.10
 )
