@@ -100,6 +100,11 @@ func (r *MigrateFromElasticsearchCmd) Run(globals *Globals) error {
 
 	pterm.Info.Printfln("Target collection has %d points\n", targetPointCount)
 
+	err = commons.DeleteOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient)
+	if err != nil {
+		return fmt.Errorf("failed to delete migration marker collection: %w", err)
+	}
+
 	return nil
 }
 
