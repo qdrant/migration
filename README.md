@@ -106,7 +106,7 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 
 | Flag                            | Description                                                     |
 | ------------------------------- | --------------------------------------------------------------- |
-| `--pinecone.index-name`              | Pinecone index name.                                       |
+| `--pinecone.index-name`         | Pinecone index name.                                            |
 | `--pinecone.index-host`         | Pinecone index host URL (e.g., `https://your-pinecone-url`)     |
 | `--pinecone.api-key`            | Pinecone API key for authentication.                            |
 | `--pinecone.namespace`          | Namespace of the partition to migrate. Optional.                |
@@ -292,6 +292,7 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
     --mongodb.url 'mongodb+srv://<username>:<password>@<cluster-url>/mydb' \
     --mongodb.database 'mydb' \
     --mongodb.collection 'mycollection' \
+    --mongodb.vector-fields 'my-first-vector,my-second-vector' \
     --qdrant.url 'http://localhost:6334' \
     --qdrant.collection 'target-collection' \
     --migration.batch-size 64
@@ -562,6 +563,12 @@ NOTE: If the target collection already exists, its vector size and dimensions mu
 | `--target.url`                    | Target gRPC URL. Default: `"http://localhost:6334"` |
 | `--target.api-key`                | API key for target instance                         |
 | `--target.ensure-payload-indexes` | Ensure payload indexes exist. Default: true         |
+
+#### Additional Options
+
+| Flag                              | Description                                                    |
+| --------------------------------- | -------------------------------------------------------------- |
+| `--migration.num-workers`         | Number of parallel workers to use. Default: Number of CPU cores|
 
 See [Shared Migration Options](#shared-migration-options) for shared parameters.
 
