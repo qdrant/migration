@@ -24,6 +24,18 @@ func PrepareOffsetsCollection(ctx context.Context, migrationOffsetsCollectionNam
 	})
 }
 
+func DeleteOffsetsCollection(ctx context.Context, migrationOffsetsCollectionName string, targetClient *qdrant.Client) error {
+	migrationOffsetCollectionExists, err := targetClient.CollectionExists(ctx, migrationOffsetsCollectionName)
+	if err != nil {
+		return fmt.Errorf("failed to check if collection exists: %w", err)
+	}
+	if !migrationOffsetCollectionExists {
+		fmt.Printf("Collection %s does not exist, nothing to delete\n", migrationOffsetsCollectionName)
+		return nil
+	}
+	return targetClient.DeleteCollection(ctx, migrationOffsetsCollectionName)
+}
+
 func GetStartOffset(ctx context.Context, migrationOffsetsCollectionName string, targetClient *qdrant.Client, sourceCollection string) (*qdrant.PointId, uint64, error) {
 	point, err := getOffsetPoint(ctx, migrationOffsetsCollectionName, targetClient, sourceCollection)
 	if err != nil {
