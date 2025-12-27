@@ -23,7 +23,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.40.0
 	github.com/testcontainers/testcontainers-go/modules/opensearch v0.40.0
-	github.com/weaviate/weaviate v1.34.5
+	github.com/weaviate/weaviate v1.35.1
 	github.com/weaviate/weaviate-go-client/v5 v5.6.0
 	go.mongodb.org/mongo-driver v1.17.6
 	go.mongodb.org/mongo-driver/v2 v2.4.1
@@ -91,7 +91,7 @@ require (
 	github.com/go-openapi/jsonpointer v0.22.3 // indirect
 	github.com/go-openapi/jsonreference v0.21.3 // indirect
 	github.com/go-openapi/loads v0.23.2 // indirect
-	github.com/go-openapi/runtime v0.24.2 // indirect
+	github.com/go-openapi/runtime v0.29.2 // indirect
 	github.com/go-openapi/spec v0.22.1 // indirect
 	github.com/go-openapi/strfmt v0.25.0 // indirect
 	github.com/go-openapi/swag v0.25.3 // indirect
@@ -150,7 +150,6 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/opencontainers/runtime-spec v1.3.0 // indirect
-	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/panjf2000/ants/v2 v2.11.3 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
