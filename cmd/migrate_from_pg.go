@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pgvector/pgvector-go"
 	pgxvec "github.com/pgvector/pgvector-go/pgx"
 	"github.com/pterm/pterm"
@@ -24,10 +26,17 @@ type MigrateFromPGCmd struct {
 	Qdrant         commons.QdrantConfig    `embed:"" prefix:"qdrant."`
 	Migration      commons.MigrationConfig `embed:"" prefix:"migration."`
 	DistanceMetric map[string]string       `prefix:"qdrant." help:"Map of vector field names to distance metrics (cosine,dot,euclid,manhattan). Default is cosine if not specified."`
+	NumWorkers     int                     `help:"Number of parallel workers for data migration (0 = number of CPU cores)" default:"0" prefix:"migration."`
 
 	targetHost string
 	targetPort int
 	targetTLS  bool
+}
+
+type pgRangeSpec struct {
+	id       int
+	startKey *string
+	endKey   *string
 }
 
 func (r *MigrateFromPGCmd) Parse() error {
@@ -50,6 +59,10 @@ func (r *MigrateFromPGCmd) Run(globals *Globals) error {
 	err := r.Parse()
 	if err != nil {
 		return fmt.Errorf("failed to parse input: %w", err)
+	}
+
+	if r.NumWorkers == 0 {
+		r.NumWorkers = runtime.NumCPU()
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -229,6 +242,14 @@ func (r *MigrateFromPGCmd) prepareTargetCollection(ctx context.Context, sourceCo
 }
 
 func (r *MigrateFromPGCmd) migrateData(ctx context.Context, sourceConn *pgx.Conn, targetClient *qdrant.Client, sourcePointCount uint64) error {
+	if r.NumWorkers > 1 {
+		return r.migrateDataParallel(ctx, sourceConn, targetClient, sourcePointCount)
+	}
+	return r.migrateDataSequential(ctx, sourceConn, targetClient, sourcePointCount)
+}
+
+// migrateDataSequential performs the migration using a single worker.
+func (r *MigrateFromPGCmd) migrateDataSequential(ctx context.Context, sourceConn *pgx.Conn, targetClient *qdrant.Client, sourcePointCount uint64) error {
 	batchSize := r.Migration.BatchSize
 
 	offsetCount := uint64(0)
@@ -256,7 +277,8 @@ func (r *MigrateFromPGCmd) migrateData(ctx context.Context, sourceConn *pgx.Conn
 			selectColumns = "*"
 		}
 		tableIdent := pgx.Identifier{r.PG.Table}.Sanitize()
-		query := fmt.Sprintf("SELECT %s FROM %s LIMIT $1 OFFSET $2", selectColumns, tableIdent)
+		keyColIdent := pgx.Identifier{r.PG.KeyColumn}.Sanitize()
+		query := fmt.Sprintf("SELECT %s FROM %s ORDER BY %s LIMIT $1 OFFSET $2", selectColumns, tableIdent, keyColIdent)
 		rows, err := sourceConn.Query(ctx, query, batchSize, offsetCount)
 		if err != nil {
 			return fmt.Errorf("failed to query PG: %w", err)
@@ -271,32 +293,7 @@ func (r *MigrateFromPGCmd) migrateData(ctx context.Context, sourceConn *pgx.Conn
 			break
 		}
 
-		var targetPoints []*qdrant.PointStruct
-		for _, row := range batchRows {
-			point := &qdrant.PointStruct{}
-			vectors := make(map[string]*qdrant.Vector)
-			payload := make(map[string]interface{})
-
-			for col, val := range row {
-				if col == r.PG.KeyColumn {
-					idStr := fmt.Sprint(val)
-					point.Id = arbitraryIDToUUID(idStr)
-				}
-
-				switch v := val.(type) {
-				case pgvector.Vector:
-					vectors[col] = qdrant.NewVector(v.Slice()...)
-				default:
-					payload[col] = sanitizeValue(val)
-				}
-			}
-
-			if len(vectors) > 0 {
-				point.Vectors = qdrant.NewVectorsMap(vectors)
-			}
-			point.Payload = qdrant.NewValueMap(payload)
-			targetPoints = append(targetPoints, point)
-		}
+		targetPoints := r.convertRowsToPoints(batchRows)
 
 		_, err = targetClient.Upsert(ctx, &qdrant.UpsertPoints{
 			CollectionName: r.Qdrant.Collection,
@@ -322,6 +319,295 @@ func (r *MigrateFromPGCmd) migrateData(ctx context.Context, sourceConn *pgx.Conn
 	pterm.Success.Printfln("Data migration finished successfully")
 
 	return nil
+}
+
+// sampleKeyValues samples random key values from the table to create range boundaries.
+// It returns keys as text but sorted in the native column order.
+func (r *MigrateFromPGCmd) sampleKeyValues(ctx context.Context, conn *pgx.Conn, sampleSize int) ([]string, error) {
+	tableIdent := pgx.Identifier{r.PG.Table}.Sanitize()
+	keyColIdent := pgx.Identifier{r.PG.KeyColumn}.Sanitize()
+
+	// Sample random keys, but return them sorted by their native column type order.
+	query := fmt.Sprintf(
+		"SELECT %s::text FROM (SELECT %s FROM %s ORDER BY RANDOM() LIMIT $1) sub ORDER BY %s",
+		keyColIdent, keyColIdent, tableIdent, keyColIdent,
+	)
+	rows, err := conn.Query(ctx, query, sampleSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sample keys: %w", err)
+	}
+	defer rows.Close()
+
+	var keys []string
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			return nil, fmt.Errorf("failed to scan key: %w", err)
+		}
+		keys = append(keys, key)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error reading keys: %w", err)
+	}
+
+	return keys, nil
+}
+
+// createRangesFromSamples divides the sorted sampled keys into ranges for parallel workers.
+// Each boundary key becomes the endKey of one range and startKey of the next, creating
+// non-overlapping ranges: [nil, k1), [k1, k2), ..., [kN, nil).
+func (r *MigrateFromPGCmd) createRangesFromSamples(keys []string) []pgRangeSpec {
+	if len(keys) == 0 {
+		return []pgRangeSpec{{id: 0}}
+	}
+
+	numRanges := r.NumWorkers
+	if len(keys) < numRanges {
+		numRanges = len(keys) + 1
+	}
+
+	ranges := make([]pgRangeSpec, numRanges)
+	for i := range ranges {
+		ranges[i].id = i
+	}
+
+	for i := 1; i < numRanges; i++ {
+		idx := (i * len(keys)) / numRanges
+		ranges[i-1].endKey = &keys[idx]
+		ranges[i].startKey = &keys[idx]
+	}
+
+	return ranges
+}
+
+// migrateDataParallel performs the migration using multiple workers in parallel.
+func (r *MigrateFromPGCmd) migrateDataParallel(ctx context.Context, sourceConn *pgx.Conn, targetClient *qdrant.Client, sourcePointCount uint64) error {
+	pterm.Info.Printfln("Using parallel migration with %d workers", r.NumWorkers)
+
+	if sourcePointCount == 0 {
+		pterm.Info.Println("Table is empty, nothing to migrate")
+		return nil
+	}
+
+	sampleSize := r.NumWorkers * SAMPLE_SIZE_PER_WORKER
+	if uint64(sampleSize) > sourcePointCount {
+		sampleSize = int(sourcePointCount)
+	}
+
+	keys, err := r.sampleKeyValues(ctx, sourceConn, sampleSize)
+	if err != nil {
+		return fmt.Errorf("failed to sample keys: %w", err)
+	}
+
+	ranges := r.createRangesFromSamples(keys)
+
+	poolConfig, err := pgxpool.ParseConfig(r.PG.Url)
+	if err != nil {
+		return fmt.Errorf("failed to parse connection string for pool: %w", err)
+	}
+	poolConfig.MaxConns = int32(r.NumWorkers)
+	poolConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		return pgxvec.RegisterTypes(ctx, conn)
+	}
+
+	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create connection pool: %w", err)
+	}
+	defer pool.Close()
+
+	var totalProcessed uint64
+	if !r.Migration.Restart {
+		for i := range ranges {
+			offsetKey := fmt.Sprintf("%s-workers-%d-range-%d", r.PG.Table, r.NumWorkers, ranges[i].id)
+			_, count, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, offsetKey)
+			if err != nil {
+				return fmt.Errorf("failed to get start offset: %w", err)
+			}
+			totalProcessed += count
+			if count > 0 {
+				pterm.Info.Printfln("Resuming range %d (already processed %d points)", ranges[i].id, count)
+			}
+		}
+	}
+
+	bar, _ := pterm.DefaultProgressbar.WithTotal(int(sourcePointCount)).Start()
+	displayMigrationProgress(bar, totalProcessed)
+
+	errs := make(chan error, len(ranges))
+	sem := make(chan struct{}, r.NumWorkers)
+
+	for _, rg := range ranges {
+		sem <- struct{}{}
+		go func(rg pgRangeSpec) {
+			errs <- r.migrateRange(ctx, pool, targetClient, rg, bar)
+			<-sem
+		}(rg)
+	}
+
+	var firstErr error
+	for range ranges {
+		if err := <-errs; err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	if firstErr != nil {
+		return firstErr
+	}
+
+	pterm.Success.Printfln("Data migration finished successfully")
+	return nil
+}
+
+// migrateRange is the function executed by each worker in parallel migration.
+// It queries a specific key range and upserts the rows to the target.
+func (r *MigrateFromPGCmd) migrateRange(ctx context.Context, pool *pgxpool.Pool, targetClient *qdrant.Client, rg pgRangeSpec, bar *pterm.ProgressbarPrinter) error {
+	offsetKey := fmt.Sprintf("%s-workers-%d-range-%d", r.PG.Table, r.NumWorkers, rg.id)
+	batchSize := r.Migration.BatchSize
+
+	var lastKey *string
+	var count uint64
+	if !r.Migration.Restart {
+		offsetID, c, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, offsetKey)
+		if err != nil {
+			return fmt.Errorf("failed to get start offset: %w", err)
+		}
+		if offsetID != nil {
+			if uuid := offsetID.GetUuid(); uuid != "" {
+				lastKey = &uuid
+			}
+		}
+		count = c
+	}
+
+	tableIdent := pgx.Identifier{r.PG.Table}.Sanitize()
+	keyColIdent := pgx.Identifier{r.PG.KeyColumn}.Sanitize()
+
+	var selectColumns string
+	if len(r.PG.Columns) > 0 {
+		var quotedCols []string
+		for _, col := range r.PG.Columns {
+			quotedCols = append(quotedCols, pgx.Identifier{col}.Sanitize())
+		}
+		selectColumns = strings.Join(quotedCols, ", ")
+	} else {
+		selectColumns = "*"
+	}
+
+	for {
+		conn, err := pool.Acquire(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to acquire connection: %w", err)
+		}
+
+		effectiveStart := rg.startKey
+		if lastKey != nil {
+			effectiveStart = lastKey
+		}
+
+		var whereClauses []string
+		var args []interface{}
+
+		// Use native column type comparison
+		// PostgreSQL will implicitly cast the text parameter to the column's actual type.
+		if effectiveStart != nil {
+			args = append(args, *effectiveStart)
+			whereClauses = append(whereClauses, fmt.Sprintf("%s > $%d", keyColIdent, len(args)))
+		}
+		if rg.endKey != nil {
+			args = append(args, *rg.endKey)
+			whereClauses = append(whereClauses, fmt.Sprintf("%s <= $%d", keyColIdent, len(args)))
+		}
+
+		args = append(args, batchSize)
+		whereClause := ""
+		if len(whereClauses) > 0 {
+			whereClause = "WHERE " + strings.Join(whereClauses, " AND ") + " "
+		}
+
+		query := fmt.Sprintf("SELECT %s FROM %s %sORDER BY %s LIMIT $%d",
+			selectColumns, tableIdent, whereClause, keyColIdent, len(args))
+
+		rows, err := conn.Query(ctx, query, args...)
+		if err != nil {
+			conn.Release()
+			return fmt.Errorf("failed to query PG: %w", err)
+		}
+
+		batchRows, err := pgx.CollectRows(rows, pgx.RowToMap)
+		conn.Release()
+		if err != nil {
+			return fmt.Errorf("failed to collect rows: %w", err)
+		}
+
+		if len(batchRows) == 0 {
+			break
+		}
+
+		targetPoints := r.convertRowsToPoints(batchRows)
+
+		var upsertErr error
+		for attempt := 0; attempt < MAX_RETRIES; attempt++ {
+			_, upsertErr = targetClient.Upsert(ctx, &qdrant.UpsertPoints{
+				CollectionName: r.Qdrant.Collection,
+				Points:         targetPoints,
+				Wait:           qdrant.PtrOf(false),
+			})
+			if upsertErr == nil || !strings.Contains(upsertErr.Error(), "Please retry") {
+				break
+			}
+			time.Sleep(time.Duration(attempt+1) * 100 * time.Millisecond)
+		}
+		if upsertErr != nil {
+			return fmt.Errorf("failed to insert data into target: %w", upsertErr)
+		}
+
+		lastRow := batchRows[len(batchRows)-1]
+		if keyVal, ok := lastRow[r.PG.KeyColumn]; ok {
+			keyStr := fmt.Sprint(keyVal)
+			lastKey = &keyStr
+		}
+
+		count += uint64(len(targetPoints))
+		bar.Add(len(targetPoints))
+
+		if err := commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, offsetKey, qdrant.NewIDUUID(*lastKey), count); err != nil {
+			return fmt.Errorf("failed to store offset: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// convertRowsToPoints converts PostgreSQL rows to Qdrant points.
+func (r *MigrateFromPGCmd) convertRowsToPoints(batchRows []map[string]interface{}) []*qdrant.PointStruct {
+	var targetPoints []*qdrant.PointStruct
+	for _, row := range batchRows {
+		point := &qdrant.PointStruct{}
+		vectors := make(map[string]*qdrant.Vector)
+		payload := make(map[string]interface{})
+
+		for col, val := range row {
+			if col == r.PG.KeyColumn {
+				idStr := fmt.Sprint(val)
+				point.Id = arbitraryIDToUUID(idStr)
+			}
+
+			switch v := val.(type) {
+			case pgvector.Vector:
+				vectors[col] = qdrant.NewVector(v.Slice()...)
+			default:
+				payload[col] = sanitizeValue(val)
+			}
+		}
+
+		if len(vectors) > 0 {
+			point.Vectors = qdrant.NewVectorsMap(vectors)
+		}
+		point.Payload = qdrant.NewValueMap(payload)
+		targetPoints = append(targetPoints, point)
+	}
+	return targetPoints
 }
 
 // Recursively converts value unsupported as payload in Qdrant to string.
