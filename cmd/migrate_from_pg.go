@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pgvector/pgvector-go"
@@ -564,7 +565,7 @@ func (r *MigrateFromPGCmd) migrateRange(ctx context.Context, pool *pgxpool.Pool,
 
 		lastRow := batchRows[len(batchRows)-1]
 		if keyVal, ok := lastRow[r.PG.KeyColumn]; ok {
-			keyStr := fmt.Sprint(keyVal)
+			keyStr := keyToString(keyVal)
 			lastKey = &keyStr
 		}
 
@@ -589,7 +590,7 @@ func (r *MigrateFromPGCmd) convertRowsToPoints(batchRows []map[string]interface{
 
 		for col, val := range row {
 			if col == r.PG.KeyColumn {
-				idStr := fmt.Sprint(val)
+				idStr := keyToString(val)
 				point.Id = arbitraryIDToUUID(idStr)
 			}
 
@@ -610,9 +611,35 @@ func (r *MigrateFromPGCmd) convertRowsToPoints(batchRows []map[string]interface{
 	return targetPoints
 }
 
+func keyToString(val any) string {
+	if s, ok := tryFormatAsUUID(val); ok {
+		return s
+	}
+	if b, ok := val.([]byte); ok {
+		return string(b)
+	}
+	return fmt.Sprint(val)
+}
+
+func tryFormatAsUUID(val any) (string, bool) {
+	switch v := val.(type) {
+	case [16]byte:
+		return uuid.UUID(v).String(), true
+	case []byte:
+		if len(v) == 16 {
+			return uuid.UUID(v).String(), true
+		}
+	}
+	return "", false
+}
+
 // Recursively converts value unsupported as payload in Qdrant to string.
 // Otherwise, it returns the value as is.
 func sanitizeValue(val any) any {
+	if s, ok := tryFormatAsUUID(val); ok {
+		return s
+	}
+
 	switch v := val.(type) {
 	// Types supported by qdrant.NewValueMap()
 	// https://github.com/qdrant/go-client/blob/cf8426be6063135411fe063e062cfac5b57c2ceb/qdrant/value_map.go#L29-L44
