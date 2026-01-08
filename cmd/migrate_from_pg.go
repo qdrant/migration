@@ -33,6 +33,7 @@ type MigrateFromPGCmd struct {
 	targetTLS  bool
 }
 
+// pgRangeSpec defines a key range for a worker to process in parallel migration.
 type pgRangeSpec struct {
 	id       int
 	startKey *string
@@ -322,7 +323,6 @@ func (r *MigrateFromPGCmd) migrateDataSequential(ctx context.Context, sourceConn
 }
 
 // sampleKeyValues samples random key values from the table to create range boundaries.
-// It returns keys as text but sorted in the native column order.
 func (r *MigrateFromPGCmd) sampleKeyValues(ctx context.Context, conn *pgx.Conn, sampleSize int) ([]string, error) {
 	tableIdent := pgx.Identifier{r.PG.Table}.Sanitize()
 	keyColIdent := pgx.Identifier{r.PG.KeyColumn}.Sanitize()
@@ -416,6 +416,8 @@ func (r *MigrateFromPGCmd) migrateDataParallel(ctx context.Context, sourceConn *
 	}
 	defer pool.Close()
 
+	// If not restarting, load the progress for each range.
+	// The offset key includes NumWorkers, so changing num-workers will start a fresh migration.
 	var totalProcessed uint64
 	if !r.Migration.Restart {
 		for i := range ranges {
@@ -434,9 +436,11 @@ func (r *MigrateFromPGCmd) migrateDataParallel(ctx context.Context, sourceConn *
 	bar, _ := pterm.DefaultProgressbar.WithTotal(int(sourcePointCount)).Start()
 	displayMigrationProgress(bar, totalProcessed)
 
+	// Use a semaphore to limit the number of concurrent workers.
 	errs := make(chan error, len(ranges))
 	sem := make(chan struct{}, r.NumWorkers)
 
+	// Start a goroutine for each range.
 	for _, rg := range ranges {
 		sem <- struct{}{}
 		go func(rg pgRangeSpec) {
@@ -445,6 +449,7 @@ func (r *MigrateFromPGCmd) migrateDataParallel(ctx context.Context, sourceConn *
 		}(rg)
 	}
 
+	// Wait for all workers to finish and collect any errors.
 	var firstErr error
 	for range ranges {
 		if err := <-errs; err != nil && firstErr == nil {
@@ -546,6 +551,7 @@ func (r *MigrateFromPGCmd) migrateRange(ctx context.Context, pool *pgxpool.Pool,
 
 		targetPoints := r.convertRowsToPoints(batchRows)
 
+		// Upsert with retries to handle Qdrant's transient consistency errors during parallel writes.
 		var upsertErr error
 		for attempt := 0; attempt < MAX_RETRIES; attempt++ {
 			_, upsertErr = targetClient.Upsert(ctx, &qdrant.UpsertPoints{
@@ -595,7 +601,7 @@ func (r *MigrateFromPGCmd) convertRowsToPoints(batchRows []map[string]interface{
 
 			switch v := val.(type) {
 			case pgvector.Vector:
-				vectors[col] = qdrant.NewVector(v.Slice()...)
+				vectors[col] = qdrant.NewVectorDense(v.Slice())
 			default:
 				payload[col] = sanitizeValue(val)
 			}
@@ -603,6 +609,8 @@ func (r *MigrateFromPGCmd) convertRowsToPoints(batchRows []map[string]interface{
 
 		if len(vectors) > 0 {
 			point.Vectors = qdrant.NewVectorsMap(vectors)
+		} else {
+			point.Vectors = qdrant.NewVectorsMap(map[string]*qdrant.Vector{})
 		}
 		point.Payload = qdrant.NewValueMap(payload)
 		targetPoints = append(targetPoints, point)
