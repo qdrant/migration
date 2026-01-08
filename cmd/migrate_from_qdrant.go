@@ -229,36 +229,29 @@ func getFieldType(dataType qdrant.PayloadSchemaType) *qdrant.FieldType {
 	return nil
 }
 
-// pointIDKey is a helper struct to make Qdrant's PointId comparable and sortable.
-// A PointId can be either a UUID (string) or a number (uint64).
-type pointIDKey struct {
-	num uint64
-	str string
-}
-
 // rangeSpec defines a range of points for a worker to process in parallel migration.
 // It has a start and an optional end point ID.
 type rangeSpec struct {
 	id    int
 	start *qdrant.PointId
-	end   *pointIDKey
+	end   *qdrant.PointId
 }
 
-// idToKey converts a Qdrant PointId to a sortable pointIDKey.
-func idToKey(id *qdrant.PointId) pointIDKey {
-	if id == nil {
-		return pointIDKey{} // Represents the beginning of the range.
+// comparePointIDs returns true if a < b.
+// Usually Qdrant collections use either numeric or UUID IDs, not both.
+// If mixed, numeric IDs (a.GetUuid() == "") sort before UUIDs since "" < any non-empty string.
+func comparePointIDs(a, b *qdrant.PointId) bool {
+	if a == nil {
+		return b != nil
 	}
-	return pointIDKey{num: id.GetNum(), str: id.GetUuid()}
-}
-
-// Compare point IDs. Usually Qdrant collections use either numeric or UUID IDs, not both.
-// Still, if mixed, numeric IDs (str="") sort before UUIDs since "" < any non-empty string.
-func (a pointIDKey) less(b pointIDKey) bool {
-	if a.str != "" || b.str != "" {
-		return a.str < b.str
+	if b == nil {
+		return false
 	}
-	return a.num < b.num
+	aStr, bStr := a.GetUuid(), b.GetUuid()
+	if aStr != "" || bStr != "" {
+		return aStr < bStr
+	}
+	return a.GetNum() < b.GetNum()
 }
 
 // convertVector converts a VectorOutput from a retrieved point to a Vector for upserting.
@@ -315,7 +308,7 @@ func (r *MigrateFromQdrantCmd) samplePointIDs(ctx context.Context, client *qdran
 		ids[i] = p.Id
 	}
 	// Sort IDs to establish ordered boundaries for ranges.
-	sort.Slice(ids, func(i, j int) bool { return idToKey(ids[i]).less(idToKey(ids[j])) })
+	sort.Slice(ids, func(i, j int) bool { return comparePointIDs(ids[i], ids[j]) })
 	return ids, nil
 }
 
@@ -454,8 +447,7 @@ func (r *MigrateFromQdrantCmd) migrateDataParallel(ctx context.Context, sourceCl
 	// Create the ranges based on the sorted sampled IDs.
 	ranges := make([]rangeSpec, len(ids)+1)
 	for i, id := range ids {
-		endKey := idToKey(id)
-		ranges[i] = rangeSpec{id: i, end: &endKey}
+		ranges[i] = rangeSpec{id: i, end: id}
 		if i > 0 {
 			ranges[i].start = ids[i-1]
 		}
@@ -538,7 +530,7 @@ func (r *MigrateFromQdrantCmd) migrateRange(ctx context.Context, sourceCollectio
 		// If this range has an end, truncate the batch to not go past the end ID.
 		if rg.end != nil {
 			for i, p := range points {
-				if rg.end.less(idToKey(p.Id)) {
+				if comparePointIDs(rg.end, p.Id) {
 					points = points[:i]
 					break
 				}
@@ -562,7 +554,7 @@ func (r *MigrateFromQdrantCmd) migrateRange(ctx context.Context, sourceCollectio
 
 		offset = resp.GetNextPageOffset()
 		// Stop if we've reached the end of the collection or the end of the assigned range.
-		if offset == nil || (rg.end != nil && !idToKey(points[len(points)-1].Id).less(*rg.end)) {
+		if offset == nil || (rg.end != nil && !comparePointIDs(points[len(points)-1].Id, rg.end)) {
 			break
 		}
 	}
