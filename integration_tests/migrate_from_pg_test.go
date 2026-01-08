@@ -84,7 +84,7 @@ func TestMigrateFromPG(t *testing.T) {
 }
 
 func TestMigrateFromPGParallel(t *testing.T) {
-	testMigrateFromPG(t, "test_collection_parallel", 4)
+	testMigrateFromPG(t, testCollectionName, 4)
 }
 
 func setupPGTable(ctx context.Context, t *testing.T, connStr string) []pgEntry {
