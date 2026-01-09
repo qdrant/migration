@@ -558,7 +558,7 @@ func (r *MigrateFromPGCmd) migrateRange(ctx context.Context, pool *pgxpool.Pool,
 			_, upsertErr = targetClient.Upsert(ctx, &qdrant.UpsertPoints{
 				CollectionName: r.Qdrant.Collection,
 				Points:         targetPoints,
-				Wait:           qdrant.PtrOf(false),
+				Wait:           qdrant.PtrOf(true),
 			})
 			if upsertErr == nil || !strings.Contains(upsertErr.Error(), "Please retry") {
 				break
