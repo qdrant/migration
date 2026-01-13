@@ -27,7 +27,7 @@ type pgEntry struct {
 	embedding []float32
 }
 
-func TestMigrateFromPG(t *testing.T) {
+func testMigrateFromPG(t *testing.T, collectionName string, numWorkers int) {
 	ctx := context.Background()
 
 	pgConnStr, qdrantUrl, qdrantHost, qdrantPort := setupPGQdrantContainers(t, ctx)
@@ -40,9 +40,10 @@ func TestMigrateFromPG(t *testing.T) {
 		fmt.Sprintf("--pg.table=%s", pgTable),
 		fmt.Sprintf("--pg.key-column=%s", pgKeyColumn),
 		fmt.Sprintf("--qdrant.url=%s", qdrantUrl),
-		fmt.Sprintf("--qdrant.collection=%s", testCollectionName),
+		fmt.Sprintf("--qdrant.collection=%s", collectionName),
 		fmt.Sprintf("--qdrant.api-key=%s", qdrantAPIKey),
 		fmt.Sprintf("--qdrant.distance-metric=%s=dot", pgVectorColumn),
+		fmt.Sprintf("--migration.num-workers=%d", numWorkers),
 	}
 
 	runMigrationBinary(t, args)
@@ -57,7 +58,7 @@ func TestMigrateFromPG(t *testing.T) {
 	defer client.Close()
 
 	points, err := client.Scroll(ctx, &qdrant.ScrollPoints{
-		CollectionName: testCollectionName,
+		CollectionName: collectionName,
 		Limit:          qdrant.PtrOf(uint32(totalEntries)),
 		WithPayload:    qdrant.NewWithPayload(true),
 		WithVectors:    qdrant.NewWithVectors(true),
@@ -76,6 +77,14 @@ func TestMigrateFromPG(t *testing.T) {
 		vec := point.Vectors.GetVectors().GetVectors()[pgVectorColumn].GetData()
 		require.Equal(t, exp.embedding, vec)
 	}
+}
+
+func TestMigrateFromPG(t *testing.T) {
+	testMigrateFromPG(t, testCollectionName, 1)
+}
+
+func TestMigrateFromPGParallel(t *testing.T) {
+	testMigrateFromPG(t, testCollectionName, 4)
 }
 
 func setupPGTable(ctx context.Context, t *testing.T, connStr string) []pgEntry {

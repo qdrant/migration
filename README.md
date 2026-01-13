@@ -442,6 +442,12 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.api-key`         | Qdrant API key (optional)                                                                                           |
 | `--qdrant.distance-metric` | Map of vector names to distance metrics (`"cosine"`, `"dot"`, `"euclid"`, `"manhattan"`). Default: `"cosine"`       |
 
+#### Additional Options
+
+| Flag                      | Description                                                     |
+| ------------------------- | --------------------------------------------------------------- |
+| `--migration.num-workers` | Number of parallel workers to use. Default: Number of CPU cores |
+
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
 
 </details>
