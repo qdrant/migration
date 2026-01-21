@@ -358,7 +358,7 @@ func (r *MigrateFromQdrantCmd) processBatch(ctx context.Context, points []*qdran
 		}
 		var err error
 		// Upsert with retries.
-		// This is to handle Qdrant's transient consistency errors during parallel writes.
+		// This is to handle Qdrant's transient consistency errors during parallel writes
 		for attempt := 0; attempt < MAX_RETRIES; attempt++ {
 			_, err = targetClient.Upsert(ctx, req)
 			if err == nil || !strings.Contains(err.Error(), "Please retry") {
@@ -427,6 +427,11 @@ func (r *MigrateFromQdrantCmd) migrateDataSequential(ctx context.Context, source
 		}
 		if offset == nil {
 			break
+		}
+
+		// Apply batch delay if configured (helps with rate limiting)
+		if r.Migration.BatchDelay > 0 {
+			time.Sleep(time.Duration(r.Migration.BatchDelay) * time.Millisecond)
 		}
 	}
 
@@ -556,6 +561,11 @@ func (r *MigrateFromQdrantCmd) migrateRange(ctx context.Context, sourceCollectio
 		// Stop if we've reached the end of the collection or the end of the assigned range.
 		if offset == nil || (rg.end != nil && !comparePointIDs(points[len(points)-1].Id, rg.end)) {
 			break
+		}
+
+		// Apply batch delay if configured (helps with rate limiting)
+		if r.Migration.BatchDelay > 0 {
+			time.Sleep(time.Duration(r.Migration.BatchDelay) * time.Millisecond)
 		}
 	}
 	return nil

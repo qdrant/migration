@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/esapi"
@@ -353,13 +354,13 @@ func (r *MigrateFromElasticsearchCmd) migrateData(ctx context.Context, sourceCli
 			targetPoints = append(targetPoints, point)
 		}
 
-		_, err = targetClient.Upsert(ctx, &qdrant.UpsertPoints{
+		err = upsertWithRetry(ctx, targetClient, &qdrant.UpsertPoints{
 			CollectionName: r.Qdrant.Collection,
 			Points:         targetPoints,
 			Wait:           qdrant.PtrOf(true),
 		})
 		if err != nil {
-			return fmt.Errorf("failed to insert data into target: %w", err)
+			return err
 		}
 
 		offsetCount += uint64(len(targetPoints))
@@ -391,6 +392,11 @@ func (r *MigrateFromElasticsearchCmd) migrateData(ctx context.Context, sourceCli
 		}
 
 		bar.Add(len(targetPoints))
+
+		// Apply batch delay if configured (helps with rate limiting)
+		if r.Migration.BatchDelay > 0 {
+			time.Sleep(time.Duration(r.Migration.BatchDelay) * time.Millisecond)
+		}
 	}
 
 	pterm.Success.Printfln("Data migration finished successfully")
