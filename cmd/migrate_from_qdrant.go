@@ -20,8 +20,6 @@ import (
 )
 
 const (
-	// MAX_RETRIES is the maximum number of retries for upsert operations on transient errors.
-	MAX_RETRIES = 3
 	// SAMPLE_SIZE_PER_WORKER is the number of points to sample per worker to determine ranges for parallel migration.
 	SAMPLE_SIZE_PER_WORKER = 10
 )
@@ -356,19 +354,8 @@ func (r *MigrateFromQdrantCmd) processBatch(ctx context.Context, points []*qdran
 			// Specify the shard key for the upsert request.
 			req.ShardKeySelector = &qdrant.ShardKeySelector{ShardKeys: []*qdrant.ShardKey{shardKeyObjs[key]}}
 		}
-		var err error
-		// Upsert with retries.
-		// This is to handle Qdrant's transient consistency errors during parallel writes
-		for attempt := 0; attempt < MAX_RETRIES; attempt++ {
-			_, err = targetClient.Upsert(ctx, req)
-			if err == nil || !strings.Contains(err.Error(), "Please retry") {
-				break
-			}
-			// Exponential backoff for retries.
-			time.Sleep(time.Duration(attempt+1) * 100 * time.Millisecond)
-		}
-		if err != nil {
-			return fmt.Errorf("failed to insert data into target: %w", err)
+		if err := upsertWithRetry(ctx, targetClient, req); err != nil {
+			return err
 		}
 	}
 	return nil
