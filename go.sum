@@ -52,8 +52,8 @@ github.com/alecthomas/kong v1.13.0 h1:5e/7XC3ugvhP1DQBmTS+WuHtCbcv44hsohMgcvVxSr
 github.com/alecthomas/kong v1.13.0/go.mod h1:wrlbXem1CWqUV5Vbmss5ISYhsVPkBb1Yo7YKJghju2I=
 github.com/alecthomas/repr v0.5.2 h1:SU73FTI9D1P5UNtvseffFSGmdNci/O6RsqzeXJtP0Qs=
 github.com/alecthomas/repr v0.5.2/go.mod h1:Fr0507jx4eOXV7AlPV6AVZLYrLIuIeSOWtW57eE/O/4=
-github.com/amikos-tech/chroma-go v0.3.0 h1:CYHkZqmz27AZ1iQPAqu7SVgaSk5FD9b0XXJkEkFW51w=
-github.com/amikos-tech/chroma-go v0.3.0/go.mod h1:p736l7WZ3Mmn54fa7PVgi5IhATkHnJucG6gwXcy3Bts=
+github.com/amikos-tech/chroma-go v0.3.2 h1:LGITsEXFbnKLAx0b61if1ru+QlyCvyqu3L1AEZqBfcE=
+github.com/amikos-tech/chroma-go v0.3.2/go.mod h1:p736l7WZ3Mmn54fa7PVgi5IhATkHnJucG6gwXcy3Bts=
 github.com/amikos-tech/pure-tokenizers v0.1.1 h1:AOPMW+GLd7/FapGiyBV7CGKj766zd1VDFbv+0wqGOWA=
 github.com/amikos-tech/pure-tokenizers v0.1.1/go.mod h1:o0ICQtz7tM7pukqwfybBk6FvWKFZLyIWs4uFYbH+CG4=
 github.com/apapsch/go-jsonmerge/v2 v2.0.0 h1:axGnT1gRIfimI7gJifB699GoE/oq+F2MU7Dml6nw9rQ=
