@@ -20,8 +20,6 @@ import (
 )
 
 const (
-	// MAX_RETRIES is the maximum number of retries for upsert operations on transient errors.
-	MAX_RETRIES = 3
 	// SAMPLE_SIZE_PER_WORKER is the number of points to sample per worker to determine ranges for parallel migration.
 	SAMPLE_SIZE_PER_WORKER = 10
 )
@@ -356,19 +354,8 @@ func (r *MigrateFromQdrantCmd) processBatch(ctx context.Context, points []*qdran
 			// Specify the shard key for the upsert request.
 			req.ShardKeySelector = &qdrant.ShardKeySelector{ShardKeys: []*qdrant.ShardKey{shardKeyObjs[key]}}
 		}
-		var err error
-		// Upsert with retries.
-		// This is to handle Qdrant's transient consistency errors during parallel writes.
-		for attempt := 0; attempt < MAX_RETRIES; attempt++ {
-			_, err = targetClient.Upsert(ctx, req)
-			if err == nil || !strings.Contains(err.Error(), "Please retry") {
-				break
-			}
-			// Exponential backoff for retries.
-			time.Sleep(time.Duration(attempt+1) * 100 * time.Millisecond)
-		}
-		if err != nil {
-			return fmt.Errorf("failed to insert data into target: %w", err)
+		if err := upsertWithRetry(ctx, targetClient, req); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -427,6 +414,11 @@ func (r *MigrateFromQdrantCmd) migrateDataSequential(ctx context.Context, source
 		}
 		if offset == nil {
 			break
+		}
+
+		// Apply batch delay if configured (helps with rate limiting)
+		if r.Migration.BatchDelay > 0 {
+			time.Sleep(time.Duration(r.Migration.BatchDelay) * time.Millisecond)
 		}
 	}
 
@@ -556,6 +548,11 @@ func (r *MigrateFromQdrantCmd) migrateRange(ctx context.Context, sourceCollectio
 		// Stop if we've reached the end of the collection or the end of the assigned range.
 		if offset == nil || (rg.end != nil && !comparePointIDs(points[len(points)-1].Id, rg.end)) {
 			break
+		}
+
+		// Apply batch delay if configured (helps with rate limiting)
+		if r.Migration.BatchDelay > 0 {
+			time.Sleep(time.Duration(r.Migration.BatchDelay) * time.Millisecond)
 		}
 	}
 	return nil

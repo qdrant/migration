@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/pterm/pterm"
 	"github.com/redis/go-redis/v9"
@@ -197,13 +198,13 @@ func (r *MigrateFromRedisCmd) migrateData(ctx context.Context, rdb *redis.Client
 		}
 
 		if len(targetPoints) > 0 {
-			_, err = targetClient.Upsert(ctx, &qdrant.UpsertPoints{
+			err = upsertWithRetry(ctx, targetClient, &qdrant.UpsertPoints{
 				CollectionName: r.Qdrant.Collection,
 				Points:         targetPoints,
 				Wait:           qdrant.PtrOf(true),
 			})
 			if err != nil {
-				return fmt.Errorf("failed to insert data into target: %w", err)
+				return err
 			}
 		}
 
@@ -217,6 +218,11 @@ func (r *MigrateFromRedisCmd) migrateData(ctx context.Context, rdb *redis.Client
 		}
 
 		bar.Add(count)
+
+		// Apply batch delay if configured (helps with rate limiting)
+		if r.Migration.BatchDelay > 0 {
+			time.Sleep(time.Duration(r.Migration.BatchDelay) * time.Millisecond)
+		}
 	}
 
 	pterm.Success.Printfln("Data migration finished successfully")

@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"slices"
 	"syscall"
+	"time"
 
 	"github.com/pterm/pterm"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -222,13 +223,13 @@ func (r *MigrateFromMongoDBCmd) migrateData(ctx context.Context, sourceClient *m
 			targetPoints = append(targetPoints, point)
 		}
 
-		_, err = targetClient.Upsert(ctx, &qdrant.UpsertPoints{
+		err = upsertWithRetry(ctx, targetClient, &qdrant.UpsertPoints{
 			CollectionName: r.Qdrant.Collection,
 			Points:         targetPoints,
 			Wait:           qdrant.PtrOf(true),
 		})
 		if err != nil {
-			return fmt.Errorf("failed to insert data into target: %w", err)
+			return err
 		}
 
 		offsetCount += uint64(len(targetPoints))
@@ -240,6 +241,11 @@ func (r *MigrateFromMongoDBCmd) migrateData(ctx context.Context, sourceClient *m
 
 		bar.Add(len(targetPoints))
 		page++
+
+		// Apply batch delay if configured (helps with rate limiting)
+		if r.Migration.BatchDelay > 0 {
+			time.Sleep(time.Duration(r.Migration.BatchDelay) * time.Millisecond)
+		}
 	}
 
 	pterm.Success.Printfln("Data migration finished successfully")

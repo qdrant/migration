@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/pterm/pterm"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
@@ -346,13 +347,13 @@ func (r *MigrateFromWeaviateCmd) migrateData(ctx context.Context, sourceClient *
 			offsetID = point.Id
 		}
 
-		_, err = targetClient.Upsert(ctx, &qdrant.UpsertPoints{
+		err = upsertWithRetry(ctx, targetClient, &qdrant.UpsertPoints{
 			CollectionName: r.Qdrant.Collection,
 			Points:         targetPoints,
 			Wait:           qdrant.PtrOf(true),
 		})
 		if err != nil {
-			return fmt.Errorf("failed to insert data into target: %w", err)
+			return err
 		}
 
 		offsetCount += uint64(count)
@@ -362,6 +363,11 @@ func (r *MigrateFromWeaviateCmd) migrateData(ctx context.Context, sourceClient *
 		}
 
 		bar.Add(count)
+
+		// Apply batch delay if configured (helps with rate limiting)
+		if r.Migration.BatchDelay > 0 {
+			time.Sleep(time.Duration(r.Migration.BatchDelay) * time.Millisecond)
+		}
 	}
 
 	pterm.Success.Printfln("Data migration finished successfully")

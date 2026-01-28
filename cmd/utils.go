@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/pterm/pterm"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 
 	"github.com/qdrant/go-client/qdrant"
 )
@@ -28,6 +31,13 @@ func connectToQdrant(globals *Globals, host string, port int, apiKey string, use
 	})
 
 	var grpcOptions []grpc.DialOption
+
+	// Add keepalive parameters to prevent HTTP/2 stream resets
+	grpcOptions = append(grpcOptions, grpc.WithKeepaliveParams(keepalive.ClientParameters{
+		Time:                30 * time.Second, // Send keepalive ping every 30 seconds
+		Timeout:             10 * time.Second, // Wait 10 seconds for ping ack before considering the connection dead
+		PermitWithoutStream: true,             // Send keepalive pings even without active streams
+	}))
 
 	if globals.Trace {
 		pterm.EnableDebugMessages()
@@ -160,4 +170,46 @@ func handleElasticOpenSearchHTTPError(statusCode int, responseBody map[string]an
 	}
 
 	return fmt.Errorf("%s request failed with status %d", source, statusCode)
+}
+
+const (
+	// maxUpsertRetries is the maximum number of retries for upsert operations on transient errors.
+	maxUpsertRetries = 5
+	// baseRetryDelay is the base delay for exponential backoff.
+	baseRetryDelay = 200 * time.Millisecond
+)
+
+// isRetryableError checks if an error is retryable (transient errors).
+func isRetryableError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	return strings.Contains(errStr, "Please retry") ||
+		strings.Contains(errStr, "too_many_internal_resets") ||
+		strings.Contains(errStr, "RST_STREAM") ||
+		strings.Contains(errStr, "connection error") ||
+		strings.Contains(errStr, "ResourceExhausted")
+}
+
+// upsertWithRetry performs an upsert operation with retry logic for transient errors.
+// It handles Qdrant's transient consistency errors and HTTP/2 stream resets.
+func upsertWithRetry(ctx context.Context, client *qdrant.Client, req *qdrant.UpsertPoints) error {
+	var err error
+	for attempt := 0; attempt < maxUpsertRetries; attempt++ {
+		_, err = client.Upsert(ctx, req)
+		if err == nil {
+			return nil
+		}
+		if !isRetryableError(err) {
+			break
+		}
+		// Exponential backoff: 200ms, 400ms, 800ms, 1600ms, 3200ms
+		delay := baseRetryDelay * time.Duration(1<<attempt)
+		time.Sleep(delay)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to insert data into target: %w", err)
+	}
+	return nil
 }
