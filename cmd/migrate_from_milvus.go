@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/milvus-io/milvus/client/v2/column"
 	"github.com/milvus-io/milvus/client/v2/entity"
@@ -297,13 +298,13 @@ func (r *MigrateFromMilvusCmd) migrateData(ctx context.Context, sourceClient *mi
 			targetPoints = append(targetPoints, point)
 		}
 
-		_, err = targetClient.Upsert(ctx, &qdrant.UpsertPoints{
+		err = upsertWithRetry(ctx, targetClient, &qdrant.UpsertPoints{
 			CollectionName: r.Qdrant.Collection,
 			Points:         targetPoints,
 			Wait:           qdrant.PtrOf(true),
 		})
 		if err != nil {
-			return fmt.Errorf("failed to insert data into target: %w", err)
+			return err
 		}
 
 		offsetCount += uint64(len(targetPoints))
@@ -314,6 +315,10 @@ func (r *MigrateFromMilvusCmd) migrateData(ctx context.Context, sourceClient *mi
 
 		bar.Add(len(targetPoints))
 
+		// Apply batch delay if configured (helps with rate limiting)
+		if r.Migration.BatchDelay > 0 {
+			time.Sleep(time.Duration(r.Migration.BatchDelay) * time.Millisecond)
+		}
 	}
 
 	pterm.Success.Printfln("Data migration finished successfully")

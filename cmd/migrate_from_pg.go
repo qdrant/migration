@@ -297,13 +297,13 @@ func (r *MigrateFromPGCmd) migrateDataSequential(ctx context.Context, sourceConn
 
 		targetPoints := r.convertRowsToPoints(batchRows)
 
-		_, err = targetClient.Upsert(ctx, &qdrant.UpsertPoints{
+		err = upsertWithRetry(ctx, targetClient, &qdrant.UpsertPoints{
 			CollectionName: r.Qdrant.Collection,
 			Points:         targetPoints,
 			Wait:           qdrant.PtrOf(true),
 		})
 		if err != nil {
-			return fmt.Errorf("failed to insert data into target: %w", err)
+			return err
 		}
 
 		// Just a placeholder ID.
@@ -316,6 +316,11 @@ func (r *MigrateFromPGCmd) migrateDataSequential(ctx context.Context, sourceConn
 		}
 
 		bar.Add(len(targetPoints))
+
+		// Apply batch delay if configured (helps with rate limiting)
+		if r.Migration.BatchDelay > 0 {
+			time.Sleep(time.Duration(r.Migration.BatchDelay) * time.Millisecond)
+		}
 	}
 
 	pterm.Success.Printfln("Data migration finished successfully")
@@ -553,20 +558,12 @@ func (r *MigrateFromPGCmd) migrateRange(ctx context.Context, pool *pgxpool.Pool,
 		targetPoints := r.convertRowsToPoints(batchRows)
 
 		// Upsert with retries to handle Qdrant's transient consistency errors during parallel writes.
-		var upsertErr error
-		for attempt := 0; attempt < MAX_RETRIES; attempt++ {
-			_, upsertErr = targetClient.Upsert(ctx, &qdrant.UpsertPoints{
-				CollectionName: r.Qdrant.Collection,
-				Points:         targetPoints,
-				Wait:           qdrant.PtrOf(true),
-			})
-			if upsertErr == nil || !strings.Contains(upsertErr.Error(), "Please retry") {
-				break
-			}
-			time.Sleep(time.Duration(attempt+1) * 100 * time.Millisecond)
-		}
-		if upsertErr != nil {
-			return fmt.Errorf("failed to insert data into target: %w", upsertErr)
+		if err := upsertWithRetry(ctx, targetClient, &qdrant.UpsertPoints{
+			CollectionName: r.Qdrant.Collection,
+			Points:         targetPoints,
+			Wait:           qdrant.PtrOf(true),
+		}); err != nil {
+			return err
 		}
 
 		lastRow := batchRows[len(batchRows)-1]
@@ -580,6 +577,11 @@ func (r *MigrateFromPGCmd) migrateRange(ctx context.Context, pool *pgxpool.Pool,
 
 		if err := commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, offsetKey, qdrant.NewIDUUID(*lastKey), count); err != nil {
 			return fmt.Errorf("failed to store offset: %w", err)
+		}
+
+		// Apply batch delay if configured (helps with rate limiting)
+		if r.Migration.BatchDelay > 0 {
+			time.Sleep(time.Duration(r.Migration.BatchDelay) * time.Millisecond)
 		}
 	}
 

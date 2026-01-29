@@ -11,6 +11,7 @@ type MigrationConfig struct {
 	Restart           bool   `help:"Restart the migration and do not continue from last offset" default:"false"`
 	CreateCollection  bool   `short:"c" help:"Create the collection if it does not exist" default:"true"`
 	OffsetsCollection string `help:"Collection to store the current migration offset" default:"_migration_offsets"`
+	BatchDelay        int    `help:"Delay between batches in milliseconds (useful for rate limiting)" default:"0"`
 }
 
 type MilvusConfig struct {
