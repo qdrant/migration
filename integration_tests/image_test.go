@@ -2,6 +2,7 @@ package integrationtests
 
 import (
 	"context"
+	"net/http"
 	"testing"
 	"time"
 
@@ -168,6 +169,30 @@ func pgContainer(ctx context.Context, t *testing.T) testcontainers.Container {
 			wait.ForListeningPort("5432/tcp").WithStartupTimeout(30 * time.Second),
 		),
 	}
+	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	require.NoError(t, err)
+	return container
+}
+
+func solrContainer(ctx context.Context, t *testing.T) testcontainers.Container {
+	req := testcontainers.ContainerRequest{
+		Image:        "solr:9.9",
+		ExposedPorts: []string{"8983/tcp"},
+		Cmd:          []string{"solr-precreate", "test-collection"},
+		WaitingFor: wait.ForAll(
+			wait.ForListeningPort("8983/tcp").WithStartupTimeout(60*time.Second),
+			wait.ForHTTP("/solr/test-collection/admin/ping").
+				WithPort("8983/tcp").
+				WithStartupTimeout(60*time.Second).
+				WithStatusCodeMatcher(func(status int) bool {
+					return status == http.StatusOK
+				}),
+		),
+	}
+
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
 		Started:          true,
