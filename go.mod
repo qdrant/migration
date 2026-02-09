@@ -23,7 +23,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.40.0
 	github.com/testcontainers/testcontainers-go/modules/opensearch v0.40.0
-	github.com/weaviate/weaviate v1.35.6
+	github.com/weaviate/weaviate v1.35.7
 	github.com/weaviate/weaviate-go-client/v5 v5.6.0
 	go.mongodb.org/mongo-driver v1.17.8
 	go.mongodb.org/mongo-driver/v2 v2.5.0
