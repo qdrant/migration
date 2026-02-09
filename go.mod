@@ -3,7 +3,7 @@ module github.com/qdrant/migration
 go 1.25
 
 require (
-	github.com/alecthomas/kong v1.13.0
+	github.com/alecthomas/kong v1.14.0
 	github.com/amikos-tech/chroma-go v0.3.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.7
 	github.com/aws/aws-sdk-go-v2/service/s3vectors v1.6.2
