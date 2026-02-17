@@ -15,6 +15,7 @@ CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for res
 * Postgres (pgvector)
 * S3 Vectors
 * FAISS
+* Apache Solr
 * Another Qdrant instance
 
 ## Installation
@@ -528,6 +529,52 @@ docker run --net=host --rm -it \
 | `--qdrant.collection`      | Target collection name                                                                                           |
 | `--qdrant.api-key`         | Qdrant API key (optional)                                                                                        |
 | `--qdrant.distance-metric` | Distance metric for the Qdrant collection. `"cosine"`, `"dot"`, `"manhattan"` or `"euclid"`. Default: `"cosine"` |
+
+
+* See [Shared Migration Options](#shared-migration-options) for common migration parameters.
+
+</details>
+
+<details>
+<summary><h3>From Apache Solr</h3></summary>
+
+Migrate data from an **Apache Solr** collection to **Qdrant**:
+
+### 📥 Example
+
+> Important ⚠️:
+> Solr does not always expose vector dimensions and distance metrics in its schema API.
+> Therefore, you must [manually create](https://qdrant.tech/documentation/concepts/collections/#create-a-collection) a Qdrant collection before starting the migration.
+> Ensure that the **vector names and dimensions in Qdrant exactly match** those used in Solr.
+
+```bash
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration solr \
+    --solr.url 'http://localhost:8983' \
+    --solr.collection 'my-collection' \
+    --qdrant.url 'http://localhost:6334' \
+    --qdrant.api-key 'optional-qdrant-api-key' \
+    --qdrant.collection 'target-collection' \
+    --migration.batch-size 100
+```
+
+#### Solr Options
+
+| Flag                        | Description                                             |
+| --------------------------- | ------------------------------------------------------- |
+| `--solr.url`                | Solr base URL (e.g., `http://localhost:8983`).          |
+| `--solr.collection`         | Solr collection name.                                   |
+| `--solr.username`           | Username for basic authentication (optional)            |
+| `--solr.password`           | Password for basic authentication (optional)            |
+| `--solr.insecure-skip-verify` | Whether to skip TLS certificate verification (optional) |
+
+#### Qdrant Options
+
+| Flag                  | Description                                                 |
+| --------------------- | ----------------------------------------------------------- |
+| `--qdrant.url`        | Qdrant gRPC URL. Default: `"http://localhost:6334"`         |
+| `--qdrant.collection` | Target collection name                                      |
+| `--qdrant.api-key`    | Qdrant API key (optional)                                   |
+| `--qdrant.id-field`   | Field storing Solr IDs in Qdrant. Default: `"__id__"`      |
 
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
 

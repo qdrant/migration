@@ -112,3 +112,11 @@ type S3VectorsConfig struct {
 type FaissConfig struct {
 	IndexPath string `help:"Path to the FAISS index file" required:"true"`
 }
+
+type SolrConfig struct {
+	Url                string `help:"Solr URL (e.g., http://localhost:8983)" required:""`
+	Collection         string `help:"Solr collection name" required:""`
+	Username           string `help:"Solr username for basic authentication"`
+	Password           string `help:"Solr password for basic authentication"`
+	InsecureSkipVerify bool   `help:"Skip TLS certificate verification" default:"false"`
+}
