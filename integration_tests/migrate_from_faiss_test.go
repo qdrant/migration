@@ -89,7 +89,7 @@ func TestMigrateFromFaiss(t *testing.T) {
 		expected, exists := expectedPoints[id]
 		require.True(t, exists, "Point with ID %d not found in expected entries", id)
 
-		vector := point.Vectors.GetVector().GetData()
+		vector := point.Vectors.GetVector().GetDenseVector().Data
 		require.Equal(t, expected.vector, vector)
 	}
 

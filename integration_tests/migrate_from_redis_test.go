@@ -151,7 +151,7 @@ func TestMigrateFromRedis(t *testing.T) {
 		require.Equal(t, expected.content, point.Payload["content"].GetStringValue())
 		require.Equal(t, expected.genre, point.Payload["genre"].GetStringValue())
 
-		vector := point.Vectors.GetVectors().GetVectors()["embedding"].GetData()
+		vector := point.Vectors.GetVectors().GetVectors()["embedding"].GetDenseVector().Data
 		require.Equal(t, expected.vector, vector)
 	}
 }
