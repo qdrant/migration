@@ -257,7 +257,17 @@ func convertVector(v *qdrant.VectorOutput) *qdrant.Vector {
 	if v == nil {
 		return nil
 	}
-	return &qdrant.Vector{Data: v.GetData(), Indices: v.GetIndices(), VectorsCount: v.VectorsCount}
+	if sparse := v.GetSparseVector(); sparse != nil {
+		return &qdrant.Vector{Vector: &qdrant.Vector_Sparse{Sparse: sparse}}
+	}
+	if multi := v.GetMultiVector(); multi != nil {
+		return &qdrant.Vector{Vector: &qdrant.Vector_MultiDense{MultiDense: multi}}
+	}
+	// Important: this should be a fallback option, as everything can be interpreted as dense vectors.
+	if dense := v.GetDenseVector(); dense != nil {
+		return &qdrant.Vector{Vector: &qdrant.Vector_Dense{Dense: dense}}
+	}
+	return nil
 }
 
 // convertVectors converts the vector data from a retrieved point to a format suitable for upserting.
