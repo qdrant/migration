@@ -105,7 +105,7 @@ func TestMigrateFromPineconeDense(t *testing.T) {
 
 		require.Equal(t, expected.source, point.Payload["source"].GetStringValue())
 
-		vector := point.Vectors.GetVector().GetData()
+		vector := point.Vectors.GetVector().GetDenseVector().Data
 		require.Equal(t, expected.vector, vector)
 	}
 }
@@ -195,9 +195,9 @@ func TestMigrateFromPineconeSparse(t *testing.T) {
 
 		require.Equal(t, expected.source, point.Payload["source"].GetStringValue(), "source mismatch for id: %s", id)
 
-		actualSparseVec := point.Vectors.GetVectors().GetVectors()[sparseVectorName]
-		actualValues := actualSparseVec.GetData()
-		actualIndices := actualSparseVec.GetIndices().GetData()
+		actualSparseVec := point.Vectors.GetVectors().GetVectors()[sparseVectorName].GetSparseVector()
+		actualValues := actualSparseVec.Values
+		actualIndices := actualSparseVec.Indices
 
 		expectedMap := make(map[uint32]float32, len(expected.vector.Indices))
 		for i, idx := range expected.vector.Indices {

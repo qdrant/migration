@@ -157,9 +157,9 @@ func TestMigrateFromMongo(t *testing.T) {
 		require.True(t, exists)
 		require.Equal(t, expected.doc, point.Payload["doc"].GetStringValue())
 		require.Equal(t, expected.source, point.Payload["source"].GetStringValue())
-		vectorText := point.Vectors.GetVectors().GetVectors()[vectorFieldText].GetData()
+		vectorText := point.Vectors.GetVectors().GetVectors()[vectorFieldText].GetDenseVector().Data
 		require.Equal(t, expected.vector_text, vectorText)
-		vectorImage := point.Vectors.GetVectors().GetVectors()[vectorFieldImage].GetData()
+		vectorImage := point.Vectors.GetVectors().GetVectors()[vectorFieldImage].GetDenseVector().Data
 		require.Equal(t, expected.vector_image, vectorImage)
 		nonVectorPayload := point.Payload[nonVectorField].GetListValue()
 		nonVectorArray := make([]float32, len(nonVectorPayload.GetValues()))

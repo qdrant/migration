@@ -138,7 +138,7 @@ func TestMigrateFromChroma(t *testing.T) {
 		require.Equal(t, expected.document, point.Payload[documentField].GetStringValue())
 		require.Equal(t, expected.source, point.Payload[sourceField].GetStringValue())
 
-		vector := point.Vectors.GetVector().GetData()
+		vector := point.Vectors.GetVector().GetDenseVector().Data
 		require.Equal(t, expected.vector, vector)
 	}
 }

@@ -179,7 +179,7 @@ func TestMigrateFromSolr(t *testing.T) {
 		require.True(t, exists, "Unexpected point ID: %s", id)
 		require.Equal(t, expected.doc, point.Payload["doc"].GetStringValue())
 		require.Equal(t, expected.source, point.Payload["source"].GetStringValue())
-		vector := point.Vectors.GetVectors().GetVectors()["vector"].GetData()
+		vector := point.Vectors.GetVectors().GetVectors()["vector"].GetDenseVector().Data
 		require.Equal(t, expected.vector, vector)
 	}
 }

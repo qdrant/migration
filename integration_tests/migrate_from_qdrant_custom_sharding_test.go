@@ -144,7 +144,7 @@ func testMigrateFromQdrantWithShardKeys(t *testing.T, sourceCollectionName, targ
 
 			pointID := point.Id.GetUuid()
 			expectedVector := expectedPointsByID[pointID]
-			actualVector := point.Vectors.GetVector().GetData()
+			actualVector := point.Vectors.GetVector().GetDenseVector().Data
 			require.Equal(t, expectedVector, actualVector)
 		}
 	}
