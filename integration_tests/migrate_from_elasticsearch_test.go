@@ -158,7 +158,7 @@ func TestMigrateFromElasticsearch(t *testing.T) {
 		require.True(t, exists)
 		require.Equal(t, expected.doc, point.Payload["doc"].GetStringValue())
 		require.Equal(t, expected.source, point.Payload["source"].GetStringValue())
-		vector := point.Vectors.GetVectors().GetVectors()["vector"].GetDenseVector().Data
+		vector := point.Vectors.GetVectors().GetVectors()["vector"].GetDenseVector().GetData()
 		require.Equal(t, expected.vector, vector)
 	}
 }

@@ -258,14 +258,14 @@ func convertVector(v *qdrant.VectorOutput) *qdrant.Vector {
 		return nil
 	}
 	if sparse := v.GetSparseVector(); sparse != nil {
-		return &qdrant.Vector{Vector: &qdrant.Vector_Sparse{Sparse: sparse}}
+		return qdrant.NewVectorSparse(sparse.GetIndices(), sparse.GetValues())
 	}
 	if multi := v.GetMultiVector(); multi != nil {
 		return &qdrant.Vector{Vector: &qdrant.Vector_MultiDense{MultiDense: multi}}
 	}
 	// Important: this should be a fallback option, as everything can be interpreted as dense vectors.
 	if dense := v.GetDenseVector(); dense != nil {
-		return &qdrant.Vector{Vector: &qdrant.Vector_Dense{Dense: dense}}
+		return qdrant.NewVectorDense(dense.GetData())
 	}
 	return nil
 }

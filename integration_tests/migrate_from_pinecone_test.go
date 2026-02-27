@@ -105,7 +105,7 @@ func TestMigrateFromPineconeDense(t *testing.T) {
 
 		require.Equal(t, expected.source, point.Payload["source"].GetStringValue())
 
-		vector := point.Vectors.GetVector().GetDenseVector().Data
+		vector := point.Vectors.GetVector().GetDenseVector().GetData()
 		require.Equal(t, expected.vector, vector)
 	}
 }
