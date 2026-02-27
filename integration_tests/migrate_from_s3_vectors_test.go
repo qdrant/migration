@@ -166,7 +166,7 @@ func TestMigrateFromS3Vectors(t *testing.T) {
 		require.Equal(t, exp.name, payload["name"].GetStringValue())
 		require.Equal(t, exp.city, payload["city"].GetStringValue())
 		require.Equal(t, exp.age, payload["age"].GetIntegerValue())
-		vector := point.Vectors.GetVector().GetDenseVector().Data
+		vector := point.Vectors.GetVector().GetDenseVector().GetData()
 		require.Equal(t, exp.vector, vector)
 	}
 }

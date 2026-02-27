@@ -74,7 +74,7 @@ func testMigrateFromPG(t *testing.T, collectionName string, numWorkers int) {
 		require.Equal(t, exp.age, payload["age"].GetIntegerValue())
 		require.InEpsilon(t, exp.height, payload["height"].GetDoubleValue(), 1e-2)
 		require.Equal(t, exp.isActive, payload["is_active"].GetBoolValue())
-		vec := point.Vectors.GetVectors().GetVectors()[pgVectorColumn].GetDenseVector().Data
+		vec := point.Vectors.GetVectors().GetVectors()[pgVectorColumn].GetDenseVector().GetData()
 		require.Equal(t, exp.embedding, vec)
 	}
 }
