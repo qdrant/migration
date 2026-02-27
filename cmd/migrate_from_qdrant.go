@@ -261,11 +261,7 @@ func convertVector(v *qdrant.VectorOutput) *qdrant.Vector {
 		return qdrant.NewVectorSparse(sparse.GetIndices(), sparse.GetValues())
 	}
 	if multi := v.GetMultiVector(); multi != nil {
-		var vectors [][]float32
-		for _, v := range multi.GetVectors() {
-			vectors = append(vectors, v.GetData())
-		}
-		return qdrant.NewVectorMulti(vectors)
+		return &qdrant.Vector{Vector: &qdrant.Vector_MultiDense{MultiDense: multi}}
 	}
 	// Important: this should be a fallback option, as everything can be interpreted as dense vectors.
 	if dense := v.GetDenseVector(); dense != nil {
