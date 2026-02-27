@@ -349,6 +349,7 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--opensearch.index`                | OpenSearch index name.                                 |
 | `--opensearch.username`             | Username for basic authentication (optional)           |
 | `--opensearch.password`             | Password for basic authentication (optional)            |
+| `--opensearch.api-key`              | API key for authentication (optional)                   |
 | `--opensearch.insecure-skip-verify` | Whether to skip TLS certificate verification (optional) |
 
 #### Qdrant Options
@@ -626,6 +627,17 @@ NOTE: If the target collection already exists, its vector size and dimensions mu
 See [Shared Migration Options](#shared-migration-options) for shared parameters.
 
 </details>
+
+### Global Options
+
+These options apply globally to all commands.
+
+| Flag                       | Description                              |
+| -------------------------- | ---------------------------------------- |
+| `--debug`                  | Enable debug mode. Default: false        |
+| `--trace`                  | Enable trace mode. Default: false        |
+| `--skip-tls-verification`  | Skip TLS verification. Default: false    |
+| `--version`                | Print version information and quit       |
 
 ### Shared Migration Options
 
