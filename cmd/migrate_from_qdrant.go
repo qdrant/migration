@@ -283,7 +283,7 @@ func convertVectors(p *qdrant.RetrievedPoint) *qdrant.Vectors {
 		for k, v := range vs.GetVectors() {
 			named[k] = convertVector(v)
 		}
-		return &qdrant.Vectors{VectorsOptions: &qdrant.Vectors_Vectors{Vectors: &qdrant.NamedVectors{Vectors: named}}}
+		return qdrant.NewVectorsMap(named)
 	}
 	return nil
 }
