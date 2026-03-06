@@ -177,6 +177,10 @@ func (r *MigrateFromQdrantCmd) prepareTargetCollection(ctx context.Context, sour
 		return fmt.Errorf("failed to get target collection information: %w", err)
 	}
 
+	if err := verifyVectorSizes(sourceCollectionInfo.GetConfig().GetParams().GetVectorsConfig(), targetCollectionInfo.GetConfig().GetParams().GetVectorsConfig()); err != nil {
+		return err
+	}
+
 	// If EnsurePayloadIndexes is enabled, create any missing payload indexes on the target.
 	if r.EnsurePayloadIndexes {
 		for name, schemaInfo := range sourceCollectionInfo.GetPayloadSchema() {
@@ -201,6 +205,42 @@ func (r *MigrateFromQdrantCmd) prepareTargetCollection(ctx context.Context, sour
 			}
 		}
 	}
+	return nil
+}
+
+func verifyVectorSizes(sourceConfig, targetConfig *qdrant.VectorsConfig) error {
+	srcParams := sourceConfig.GetParams()
+	tgtParams := targetConfig.GetParams()
+
+	if srcParams != nil {
+		if tgtParams == nil {
+			return fmt.Errorf("incompatible collection parameters: source has single vector config while target does not")
+		}
+		if srcParams.GetSize() != tgtParams.GetSize() {
+			return fmt.Errorf("incompatible collection parameters: source vector size %d does not match target vector size %d", srcParams.GetSize(), tgtParams.GetSize())
+		}
+		return nil
+	}
+
+	srcParamsMap := sourceConfig.GetParamsMap()
+	tgtParamsMap := targetConfig.GetParamsMap()
+
+	if srcParamsMap != nil {
+		if tgtParamsMap == nil {
+			return fmt.Errorf("incompatible collection parameters: source has named vectors config while target does not")
+		}
+		for name, srcVecParams := range srcParamsMap.GetMap() {
+			tgtVecParams, ok := tgtParamsMap.GetMap()[name]
+			if !ok {
+				return fmt.Errorf("incompatible collection parameters: target is missing vector '%s'", name)
+			}
+			if srcVecParams.GetSize() != tgtVecParams.GetSize() {
+				return fmt.Errorf("incompatible collection parameters: source vector '%s' size %d does not match target vector '%s' size %d", name, srcVecParams.GetSize(), name, tgtVecParams.GetSize())
+			}
+		}
+		return nil
+	}
+
 	return nil
 }
 
