@@ -82,7 +82,7 @@ jobs:
 
       - name: Set Docker metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           # ttl.sh is an anonymous & ephemeral Docker image registry,
           # check https://ttl.sh for more infos
