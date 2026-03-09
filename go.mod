@@ -4,7 +4,7 @@ go 1.25
 
 require (
 	github.com/alecthomas/kong v1.13.0
-	github.com/amikos-tech/chroma-go v0.3.0
+	github.com/amikos-tech/chroma-go v0.4.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.10
 	github.com/aws/aws-sdk-go-v2/service/s3vectors v1.6.2
 	github.com/aws/smithy-go v1.24.2
@@ -21,7 +21,7 @@ require (
 	github.com/qdrant/go-client v1.17.1
 	github.com/redis/go-redis/v9 v9.17.3
 	github.com/stretchr/testify v1.11.1
-	github.com/testcontainers/testcontainers-go v0.40.0
+	github.com/testcontainers/testcontainers-go v0.40.1-0.20260210100442-3894e5768a31
 	github.com/testcontainers/testcontainers-go/modules/opensearch v0.40.0
 	github.com/weaviate/weaviate v1.36.0
 	github.com/weaviate/weaviate-go-client/v5 v5.7.0
@@ -39,7 +39,9 @@ require (
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
-	github.com/amikos-tech/pure-tokenizers v0.1.1 // indirect
+	github.com/amikos-tech/chroma-go-local v0.3.3 // indirect
+	github.com/amikos-tech/pure-onnx v0.0.1 // indirect
+	github.com/amikos-tech/pure-tokenizers v0.1.5 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.41.2 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.10 // indirect
@@ -80,7 +82,7 @@ require (
 	github.com/docker/go-connections v0.6.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/ebitengine/purego v0.9.1 // indirect
+	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/elastic/elastic-transport-go/v8 v8.8.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
@@ -190,7 +192,6 @@ require (
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/xiang90/probing v0.0.0-20221125231312-a49e3df8f510 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
-	github.com/yalue/onnxruntime_go v1.22.0 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.etcd.io/bbolt v1.4.3 // indirect
