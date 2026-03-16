@@ -673,4 +673,4 @@ docker run --net=host --rm -it \
 
 ### Access to Source or Target on Localhost
 
-By default, the migration tool runs in a Docker container, which cannot access services running on `localhost` of the host machine on `localhost` itself. Refer to the documentation of your container runtime for how to access host services from within the container. E.g. for Docker for Desktop, you can use `host.docker.internal` instead of `localhost` in your connection URLs ([more information](https://docs.docker.com/desktop/features/networking/networking-how-tos/#connect-a-container-to-a-service-on-the-host)).
+By default, the migration tool runs in a container. Depending on you container runtime, you may not be able to access services running on `localhost` of the host machine. If that is the case, refer to the documentation of your container runtime for how to access host services from within the container. E.g. for Docker for Desktop, you can use `host.docker.internal` instead of `localhost` in your connection URLs ([more information](https://docs.docker.com/desktop/features/networking/networking-how-tos/#connect-a-container-to-a-service-on-the-host)).
