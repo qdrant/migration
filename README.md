@@ -44,7 +44,7 @@ Migrate data from a **Chroma** database to **Qdrant**:
 
 ```bash
 docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration chroma \
-    --chroma.url=http://localhost:8000
+    --chroma.url=http://source-hostname:8000
     --chroma.collection 'collection-name' \
     --qdrant.url 'https://example.cloud-region.cloud-provider.cloud.qdrant.io:6334' \
     --qdrant.api-key 'optional-qdrant-api-key' \
@@ -194,7 +194,7 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
     --weaviate.auth-type 'apiKey' \
     --weaviate.api-key 'optional-api-key' \
     --weaviate.class-name 'ExampleClass' \
-    --qdrant.url 'http://localhost:6334' \
+    --qdrant.url 'http://target-hostname:6334' \
     --qdrant.collection 'target-collection' \
     --migration.batch-size 64
 ```
@@ -245,8 +245,8 @@ Migrate data from a **Redis** database to **Qdrant**:
 ```bash
 docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration milvus \
     --redis.index 'index_name' \
-    --redis.addr 'localhost:6379' \
-    --qdrant.url 'http://localhost:6334' \
+    --redis.addr 'source-hostname:6379' \
+    --qdrant.url 'http://target-hostname:6334' \
     --qdrant.collection 'target-collection' \
     --migration.batch-size 100
 ```
@@ -294,7 +294,7 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
     --mongodb.database 'mydb' \
     --mongodb.collection 'mycollection' \
     --mongodb.vector-fields 'my-first-vector,my-second-vector' \
-    --qdrant.url 'http://localhost:6334' \
+    --qdrant.url 'http://target-hostname:6334' \
     --qdrant.collection 'target-collection' \
     --migration.batch-size 64
 ```
@@ -330,12 +330,12 @@ Migrate data from an **OpenSearch** index to **Qdrant**:
 
 ```bash
 docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration opensearch \
-    --opensearch.url 'http://localhost:9200' \
+    --opensearch.url 'http://source-hostname:9200' \
     --opensearch.insecure-skip-verify \
     --opensearch.index 'source-index' \
     --opensearch.username 'username' \
     --opensearch.password 'password' \
-    --qdrant.url 'http://localhost:6334' \
+    c \
     --qdrant.api-key 'optional-qdrant-api-key' \
     --qdrant.collection 'target-collection' \
     --migration.batch-size 64
@@ -374,12 +374,12 @@ Migrate data from an **Elasticsearch** index to **Qdrant**:
 
 ```bash
 docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration elasticsearch \
-    --elasticsearch.url 'http://localhost:9200' \
+    --elasticsearch.url 'http://source-hostname:9200' \
     --elasticsearch.insecure-skip-verify \
     --elasticsearch.index 'source-index' \
     --elasticsearch.username 'username' \
     --elasticsearch.password 'password' \
-    --qdrant.url 'http://localhost:6334' \
+    --qdrant.url 'http://target-hostname:6334' \
     --qdrant.api-key 'optional-qdrant-api-key' \
     --qdrant.collection 'target-collection' \
     --migration.batch-size 64
@@ -418,10 +418,10 @@ Migrate data from a **Postgres** database with `pgvector` to **Qdrant**:
 
 ```bash
 docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration pg \
-    --pg.url 'postgres://user:password@localhost:5432/dbname' \
+    --pg.url 'postgres://user:password@source-hostname:5432/dbname' \
     --pg.table 'your_table' \
     --pg.key-column 'id' \
-    --qdrant.url 'http://localhost:6334' \
+    --qdrant.url 'http://target-hostname:6334' \
     --qdrant.collection 'target-collection' \
     --migration.batch-size 64
 ```
@@ -468,7 +468,7 @@ Migrate data from an **S3 Vectors** index to **Qdrant**:
 docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration s3 \
     --s3.bucket 'your-bucket-name' \
     --s3.index 'your-index-name' \
-    --qdrant.url 'http://localhost:6334' \
+    --qdrant.url 'http://target-hostname:6334' \
     --qdrant.api-key 'optional-qdrant-api-key' \
     --qdrant.collection 'target-collection' \
     --migration.batch-size 64
@@ -510,7 +510,7 @@ docker run --net=host --rm -it \
   -v /path/to/faiss_index:/mnt/index \ # Mount the FAISS index file into container
   registry.cloud.qdrant.io/library/qdrant-migration faiss \
     --faiss.index-path '/mnt/index' \
-    --qdrant.url 'http://localhost:6334' \
+    --qdrant.url 'http://target-hostname:6334' \
     --qdrant.api-key 'optional-qdrant-api-key' \
     --qdrant.collection 'target-collection' \
     --migration.batch-size 64
@@ -550,9 +550,9 @@ Migrate data from an **Apache Solr** collection to **Qdrant**:
 
 ```bash
 docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration solr \
-    --solr.url 'http://localhost:8983' \
+    --solr.url 'http://source-hostname:8983' \
     --solr.collection 'my-collection' \
-    --qdrant.url 'http://localhost:6334' \
+    --qdrant.url 'http://target-hostname:6334' \
     --qdrant.api-key 'optional-qdrant-api-key' \
     --qdrant.collection 'target-collection' \
     --migration.batch-size 100
@@ -590,7 +590,7 @@ Migrate data from one **Qdrant** instance to another.
 
 ```bash
 docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration qdrant \
-    --source.url 'http://localhost:6334' \
+    --source.url 'http://source-hostname:6334' \
     --source.collection 'source-collection' \
     --target.url 'https://example.cloud-region.cloud-provider.cloud.qdrant.io:6334' \
     --target.api-key 'qdrant-key' \
@@ -651,3 +651,26 @@ These options apply to all migrations, regardless of the source.
 | `--migration.offsets-collection`     | Collection to store migration offset. Default: `"_migration_offsets"`|
 | `--migration.batch-delay`            | Upsert delay (in miliseconds) between batches                        |
 
+### TLS Verfication
+
+By default, the migration tool verifies TLS certificates when connecting to source and target databases. This means that the TLS certificates need to be signed by a trusted certificate authority (CA) known to the container image of the mgiration tool, and the hostname in the certificate needs to match the hostname of the database URL. If either of these conditions is not met, the migration will fail with a TLS verification error.
+
+If you want to skip verification for any reason, you can use the `--skip-tls-verification` flag.
+
+If you signed the certificate with your own CA, that is not trusted by default, you can mount the CA certificate into the container and specify it using the `SSL_CERT_FILE` environment variable like this:
+
+```bash
+docker run --net=host --rm -it \
+ -v /local/path/to/ca.crt:/etc/ssl/certs/ca-certificates.crt \
+ -e SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+ registry.cloud.qdrant.io/library/qdrant-migration qdrant \
+    --source.url 'https://source-hostname:6334' \
+    --source.collection 'test' \
+    --target.url 'https://target-hostname:6334' \
+    --target.collection 'target-collection' \
+    --migration.batch-size 64
+```
+
+### Access to Source or Target on Localhost
+
+By default, the migration tool runs in a container. Depending on your container runtime, you may not be able to access services running on `localhost` of the host machine. If that is the case, refer to the documentation of your container runtime for how to access host services from within the container. E.g. for Docker for Desktop, you can use `host.docker.internal` instead of `localhost` in your connection URLs ([more information](https://docs.docker.com/desktop/features/networking/networking-how-tos/#connect-a-container-to-a-service-on-the-host)).
