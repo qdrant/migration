@@ -569,8 +569,8 @@ github.com/vmihailenco/tagparser v0.1.2 h1:gnjoVuB/kljJ5wICEEOpx98oXMWPLj22G67Vb
 github.com/vmihailenco/tagparser v0.1.2/go.mod h1:OeAg3pn3UbLjkWt+rN9oFYB6u/cQgqMEUPoW2WPyhdI=
 github.com/vmihailenco/tagparser/v2 v2.0.0 h1:y09buUbR+b5aycVFQs/g70pqKVZNBmxwAhO7/IwNM9g=
 github.com/vmihailenco/tagparser/v2 v2.0.0/go.mod h1:Wri+At7QHww0WTrCBeu4J6bNtoV6mEfg5OIWRZA9qds=
-github.com/weaviate/weaviate v1.36.5 h1:lCiuEfQ08+5wK0DkTCUBb6ayNep9QpBH6JJhmZaRfzk=
-github.com/weaviate/weaviate v1.36.5/go.mod h1:ljzrgEmGKn3CRzDdcxvhmBUUZIcghwIYd1Lmn54f3Z8=
+github.com/weaviate/weaviate v1.36.6 h1:fq1jZ60tKhrOmcrXoMUAGtEyI+d6IXU2w3ldn/eIdIQ=
+github.com/weaviate/weaviate v1.36.6/go.mod h1:UdGuM6DZLZUA2v/OcP/cDWt5Byqx2GGnS2+HI1BT4Mk=
 github.com/weaviate/weaviate-go-client/v5 v5.7.0 h1:G5vYdwUUGDJJMpEFJg5aHmI3eZqxdc2q0zQ80qT9www=
 github.com/weaviate/weaviate-go-client/v5 v5.7.0/go.mod h1:T/JDErjN074GrnYIa0AgK1TGUGP/6A/8vqXNPlv4c6E=
 github.com/x448/float16 v0.8.4 h1:qLwI1I70+NjRFUR3zs1JPUCgaCXSh3SW62uAKT1mSBM=
