@@ -13,9 +13,9 @@ jobs:
     timeout-minutes: 10 # Sets a timeout of 10 minutes for this job (default is 1 minute)
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version: '1.25'
           cache: false
@@ -25,7 +25,7 @@ jobs:
           files=$(gofmt -l .) && echo $files && [ -z "$files" ]
 
       - name: Golang CI Lint
-        uses: golangci/golangci-lint-action@v9
+        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
         with:
           version: v2.6.2 # Specify the golangci-lint version, so we are stable
           args: --timeout 10m # Increase the timeout to 10 minutes
@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Free Disk Space
         uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
@@ -51,12 +51,12 @@ jobs:
           docker-images: true
           swap-storage: true
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version: '1.25'
           cache-dependency-path: go.sum
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.13'
 
@@ -70,9 +70,9 @@ jobs:
           make test_unit
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
       - name: Extract build info
         id: extract_build_info
@@ -82,7 +82,7 @@ jobs:
 
       - name: Set Docker metadata
         id: meta
-        uses: docker/metadata-action@v6
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
         with:
           # ttl.sh is an anonymous & ephemeral Docker image registry,
           # check https://ttl.sh for more infos
@@ -92,7 +92,7 @@ jobs:
             type=raw,value=1h
 
       - name: Build and push container images
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         id: build-and-push
         with:
           context: .
@@ -108,7 +108,7 @@ jobs:
             BUILD=${{ steps.extract_build_info.outputs.commit_short }}
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
           image-ref: ttl.sh/qdrant-migration-${{ steps.extract_build_info.outputs.commit_short }}:1h
           format: 'table'
@@ -118,7 +118,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
       - name: Setup BATS
-        uses: mig4/setup-bats@v1
+        uses: mig4/setup-bats@af9a00deb21b5d795cabfeaa8d9060410377686d # v1.2.0
         with:
           bats-version: 1.11.1
 
