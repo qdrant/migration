@@ -33,7 +33,7 @@ func TestMigrateFromSolr(t *testing.T) {
 	require.NoError(t, err)
 	mappedPort, err := qdrantCont.MappedPort(ctx, qdrantGRPCPort)
 	require.NoError(t, err)
-	qdrantPort := mappedPort.Int()
+	qdrantPort := int(mappedPort.Num())
 
 	collectionName := "test-collection"
 

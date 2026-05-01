@@ -40,7 +40,7 @@ func testMigrateFromQdrantWithShardKeys(t *testing.T, sourceCollectionName, targ
 
 	sourceClient, err := qdrant.NewClient(&qdrant.Config{
 		Host:                   sourceHost,
-		Port:                   sourcePort.Int(),
+		Port:                   int(sourcePort.Num()),
 		APIKey:                 qdrantAPIKey,
 		SkipCompatibilityCheck: true,
 	})
@@ -49,7 +49,7 @@ func testMigrateFromQdrantWithShardKeys(t *testing.T, sourceCollectionName, targ
 
 	targetClient, err := qdrant.NewClient(&qdrant.Config{
 		Host:                   targetHost,
-		Port:                   targetPort.Int(),
+		Port:                   int(targetPort.Num()),
 		APIKey:                 qdrantAPIKey,
 		SkipCompatibilityCheck: true,
 	})
