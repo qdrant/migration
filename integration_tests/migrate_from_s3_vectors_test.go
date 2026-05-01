@@ -109,7 +109,7 @@ func TestMigrateFromS3Vectors(t *testing.T) {
 
 	qdrantClient, err := qdrant.NewClient(&qdrant.Config{
 		Host:                   qdrantHost,
-		Port:                   qdrantPort.Int(),
+		Port:                   int(qdrantPort.Num()),
 		APIKey:                 qdrantAPIKey,
 		SkipCompatibilityCheck: true,
 	})

@@ -145,7 +145,7 @@ func setupPGQdrantContainers(t *testing.T, ctx context.Context) (pgConnStr, qdra
 	require.NoError(t, err)
 	qdrantPortObj, err := qdrantCont.MappedPort(ctx, qdrantGRPCPort)
 	require.NoError(t, err)
-	qdrantPort = qdrantPortObj.Int()
+	qdrantPort = int(qdrantPortObj.Num())
 	qdrantUrl = fmt.Sprintf("http://%s:%d", qdrantHost, qdrantPort)
 
 	return
