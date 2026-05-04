@@ -73,7 +73,7 @@ SOURCE_COLLECTION="${SOURCE_COLLECTION:-"{{SOURCE_COLLECTION}}"}"
 
 # Destination Qdrant instance (e.g. Qdrant Cloud)
 TARGET_URL="${TARGET_URL:-"https://{{TARGET_HOST}}:6334"}"
-TARGET_API_KEY="${TARGET_API_KEY:-"{{TARGET_API_KEY}}"}"
+TARGET_API_KEY="${TARGET_API_KEY:-""}"                  # leave empty if no auth
 TARGET_COLLECTION="${TARGET_COLLECTION:-"{{TARGET_COLLECTION}}"}"
 
 # Migration tuning
@@ -88,13 +88,19 @@ IMAGE="registry.cloud.qdrant.io/library/qdrant-migration"
 validate() {
   local errors=0
 
-  for var in SOURCE_URL SOURCE_COLLECTION TARGET_URL TARGET_API_KEY TARGET_COLLECTION; do
+  for var in SOURCE_URL SOURCE_COLLECTION TARGET_URL TARGET_COLLECTION; do
     local value="${!var}"
     if [[ -z "$value" || "$value" == *"{{"* ]]; then
       err "Required variable '$var' is not set or still contains a placeholder."
       (( errors++ )) || true
     fi
   done
+
+  # TARGET_API_KEY is optional (leave empty for unauthenticated instances).
+  if [[ "$TARGET_API_KEY" == *"{{"* ]]; then
+    err "TARGET_API_KEY still contains a placeholder. Set it to your API key or export TARGET_API_KEY=\"\"."
+    (( errors++ )) || true
+  fi
 
   if ! command -v docker &>/dev/null; then
     err "Docker is not installed or not found on PATH."

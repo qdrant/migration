@@ -29,11 +29,14 @@ chmod +x migrate.sh
 Export environment variables (recommended — keeps secrets out of the file):
 
 ```bash
+# Local source (Linux / Docker on Linux):
 export SOURCE_URL="http://localhost:6334"
+# Local source on macOS / Windows with Docker Desktop:
+export SOURCE_URL="http://host.docker.internal:6334"
 export SOURCE_COLLECTION="my_collection"
 
 export TARGET_URL="https://<cluster-id>.<region>.cloud.qdrant.io:6334"
-export TARGET_API_KEY="your-qdrant-cloud-api-key"
+export TARGET_API_KEY="your-qdrant-cloud-api-key"  # leave empty for unauthenticated targets
 export TARGET_COLLECTION="my_collection"
 ```
 
@@ -61,7 +64,7 @@ Validates config and checks connectivity without moving any data:
 | `SOURCE_API_KEY` | No | `""` | API key for the source; leave empty if unauthenticated |
 | `SOURCE_COLLECTION` | Yes | — | Collection name on the source |
 | `TARGET_URL` | Yes | — | gRPC URL of the target Qdrant instance (port `6334`) |
-| `TARGET_API_KEY` | Yes | — | API key for the target |
+| `TARGET_API_KEY` | No | `""` | API key for the target; leave empty if unauthenticated |
 | `TARGET_COLLECTION` | Yes | — | Collection name on the target |
 | `BATCH_SIZE` | No | `64` | Points transferred per batch; increase for throughput, decrease for lower memory use |
 
@@ -72,6 +75,18 @@ Each run writes a timestamped log to `logs/qdrant_migration_YYYYMMDD_HHMMSS.log`
 ```bash
 tail -f logs/qdrant_migration_*.log
 ```
+
+## Notes
+
+**gRPC port required**
+The migration tool communicates over gRPC (port `6334`), not the REST API (port `6333`). Make sure your source Qdrant container exposes port `6334`:
+```bash
+docker run -d --name qdrant -p 6333:6333 -p 6334:6334 qdrant/qdrant
+```
+If your container was started without `-p 6334:6334`, stop it, back up the data volume, and recreate it with both ports mapped.
+
+**macOS / Windows with Docker Desktop**
+`--net=host` is not supported on Docker Desktop. The container cannot reach `localhost` on the host. Use `host.docker.internal` in `SOURCE_URL` instead of `localhost`.
 
 ## Troubleshooting
 
