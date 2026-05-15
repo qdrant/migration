@@ -4,4 +4,4 @@ Ready-to-use migration script examples for common use cases.
 
 | Example | Description |
 |---|---|
-| [`qdrant-to-qdrant/`](qdrant-to-qdrant/) | Migrate between two Qdrant instances (e.g. self-hosted → Qdrant Cloud) |
+| [`qdrant-cloud-onboarding/`](qdrant-cloud-onboarding/) | Migrate a self-hosted Qdrant collection into [Qdrant Cloud](https://cloud.qdrant.io) |

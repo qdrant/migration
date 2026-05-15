@@ -1,6 +1,8 @@
-# Qdrant → Qdrant Migration Script
+# Self-hosted Qdrant → Qdrant Cloud Onboarding
 
-A shell script wrapper around the `qdrant-migration` CLI for migrating data between Qdrant instances (e.g. self-hosted to [Qdrant Cloud](https://cloud.qdrant.io)).
+A shell script wrapper around the `qdrant-migration` CLI for moving an existing self-hosted Qdrant collection into [Qdrant Cloud](https://cloud.qdrant.io) with preflight checks, structured logs, and a dry-run mode.
+
+If you already run Qdrant locally or on your own infrastructure and want to onboard onto Qdrant Cloud without writing your own glue around `docker run`, start here.
 
 Features beyond the raw `docker run` command:
 - Pre-flight validation of all required config variables
@@ -10,11 +12,14 @@ Features beyond the raw `docker run` command:
 - Structured error output with exit codes and line-level error reporting
 - Resumable — re-run the same command to continue an interrupted migration
 
+> The script itself is plain `qdrant-migration` underneath, so it also works for any Qdrant → Qdrant migration (self-hosted → self-hosted, Cloud → self-hosted, etc.). The defaults and examples below are written for the self-hosted → Cloud onboarding case.
+
 ## Requirements
 
 - Docker (running)
 - `nc` (netcat) — optional, used for connectivity pre-checks
-- Network access to both source and target Qdrant instances
+- Network access from this machine to both your self-hosted Qdrant and Qdrant Cloud
+- A Qdrant Cloud cluster and API key — create one at [cloud.qdrant.io](https://cloud.qdrant.io)
 
 ## Usage
 
@@ -29,14 +34,15 @@ chmod +x migrate.sh
 Export environment variables (recommended — keeps secrets out of the file):
 
 ```bash
-# Local source (Linux / Docker on Linux):
+# Self-hosted source (Linux / Docker on Linux):
 export SOURCE_URL="http://localhost:6334"
-# Local source on macOS / Windows with Docker Desktop:
+# Self-hosted source on macOS / Windows with Docker Desktop:
 export SOURCE_URL="http://host.docker.internal:6334"
 export SOURCE_COLLECTION="my_collection"
 
+# Qdrant Cloud target:
 export TARGET_URL="https://<cluster-id>.<region>.cloud.qdrant.io:6334"
-export TARGET_API_KEY="your-qdrant-cloud-api-key"  # leave empty for unauthenticated targets
+export TARGET_API_KEY="your-qdrant-cloud-api-key"
 export TARGET_COLLECTION="my_collection"
 ```
 
@@ -60,11 +66,11 @@ Validates config and checks connectivity without moving any data:
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `SOURCE_URL` | Yes | — | gRPC URL of the source Qdrant instance (port `6334`) |
+| `SOURCE_URL` | Yes | — | gRPC URL of the self-hosted source (port `6334`) |
 | `SOURCE_API_KEY` | No | `""` | API key for the source; leave empty if unauthenticated |
 | `SOURCE_COLLECTION` | Yes | — | Collection name on the source |
-| `TARGET_URL` | Yes | — | gRPC URL of the target Qdrant instance (port `6334`) |
-| `TARGET_API_KEY` | No | `""` | API key for the target; leave empty if unauthenticated |
+| `TARGET_URL` | Yes | — | gRPC URL of the Qdrant Cloud cluster (port `6334`) |
+| `TARGET_API_KEY` | No | `""` | Qdrant Cloud API key |
 | `TARGET_COLLECTION` | Yes | — | Collection name on the target |
 | `BATCH_SIZE` | No | `64` | Points transferred per batch; increase for throughput, decrease for lower memory use |
 
@@ -79,7 +85,7 @@ tail -f logs/qdrant_migration_*.log
 ## Notes
 
 **gRPC port required**
-The migration tool communicates over gRPC (port `6334`), not the REST API (port `6333`). Make sure your source Qdrant container exposes port `6334`:
+The migration tool communicates over gRPC (port `6334`), not the REST API (port `6333`). Make sure your self-hosted Qdrant container exposes port `6334`:
 ```bash
 docker run -d --name qdrant -p 6333:6333 -p 6334:6334 qdrant/qdrant
 ```

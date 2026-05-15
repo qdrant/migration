@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # =============================================================================
-# migrate.sh — Qdrant instance-to-instance migration wrapper
+# migrate.sh — Self-hosted Qdrant → Qdrant Cloud onboarding wrapper
+#
+# Moves a collection from a self-hosted Qdrant instance into Qdrant Cloud.
+# Works for any Qdrant → Qdrant pairing underneath; defaults are written for
+# the self-hosted → Cloud case.
 #
 # Usage:
 #   ./migrate.sh [--dry-run]
@@ -15,7 +19,7 @@
 # Requirements:
 #   - Docker (running)
 #   - nc (netcat) for optional connectivity checks
-#   - Network access to both source and destination Qdrant instances
+#   - Network access to both the self-hosted source and Qdrant Cloud
 # =============================================================================
 
 set -euo pipefail
