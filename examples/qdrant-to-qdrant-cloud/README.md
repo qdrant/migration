@@ -4,6 +4,8 @@ A shell script wrapper around the `qdrant-migration` CLI for moving an existing 
 
 If you already run Qdrant locally or on your own infrastructure and want to onboard onto Qdrant Cloud without writing your own glue around `docker run`, start here.
 
+For the reverse direction (Qdrant Cloud → self-hosted, or self-hosted → self-hosted), see [`../qdrant-to-qdrant-local/`](../qdrant-to-qdrant-local/).
+
 Features beyond the raw `docker run` command:
 - Pre-flight validation of all required config variables
 - TCP connectivity checks for source and target before starting
@@ -11,8 +13,6 @@ Features beyond the raw `docker run` command:
 - `--dry-run` mode to validate config without moving data
 - Structured error output with exit codes and line-level error reporting
 - Resumable — re-run the same command to continue an interrupted migration
-
-> The script itself is plain `qdrant-migration` underneath, so it also works for any Qdrant → Qdrant migration (self-hosted → self-hosted, Cloud → self-hosted, etc.). The defaults and examples below are written for the self-hosted → Cloud onboarding case.
 
 ## Requirements
 
