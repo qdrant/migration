@@ -620,9 +620,10 @@ NOTE: If the target collection already exists, its vector size and dimensions mu
 
 #### Additional Options
 
-| Flag                              | Description                                                    |
-| --------------------------------- | -------------------------------------------------------------- |
-| `--migration.num-workers`         | Number of parallel workers to use. Default: Number of CPU cores|
+| Flag                              | Description                                                                                                                          |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `--migration.num-workers`         | Number of parallel workers to use. Default: Number of CPU cores                                                                     |
+| `--migration.skip-existing`       | Skip points whose IDs already exist in the target collection. Adds one read RPC per batch. Useful when re-running against a partially-populated target. Default: `false` |
 
 See [Shared Migration Options](#shared-migration-options) for shared parameters.
 

@@ -31,6 +31,7 @@ type MigrateFromQdrantCmd struct {
 	MaxMessageSize       int                     `help:"Maximum gRPC message size in bytes (default: 33554432 = 32MB)" default:"33554432" prefix:"source."`
 	EnsurePayloadIndexes bool                    `help:"Ensure payload indexes from the source are created on the target" default:"true" prefix:"target."`
 	NumWorkers           int                     `help:"Number of parallel workers for data migration (0 = number of CPU cores)" default:"0" prefix:"migration."`
+	SkipExisting         bool                    `help:"Skip points that already exist in the target collection" default:"false" prefix:"migration."`
 
 	sourceHost string
 	sourcePort int
@@ -331,7 +332,7 @@ func (r *MigrateFromQdrantCmd) samplePointIDs(ctx context.Context, client *qdran
 // processBatch handles the upserting of a batch of points to the target collection.
 // It deals with sharding by creating shard keys if they don't exist and retries on transient errors.
 func (r *MigrateFromQdrantCmd) processBatch(ctx context.Context, points []*qdrant.RetrievedPoint, targetClient *qdrant.Client, targetCollection string, shardKeys *sync.Map, wait bool) error {
-	if r.Migration.SkipExisting && len(points) > 0 {
+	if r.SkipExisting && len(points) > 0 {
 		ids := make([]*qdrant.PointId, len(points))
 		for i, p := range points {
 			ids[i] = p.Id
