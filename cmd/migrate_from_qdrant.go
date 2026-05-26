@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -346,19 +347,16 @@ func (r *MigrateFromQdrantCmd) processBatch(ctx context.Context, points []*qdran
 		if err != nil {
 			return fmt.Errorf("failed to check existing points: %w", err)
 		}
-		if len(found) > 0 {
-			existing := make(map[string]struct{}, len(found))
-			for _, p := range found {
-				existing[pointIDKey(p.Id)] = struct{}{}
-			}
-			filtered := points[:0]
-			for _, p := range points {
-				if _, ok := existing[pointIDKey(p.Id)]; !ok {
-					filtered = append(filtered, p)
-				}
-			}
-			points = filtered
+
+		existing := make(map[string]struct{}, len(found))
+		for _, p := range found {
+			existing[pointIDKey(p.Id)] = struct{}{}
 		}
+		points = slices.DeleteFunc(points, func(p *qdrant.RetrievedPoint) bool {
+			_, ok := existing[pointIDKey(p.Id)]
+			return ok
+		})
+
 		if len(points) == 0 {
 			return nil
 		}
