@@ -12,6 +12,7 @@ type MigrationConfig struct {
 	CreateCollection  bool   `short:"c" help:"Create the collection if it does not exist" default:"true"`
 	OffsetsCollection string `help:"Collection to store the current migration offset" default:"_migration_offsets"`
 	BatchDelay        int    `help:"Delay between batches in milliseconds (useful for rate limiting)" default:"0"`
+	SkipExisting      bool   `help:"Skip points that already exist in the target collection" default:"false"`
 }
 
 type MilvusConfig struct {

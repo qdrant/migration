@@ -235,6 +235,14 @@ type rangeSpec struct {
 	end   *qdrant.PointId
 }
 
+// pointIDKey returns a stable string key for use in maps.
+func pointIDKey(id *qdrant.PointId) string {
+	if uuid := id.GetUuid(); uuid != "" {
+		return uuid
+	}
+	return fmt.Sprintf("%d", id.GetNum())
+}
+
 // comparePointIDs returns true if a < b.
 // Usually Qdrant collections use either numeric or UUID IDs, not both.
 // If mixed, numeric IDs (a.GetUuid() == "") sort before UUIDs since "" < any non-empty string.
@@ -323,6 +331,38 @@ func (r *MigrateFromQdrantCmd) samplePointIDs(ctx context.Context, client *qdran
 // processBatch handles the upserting of a batch of points to the target collection.
 // It deals with sharding by creating shard keys if they don't exist and retries on transient errors.
 func (r *MigrateFromQdrantCmd) processBatch(ctx context.Context, points []*qdrant.RetrievedPoint, targetClient *qdrant.Client, targetCollection string, shardKeys *sync.Map, wait bool) error {
+	if r.Migration.SkipExisting && len(points) > 0 {
+		ids := make([]*qdrant.PointId, len(points))
+		for i, p := range points {
+			ids[i] = p.Id
+		}
+		found, err := targetClient.Get(ctx, &qdrant.GetPoints{
+			CollectionName: targetCollection,
+			Ids:            ids,
+			WithPayload:    qdrant.NewWithPayload(false),
+			WithVectors:    qdrant.NewWithVectors(false),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to check existing points: %w", err)
+		}
+		if len(found) > 0 {
+			existing := make(map[string]struct{}, len(found))
+			for _, p := range found {
+				existing[pointIDKey(p.Id)] = struct{}{}
+			}
+			filtered := points[:0]
+			for _, p := range points {
+				if _, ok := existing[pointIDKey(p.Id)]; !ok {
+					filtered = append(filtered, p)
+				}
+			}
+			points = filtered
+		}
+		if len(points) == 0 {
+			return nil
+		}
+	}
+
 	// Group points by their shard key.
 	byShardKey := make(map[string][]*qdrant.PointStruct)
 	shardKeyObjs := make(map[string]*qdrant.ShardKey)
