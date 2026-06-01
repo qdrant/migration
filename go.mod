@@ -7,7 +7,7 @@ require (
 	github.com/amikos-tech/chroma-go v0.3.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.13
 	github.com/aws/aws-sdk-go-v2/service/s3vectors v1.6.6
-	github.com/aws/smithy-go v1.24.2
+	github.com/aws/smithy-go v1.26.0
 	github.com/elastic/go-elasticsearch/v8 v8.19.5
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3
