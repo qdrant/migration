@@ -1,3 +1,4 @@
+// Qdrant to Qdrant migration tool
 package main
 
 import (
