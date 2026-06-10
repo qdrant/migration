@@ -253,6 +253,7 @@ func comparePointIDs(a, b *qdrant.PointId) bool {
 }
 
 // convertVector converts a VectorOutput from a retrieved point to a Vector for upserting.
+// Returns nil if the vector is absent, empty, or of an unrecognized type.
 func convertVector(v *qdrant.VectorOutput) *qdrant.Vector {
 	if v == nil {
 		return nil
@@ -265,7 +266,11 @@ func convertVector(v *qdrant.VectorOutput) *qdrant.Vector {
 	}
 	// Important: this should be a fallback option, as everything can be interpreted as dense vectors.
 	if dense := v.GetDenseVector(); dense != nil {
-		return qdrant.NewVectorDense(dense.GetData())
+		data := dense.GetData()
+		if len(data) == 0 {
+			return nil
+		}
+		return qdrant.NewVectorDense(data)
 	}
 	return nil
 }
@@ -281,7 +286,9 @@ func convertVectors(p *qdrant.RetrievedPoint) *qdrant.Vectors {
 	if vs := p.Vectors.GetVectors(); vs != nil {
 		named := make(map[string]*qdrant.Vector, len(vs.GetVectors()))
 		for k, v := range vs.GetVectors() {
-			named[k] = convertVector(v)
+			if cv := convertVector(v); cv != nil {
+				named[k] = cv
+			}
 		}
 		return qdrant.NewVectorsMap(named)
 	}
