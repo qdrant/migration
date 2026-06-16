@@ -15,7 +15,7 @@ import (
 //nolint:unparam
 func qdrantContainer(ctx context.Context, t *testing.T, apiKey string) testcontainers.Container {
 	req := testcontainers.ContainerRequest{
-		Image:        "qdrant/qdrant:v1.16.1",
+		Image:        "qdrant/qdrant:v1.17.0",
 		ExposedPorts: []string{"6333/tcp", "6334/tcp"},
 		Env: map[string]string{
 			"QDRANT__CLUSTER__ENABLED": "true",
