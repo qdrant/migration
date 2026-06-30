@@ -32,7 +32,7 @@ func TestMigrateFromOpenSearch(t *testing.T) {
 	require.NoError(t, err)
 	mappedPort, err := qdrantCont.MappedPort(ctx, qdrantGRPCPort)
 	require.NoError(t, err)
-	qdrantPort := mappedPort.Int()
+	qdrantPort := int(mappedPort.Num())
 
 	osClient, err := opensearch.NewClient(opensearch.Config{
 		Addresses: []string{osHost},
