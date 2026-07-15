@@ -598,6 +598,34 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
     --migration.batch-size 64
 ```
 
+#### Custom Sharding Support
+
+If the source collection uses custom sharding, the migration preserves each point's shard key and creates the corresponding shard keys on the target.
+The routing options below override the source shard keys when specified.
+
+To migrate all points into a specific keyword shard key on a custom-sharded
+target, pass the key directly:
+
+```bash
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration qdrant \
+    --source.url 'http://source-hostname:6334' \
+    --source.collection 'source-collection' \
+    --target.url 'https://target-hostname:6334' \
+    --target.collection 'target-collection' \
+    --target.shard-key 'tier-a'
+```
+
+To route each point by a string or non-negative integer payload field instead, use `--target.shard-key-field`:
+
+```bash
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration qdrant \
+    --source.url 'http://source-hostname:6334' \
+    --source.collection 'source-collection' \
+    --target.url 'https://target-hostname:6334' \
+    --target.collection 'target-collection' \
+    --target.shard-key-field 'tenant_tier'
+```
+
 NOTE: If the target collection already exists, its vector size and dimensions must match the source. Other settings like replication, shards can differ.
 
 #### Source Qdrant Options
@@ -617,6 +645,8 @@ NOTE: If the target collection already exists, its vector size and dimensions mu
 | `--target.url`                    | Target gRPC URL. Default: `"http://localhost:6334"` |
 | `--target.api-key`                | API key for target instance                         |
 | `--target.ensure-payload-indexes` | Ensure payload indexes exist. Default: true         |
+| `--target.shard-key`              | Fixed keyword shard key used for every target upsert |
+| `--target.shard-key-field`        | Payload field used as each point's target shard key  |
 
 #### Additional Options
 

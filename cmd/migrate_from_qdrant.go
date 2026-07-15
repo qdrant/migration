@@ -30,6 +30,8 @@ type MigrateFromQdrantCmd struct {
 	Migration            commons.MigrationConfig `embed:"" prefix:"migration."`
 	MaxMessageSize       int                     `help:"Maximum gRPC message size in bytes (default: 33554432 = 32MB)" default:"33554432" prefix:"source."`
 	EnsurePayloadIndexes bool                    `help:"Ensure payload indexes from the source are created on the target" default:"true" prefix:"target."`
+	ShardKey             string                  `help:"Fixed keyword shard key used for every target upsert" prefix:"target."`
+	ShardKeyField        string                  `help:"Payload field used as the target shard key for each point" prefix:"target."`
 	NumWorkers           int                     `help:"Number of parallel workers for data migration (0 = number of CPU cores)" default:"0" prefix:"migration."`
 
 	sourceHost string
@@ -54,6 +56,9 @@ func (r *MigrateFromQdrantCmd) Parse() error {
 }
 
 func (r *MigrateFromQdrantCmd) Validate() error {
+	if r.ShardKey != "" && r.ShardKeyField != "" {
+		return fmt.Errorf("target shard-key and shard-key-field cannot be used together")
+	}
 	return validateBatchSize(r.Migration.BatchSize)
 }
 
@@ -152,6 +157,10 @@ func (r *MigrateFromQdrantCmd) prepareTargetCollection(ctx context.Context, sour
 			pterm.Info.Printfln("Target collection '%s' already exists. Skipping creation.", targetCollection)
 		} else {
 			params := sourceCollectionInfo.Config.GetParams()
+			shardingMethod := params.ShardingMethod
+			if r.ShardKey != "" || r.ShardKeyField != "" {
+				shardingMethod = qdrant.PtrOf(qdrant.ShardingMethod_Custom)
+			}
 			if err := targetClient.CreateCollection(ctx, &qdrant.CreateCollection{
 				CollectionName:         targetCollection,
 				HnswConfig:             sourceCollectionInfo.Config.GetHnswConfig(),
@@ -163,7 +172,7 @@ func (r *MigrateFromQdrantCmd) prepareTargetCollection(ctx context.Context, sour
 				ReplicationFactor:      params.ReplicationFactor,
 				WriteConsistencyFactor: params.WriteConsistencyFactor,
 				QuantizationConfig:     sourceCollectionInfo.Config.GetQuantizationConfig(),
-				ShardingMethod:         params.ShardingMethod,
+				ShardingMethod:         shardingMethod,
 				SparseVectorsConfig:    params.SparseVectorsConfig,
 				StrictModeConfig:       sourceCollectionInfo.Config.GetStrictModeConfig(),
 			}); err != nil {
@@ -171,7 +180,6 @@ func (r *MigrateFromQdrantCmd) prepareTargetCollection(ctx context.Context, sour
 			}
 		}
 	}
-
 	targetCollectionInfo, err := targetClient.GetCollectionInfo(ctx, targetCollection)
 	if err != nil {
 		return fmt.Errorf("failed to get target collection information: %w", err)
@@ -295,6 +303,27 @@ func convertVectors(p *qdrant.RetrievedPoint) *qdrant.Vectors {
 	return nil
 }
 
+func (r *MigrateFromQdrantCmd) targetShardKey(point *qdrant.RetrievedPoint) (*qdrant.ShardKey, error) {
+	if r.ShardKey != "" {
+		return qdrant.NewShardKeyKeyword(r.ShardKey), nil
+	}
+	if r.ShardKeyField == "" {
+		return point.GetShardKey(), nil
+	}
+
+	value := point.GetPayload()[r.ShardKeyField]
+	if value == nil {
+		return nil, fmt.Errorf("payload field %q is missing", r.ShardKeyField)
+	}
+	if keyword, ok := value.GetKind().(*qdrant.Value_StringValue); ok && keyword.StringValue != "" {
+		return qdrant.NewShardKeyKeyword(keyword.StringValue), nil
+	}
+	if number, ok := value.GetKind().(*qdrant.Value_IntegerValue); ok && number.IntegerValue >= 0 {
+		return qdrant.NewShardKeyNum(uint64(number.IntegerValue)), nil
+	}
+	return nil, fmt.Errorf("payload field %q must be a non-empty string or non-negative integer", r.ShardKeyField)
+}
+
 // samplePointIDs fetches a random sample of point IDs from the source collection.
 // These IDs are used as boundaries to divide the migration work among parallel workers.
 func (r *MigrateFromQdrantCmd) samplePointIDs(ctx context.Context, client *qdrant.Client, collection string, pointCount uint64) ([]*qdrant.PointId, error) {
@@ -328,22 +357,21 @@ func (r *MigrateFromQdrantCmd) samplePointIDs(ctx context.Context, client *qdran
 }
 
 // processBatch handles the upserting of a batch of points to the target collection.
-// It deals with sharding by creating shard keys if they don't exist and retries on transient errors.
+// It preserves source sharding or applies the configured target shard key.
 func (r *MigrateFromQdrantCmd) processBatch(ctx context.Context, points []*qdrant.RetrievedPoint, targetClient *qdrant.Client, targetCollection string, shardKeys *sync.Map, wait bool) error {
 	// Group points by their shard key.
 	byShardKey := make(map[string][]*qdrant.PointStruct)
 	shardKeyObjs := make(map[string]*qdrant.ShardKey)
 
 	for _, p := range points {
+		shardKey, err := r.targetShardKey(p)
+		if err != nil {
+			return fmt.Errorf("cannot route point %v: %w", p.GetId(), err)
+		}
 		key := ""
-		// Determine the shard key for the point.
-		if sk := p.GetShardKey(); sk != nil {
-			if kw := sk.GetKeyword(); kw != "" {
-				key = kw // String-based shard key.
-			} else {
-				key = fmt.Sprintf("%d", sk.GetNumber())
-			}
-			shardKeyObjs[key] = sk
+		if shardKey != nil {
+			key = shardKey.String()
+			shardKeyObjs[key] = shardKey
 		}
 		byShardKey[key] = append(byShardKey[key], &qdrant.PointStruct{
 			Id:      p.Id,
@@ -360,7 +388,6 @@ func (r *MigrateFromQdrantCmd) processBatch(ctx context.Context, points []*qdran
 			Wait:           qdrant.PtrOf(wait),
 		}
 		if key != "" {
-			// If the shard key is new, create it on the target collection.
 			if _, ok := shardKeys.Load(key); !ok {
 				err := targetClient.CreateShardKey(ctx, targetCollection, &qdrant.CreateShardKey{ShardKey: shardKeyObjs[key]})
 				if err != nil && !strings.Contains(err.Error(), "already exists") {
@@ -368,7 +395,6 @@ func (r *MigrateFromQdrantCmd) processBatch(ctx context.Context, points []*qdran
 				}
 				shardKeys.Store(key, true)
 			}
-			// Specify the shard key for the upsert request.
 			req.ShardKeySelector = &qdrant.ShardKeySelector{ShardKeys: []*qdrant.ShardKey{shardKeyObjs[key]}}
 		}
 		if err := upsertWithRetry(ctx, targetClient, req); err != nil {
@@ -403,7 +429,6 @@ func (r *MigrateFromQdrantCmd) migrateDataSequential(ctx context.Context, source
 	bar, _ := pterm.DefaultProgressbar.WithTotal(int(sourcePointCount)).Start()
 	displayMigrationProgress(bar, count)
 	shardKeys := &sync.Map{}
-
 	for {
 		// Scroll through points from the source collection in batches.
 		resp, err := sourceClient.GetPointsClient().Scroll(ctx, &qdrant.ScrollPoints{
