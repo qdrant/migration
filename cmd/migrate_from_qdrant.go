@@ -62,6 +62,10 @@ func (r *MigrateFromQdrantCmd) Validate() error {
 	return validateBatchSize(r.Migration.BatchSize)
 }
 
+func (r *MigrateFromQdrantCmd) routesToTargetShard() bool {
+	return r.ShardKey != "" || r.ShardKeyField != ""
+}
+
 func (r *MigrateFromQdrantCmd) ValidateParsedValues() error {
 	if r.sourceHost == r.targetHost && r.sourcePort == r.targetPort && r.Source.Collection == r.Target.Collection {
 		return fmt.Errorf("source and target collections must be different")
@@ -158,7 +162,7 @@ func (r *MigrateFromQdrantCmd) prepareTargetCollection(ctx context.Context, sour
 		} else {
 			params := sourceCollectionInfo.Config.GetParams()
 			shardingMethod := params.ShardingMethod
-			if r.ShardKey != "" || r.ShardKeyField != "" {
+			if r.routesToTargetShard() {
 				shardingMethod = qdrant.PtrOf(qdrant.ShardingMethod_Custom)
 			}
 			if err := targetClient.CreateCollection(ctx, &qdrant.CreateCollection{
@@ -183,6 +187,9 @@ func (r *MigrateFromQdrantCmd) prepareTargetCollection(ctx context.Context, sour
 	targetCollectionInfo, err := targetClient.GetCollectionInfo(ctx, targetCollection)
 	if err != nil {
 		return fmt.Errorf("failed to get target collection information: %w", err)
+	}
+	if r.routesToTargetShard() && targetCollectionInfo.GetConfig().GetParams().GetShardingMethod() != qdrant.ShardingMethod_Custom {
+		return fmt.Errorf("target collection %q must use custom sharding when a target shard key is configured", targetCollection)
 	}
 
 	// If EnsurePayloadIndexes is enabled, create any missing payload indexes on the target.

@@ -11,7 +11,12 @@ import (
 	"github.com/qdrant/go-client/qdrant"
 )
 
-func testMigrateFromQdrantWithShardKeys(t *testing.T, sourceCollectionName, targetCollectionName string, numWorkers int, shardKeyField string) {
+type targetShardRouting struct {
+	flag     string
+	fixedKey string
+}
+
+func testMigrateFromQdrantWithShardKeys(t *testing.T, sourceCollectionName, targetCollectionName string, numWorkers int, routing targetShardRouting) {
 	ctx := context.Background()
 
 	sourceContainer := qdrantContainer(ctx, t, qdrantAPIKey)
@@ -63,7 +68,7 @@ func testMigrateFromQdrantWithShardKeys(t *testing.T, sourceCollectionName, targ
 			Distance: qdrant.Distance_Dot,
 		}),
 	}
-	if shardKeyField == "" {
+	if routing.flag == "" {
 		createSource.ShardingMethod = qdrant.ShardingMethod_Custom.Enum()
 	}
 	err = sourceClient.CreateCollection(ctx, createSource)
@@ -71,7 +76,7 @@ func testMigrateFromQdrantWithShardKeys(t *testing.T, sourceCollectionName, targ
 
 	shardKeys := []string{"shard_a", "shard_b"}
 
-	if shardKeyField == "" {
+	if routing.flag == "" {
 		for _, shardKey := range shardKeys {
 			err = sourceClient.CreateShardKey(ctx, sourceCollectionName, &qdrant.CreateShardKey{
 				ShardKey: qdrant.NewShardKey(shardKey),
@@ -103,7 +108,7 @@ func testMigrateFromQdrantWithShardKeys(t *testing.T, sourceCollectionName, targ
 			Points:         points,
 			Wait:           qdrant.PtrOf(true),
 		}
-		if shardKeyField == "" {
+		if routing.flag == "" {
 			upsert.ShardKeySelector = &qdrant.ShardKeySelector{
 				ShardKeys: []*qdrant.ShardKey{qdrant.NewShardKey(shardKey)},
 			}
@@ -123,8 +128,8 @@ func testMigrateFromQdrantWithShardKeys(t *testing.T, sourceCollectionName, targ
 		fmt.Sprintf("--migration.num-workers=%d", numWorkers),
 		"--migration.create-collection=true",
 	}
-	if shardKeyField != "" {
-		args = append(args, fmt.Sprintf("--target.shard-key-field=%s", shardKeyField))
+	if routing.flag != "" {
+		args = append(args, routing.flag)
 	}
 
 	runMigrationBinary(t, args)
@@ -136,7 +141,11 @@ func testMigrateFromQdrantWithShardKeys(t *testing.T, sourceCollectionName, targ
 	require.NoError(t, err)
 	require.Equal(t, uint64(totalEntries), targetCountResp)
 
-	for _, shardKey := range shardKeys {
+	targetShardKeys := shardKeys
+	if routing.fixedKey != "" {
+		targetShardKeys = []string{routing.fixedKey}
+	}
+	for _, shardKey := range targetShardKeys {
 		points, err := targetClient.Scroll(ctx, &qdrant.ScrollPoints{
 			CollectionName: targetCollectionName,
 			Limit:          qdrant.PtrOf(uint32(totalEntries)),
@@ -147,11 +156,17 @@ func testMigrateFromQdrantWithShardKeys(t *testing.T, sourceCollectionName, targ
 			},
 		})
 		require.NoError(t, err)
-		require.Len(t, points, totalEntries/2)
+		expectedCount := totalEntries / 2
+		if routing.fixedKey != "" {
+			expectedCount = totalEntries
+		}
+		require.Len(t, points, expectedCount)
 
 		for _, point := range points {
 			require.Equal(t, shardKey, point.GetShardKey().GetKeyword())
-			require.Equal(t, shardKey, point.Payload["shard"].GetStringValue())
+			if routing.fixedKey == "" {
+				require.Equal(t, shardKey, point.Payload["shard"].GetStringValue())
+			}
 
 			pointID := point.Id.GetUuid()
 			expectedVector := expectedPointsByID[pointID]
@@ -162,13 +177,22 @@ func testMigrateFromQdrantWithShardKeys(t *testing.T, sourceCollectionName, targ
 }
 
 func TestMigrateFromQdrantWithShardKeys(t *testing.T) {
-	testMigrateFromQdrantWithShardKeys(t, "source_collection", "target_collection", 1, "")
+	testMigrateFromQdrantWithShardKeys(t, "source_collection", "target_collection", 1, targetShardRouting{})
 }
 
 func TestMigrateFromQdrantWithShardKeysParallel(t *testing.T) {
-	testMigrateFromQdrantWithShardKeys(t, "source_collection_parallel", "target_collection_parallel", 4, "")
+	testMigrateFromQdrantWithShardKeys(t, "source_collection_parallel", "target_collection_parallel", 4, targetShardRouting{})
 }
 
 func TestMigrateFromQdrantWithShardKeyField(t *testing.T) {
-	testMigrateFromQdrantWithShardKeys(t, "source_collection_flat", "target_collection_custom", 4, "shard")
+	testMigrateFromQdrantWithShardKeys(t, "source_collection_flat", "target_collection_custom", 4, targetShardRouting{
+		flag: "--target.shard-key-field=shard",
+	})
+}
+
+func TestMigrateFromQdrantWithTargetShardKey(t *testing.T) {
+	testMigrateFromQdrantWithShardKeys(t, "source_collection_fixed", "target_collection_fixed", 4, targetShardRouting{
+		flag:     "--target.shard-key=target_shard",
+		fixedKey: "target_shard",
+	})
 }
