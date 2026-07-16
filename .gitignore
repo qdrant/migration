@@ -3,4 +3,4 @@
 vendor/
 cover.out
 /dist
-.venv/
+.venv/examples/qdrant-to-qdrant/logs/

@@ -270,9 +270,9 @@ func (r *MigrateFromMilvusCmd) migrateData(ctx context.Context, sourceClient *mi
 				if fieldName == pkName {
 					switch col.Type() {
 					case entity.FieldTypeVarChar:
-						uuid := value.(string)
-						offsetID = qdrant.NewID(uuid)
-						point.Id = offsetID
+						str := value.(string)
+						offsetID = qdrant.NewID(str)
+						point.Id = arbitraryIDToUUID(str)
 					case entity.FieldTypeInt64:
 						num := value.(int64)
 						offsetID = qdrant.NewIDNum(uint64(num))
