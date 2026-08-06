@@ -32,7 +32,7 @@ func TestMigrateFromElasticsearch(t *testing.T) {
 	require.NoError(t, err)
 	mappedPort, err := qdrantCont.MappedPort(ctx, qdrantGRPCPort)
 	require.NoError(t, err)
-	qdrantPort := mappedPort.Int()
+	qdrantPort := mappedPort.Num()
 
 	esClient, err := elasticsearch.NewClient(elasticsearch.Config{
 		Addresses: []string{esHost},
@@ -106,7 +106,7 @@ func TestMigrateFromElasticsearch(t *testing.T) {
 
 	qdrantClient, err := qdrant.NewClient(&qdrant.Config{
 		Host:                   qdrantHost,
-		Port:                   qdrantPort,
+		Port:                   int(qdrantPort),
 		APIKey:                 qdrantAPIKey,
 		SkipCompatibilityCheck: true,
 	})

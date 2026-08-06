@@ -62,7 +62,7 @@ func TestMigrateFromFaiss(t *testing.T) {
 
 	client, err := qdrant.NewClient(&qdrant.Config{
 		Host:                   qdrantHost,
-		Port:                   qdrantPort.Int(),
+		Port:                   int(qdrantPort.Num()),
 		APIKey:                 qdrantAPIKey,
 		SkipCompatibilityCheck: true,
 	})
