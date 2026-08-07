@@ -14,6 +14,7 @@ CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for res
 * Elasticsearch
 * Postgres (pgvector)
 * S3 Vectors
+* Amazon DynamoDB
 * FAISS
 * Apache Solr
 * Another Qdrant instance
@@ -489,6 +490,47 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.collection`   | Target collection name                                        |
 | `--qdrant.api-key`      | Qdrant API key (optional)                                     |
 | `--qdrant.id-field`     | Field storing S3 IDs in Qdrant. Default: `"__id__"`           |
+
+* See [Shared Migration Options](#shared-migration-options) for common migration parameters.
+
+</details>
+
+<details>
+<summary><h3>From Amazon DynamoDB</h3></summary>
+
+Migrate vectors and item attributes from an **Amazon DynamoDB** vector index to **Qdrant**:
+
+### 📥 Example
+
+> Important ⚠️:
+> Set your AWS credentials and default Region using the AWS CLI's [configure](https://docs.aws.amazon.com/cli/latest/reference/configure/#examples) command or [environment variables](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-envvars.html).
+
+```bash
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration dynamodb \
+    --dynamodb.table 'your-table-name' \
+    --dynamodb.index 'your-vector-index-name' \
+    --qdrant.url 'http://target-hostname:6334' \
+    --qdrant.api-key 'optional-qdrant-api-key' \
+    --qdrant.collection 'target-collection' \
+    --migration.batch-size 64
+```
+
+#### DynamoDB Options
+
+| Flag                 | Description                                      |
+| -------------------- | ------------------------------------------------ |
+| `--dynamodb.table`   | DynamoDB table name (required)                   |
+| `--dynamodb.index`   | DynamoDB vector index name (required)            |
+
+#### Qdrant Options
+
+| Flag                    | Description                                                                       |
+| ----------------------- | --------------------------------------------------------------------------------- |
+| `--qdrant.url`          | Qdrant gRPC URL. Default: `"http://localhost:6334"`                              |
+| `--qdrant.collection`   | Target collection name                                                            |
+| `--qdrant.api-key`      | Qdrant API key (optional)                                                         |
+| `--qdrant.id-field`     | Payload field storing the canonical DynamoDB primary key. Default: `"__id__"`   |
+| `--qdrant.vector-name`  | Target vector name. Empty uses Qdrant's unnamed vector                            |
 
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
 
