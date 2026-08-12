@@ -466,7 +466,15 @@ Migrate data from an **S3 Vectors** index to **Qdrant**:
 > Set your AWS credentials and region using the [environment variables](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-envvars.html).
 
 ```bash
-docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration s3 \
+export AWS_ACCESS_KEY_ID=YOUR_ACCESS_KEY_ID
+export AWS_SECRET_ACCESS_KEY=YOUR_SECRET_ACCESS_KEY
+export AWS_DEFAULT_REGION=us-west-2
+
+docker run --net=host --rm -it \
+    -e AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
+    -e AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
+    -e AWS_DEFAULT_REGION="$AWS_DEFAULT_REGION" \
+    registry.cloud.qdrant.io/library/qdrant-migration s3 \
     --s3.bucket 'your-bucket-name' \
     --s3.index 'your-index-name' \
     --qdrant.url 'http://target-hostname:6334' \
@@ -506,7 +514,15 @@ Migrate vectors and item attributes from an **Amazon DynamoDB** vector index to 
 > Set your AWS credentials and region using the [environment variables](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-envvars.html).
 
 ```bash
-docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration dynamodb \
+export AWS_ACCESS_KEY_ID=YOUR_ACCESS_KEY_ID
+export AWS_SECRET_ACCESS_KEY=YOUR_SECRET_ACCESS_KEY
+export AWS_DEFAULT_REGION=us-west-2
+
+docker run --net=host --rm -it \
+    -e AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
+    -e AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
+    -e AWS_DEFAULT_REGION="$AWS_DEFAULT_REGION" \
+    registry.cloud.qdrant.io/library/qdrant-migration dynamodb \
     --dynamodb.table 'your-table-name' \
     --dynamodb.index 'your-vector-index-name' \
     --qdrant.url 'http://target-hostname:6334' \
