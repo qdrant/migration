@@ -463,7 +463,7 @@ Migrate data from an **S3 Vectors** index to **Qdrant**:
 ### 📥 Example
 
 > Important ⚠️:
-> Set your AWS credentials using the AWS CLI's [configure](https://docs.aws.amazon.com/cli/latest/reference/configure/#examples) command or [environment variables](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-envvars.html).
+> Set your AWS credentials and region using the [environment variables](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-envvars.html).
 
 ```bash
 docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration s3 \
@@ -503,7 +503,7 @@ Migrate vectors and item attributes from an **Amazon DynamoDB** vector index to 
 ### 📥 Example
 
 > Important ⚠️:
-> Set your AWS credentials and default Region using the AWS CLI's [configure](https://docs.aws.amazon.com/cli/latest/reference/configure/#examples) command or [environment variables](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-envvars.html).
+> Set your AWS credentials and region using the [environment variables](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-envvars.html).
 
 ```bash
 docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration dynamodb \
