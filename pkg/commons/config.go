@@ -63,14 +63,19 @@ type WeaviateConfig struct {
 }
 
 type RedisConfig struct {
-	Index      string `help:"Redis FT index name" required:"true"`
-	Addr       string `help:"Redis address in the format host:port" default:"localhost:6379"`
-	Protocol   int    `help:"Redis protocol version" default:"2"`
-	Password   string `help:"Password to authenticate requests"`
-	Username   string `help:"Username to authenticate requests"`
-	ClientName string `help:"Will execute the 'CLIENT SETNAME <NAME>' for each connection"`
-	DB         int    `help:"Database to be selected after connecting to the server"`
-	Network    string `help:"Redis network type" enum:"tcp,unix" default:"tcp"`
+	Index       string `help:"Redis FT index name. Required when --redis.source is 'ft'."`
+	Addr        string `help:"Redis address in the format host:port" default:"localhost:6379"`
+	Protocol    int    `help:"Redis protocol version" default:"2"`
+	Password    string `help:"Password to authenticate requests"`
+	Username    string `help:"Username to authenticate requests"`
+	ClientName  string `help:"Will execute the 'CLIENT SETNAME <NAME>' for each connection"`
+	DB          int    `help:"Database to be selected after connecting to the server"`
+	Network     string `help:"Redis network type" enum:"tcp,unix" default:"tcp"`
+	Source      string `help:"Redis source type" enum:"ft,vectorset" default:"ft"`
+	KeyPattern  string `help:"Key pattern for native Vector Set keys (--redis.source=vectorset)" default:"*"`
+	TenantRegex string `help:"Regex to extract a tenant ID from the Vector Set key name (--redis.source=vectorset). The first capture group is stored in the tenant field."`
+	TenantField string `help:"Payload field name for the extracted tenant ID (--redis.source=vectorset)" default:"tenant_id"`
+	IDAttr      string `help:"Attribute name whose value becomes the point ID (--redis.source=vectorset). The element name is used when it is unset."`
 }
 
 type MongoDBConfig struct {

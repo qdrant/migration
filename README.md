@@ -240,11 +240,24 @@ Migrate data from a **Redis** database to **Qdrant**:
 > Therefore, you must [manually create](https://qdrant.tech/documentation/concepts/vectors/#named-vectors) a Qdrant collection before starting the migration.
 > Ensure that the **vector names and dimensions in Qdrant exactly match** those used in Redis.
 
-### 📥 Example
+### 📥 Example (RediSearch FT index)
 
 ```bash
-docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration milvus \
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration redis \
     --redis.index 'index_name' \
+    --redis.addr 'source-hostname:6379' \
+    --qdrant.url 'http://target-hostname:6334' \
+    --qdrant.collection 'target-collection' \
+    --migration.batch-size 100
+```
+
+### 📥 Example (native Vector Sets)
+
+```bash
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration redis \
+    --redis.source 'vectorset' \
+    --redis.key-pattern 'tenant:*:vector_set' \
+    --redis.tenant-regex 'tenant:(?P<tenant_id>[^:]+):vector_set' \
     --redis.addr 'source-hostname:6379' \
     --qdrant.url 'http://target-hostname:6334' \
     --qdrant.collection 'target-collection' \
@@ -253,16 +266,21 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 
 #### Redis Options
 
-| Flag                  | Description                                                             |
-| --------------------- | ----------------------------------------------------------------------- |
-| `--redis.index`       | Redis index name                                                        |
-| `--redis.addr`        | Redis address in the format `host:port` (default: `localhost:6379`)     |
-| `--redis.protocol`    | Redis protocol version (default: `2`)                                   |
-| `--redis.password`    | Password to authenticate requests. Optional.                            |
-| `--redis.username`    | Username to authenticate requests. Optional.                            |
-| `--redis.client-name` | Will execute the `CLIENT SETNAME <NAME>` for each connection. Optional. |
-| `--redis.db`          | Database to be selected after connecting to the server. Optional.       |
-| `--redis.network`     | Redis network type (`tcp` or `unix`, default: `tcp`)                    |
+| Flag                   | Description                                                                                       |
+| ---------------------- | ------------------------------------------------------------------------------------------------- |
+| `--redis.source`       | Redis source type: `ft` (RediSearch index) or `vectorset` (native Vector Sets). Default: `"ft"` |
+| `--redis.index`        | Redis FT index name. Required when `--redis.source` is `ft`.                                      |
+| `--redis.key-pattern`  | Key pattern for native Vector Set keys (`--redis.source=vectorset`). Default: `"*"`             |
+| `--redis.tenant-regex` | Regex to extract a tenant ID from the Vector Set key name (`--redis.source=vectorset`). The tool stores the first capture group in the `--redis.tenant-field` field. |
+| `--redis.tenant-field` | Payload field name for the extracted tenant ID (`--redis.source=vectorset`). Default: `"tenant_id"` |
+| `--redis.id-attr`      | Attribute name whose value becomes the point ID (`--redis.source=vectorset`). The element name is used when it is unset. |
+| `--redis.addr`         | Redis address in the format `host:port` (default: `localhost:6379`)                               |
+| `--redis.protocol`     | Redis protocol version (default: `2`)                                                             |
+| `--redis.password`     | Password to authenticate requests. Optional.                                                      |
+| `--redis.username`     | Username to authenticate requests. Optional.                                                      |
+| `--redis.client-name`  | Will execute the `CLIENT SETNAME <NAME>` for each connection. Optional.                           |
+| `--redis.db`           | Database to be selected after connecting to the server. Optional.                                 |
+| `--redis.network`      | Redis network type (`tcp` or `unix`, default: `tcp`)                                              |
 
 #### Qdrant Options
 
