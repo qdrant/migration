@@ -161,7 +161,7 @@ func getVectorColumns(ctx context.Context, conn *pgx.Conn, table string) (map[st
 		attrelid = $1::regclass
 		AND attnum > 0
 		AND NOT attisdropped
-		AND format_type(atttypid, atttypmod) LIKE 'vector%';
+		AND (format_type(atttypid, atttypmod) LIKE 'vector%' or format_type(atttypid, atttypmod) LIKE 'halfvec%');
 	`
 	rows, err := conn.Query(ctx, query, tableIdent)
 	if err != nil {
@@ -604,6 +604,8 @@ func (r *MigrateFromPGCmd) convertRowsToPoints(batchRows []map[string]interface{
 
 			switch v := val.(type) {
 			case pgvector.Vector:
+				vectors[col] = qdrant.NewVectorDense(v.Slice())
+			case pgvector.HalfVector:
 				vectors[col] = qdrant.NewVectorDense(v.Slice())
 			default:
 				payload[col] = sanitizeValue(val)
