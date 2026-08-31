@@ -244,7 +244,7 @@ Migrate data from a **Redis** database to **Qdrant**:
 ### 📥 Example
 
 ```bash
-docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration milvus \
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration redis \
     --redis.index 'index_name' \
     --redis.addr 'source-hostname:6379' \
     --qdrant.url 'http://target-hostname:6334' \
