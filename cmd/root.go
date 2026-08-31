@@ -26,6 +26,7 @@ type CLI struct {
 	Mongodb       MigrateFromMongoDBCmd       `cmd:"" help:"Migrate data from a Mongo database to Qdrant."`
 	OpenSearch    MigrateFromOpenSearchCmd    `cmd:"" name:"opensearch" help:"Migrate data from an OpenSearch database to Qdrant."`
 	Elasticsearch MigrateFromElasticsearchCmd `cmd:"" help:"Migrate data from an Elasticsearch database to Qdrant."`
+	Azure         MigrateFromAzureCmd         `cmd:"" help:"Migrate data from an Azure AI Search index to Qdrant."`
 	PG            MigrateFromPGCmd            `cmd:"" name:"pg" help:"Migrate data from a PostgreSQL database to Qdrant."`
 	S3Vectors     MigrateFromS3VectorsCmd     `cmd:"" name:"s3" help:"Migrate data from S3 Vectors to Qdrant."`
 	Faiss         MigrateFromFaissCmd         `cmd:"" help:"Migrate data from a FAISS index to Qdrant."`
