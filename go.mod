@@ -5,8 +5,8 @@ go 1.26
 require (
 	github.com/alecthomas/kong v1.16.0
 	github.com/amikos-tech/chroma-go v0.3.0
-	github.com/aws/aws-sdk-go-v2/config v1.32.39
-	github.com/aws/aws-sdk-go-v2/service/s3vectors v1.10.0
+	github.com/aws/aws-sdk-go-v2/config v1.32.25
+	github.com/aws/aws-sdk-go-v2/service/s3vectors v1.10.8
 	github.com/aws/smithy-go v1.27.10
 	github.com/elastic/go-elasticsearch/v8 v8.19.5
 	github.com/google/uuid v1.6.0
@@ -20,15 +20,15 @@ require (
 	github.com/pinecone-io/go-pinecone/v3 v3.1.0
 	github.com/pterm/pterm v0.12.83
 	github.com/qdrant/go-client v1.17.1
-	github.com/redis/go-redis/v9 v9.21.0
+	github.com/redis/go-redis/v9 v9.22.0
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.43.0
 	github.com/testcontainers/testcontainers-go/modules/opensearch v0.43.0
 	github.com/weaviate/weaviate v1.38.1
 	github.com/weaviate/weaviate-go-client/v5 v5.7.1
 	go.mongodb.org/mongo-driver v1.17.8
-	go.mongodb.org/mongo-driver/v2 v2.8.0
-	google.golang.org/grpc v1.83.1
+	go.mongodb.org/mongo-driver/v2 v2.8.1
+	google.golang.org/grpc v1.82.1
 	google.golang.org/protobuf v1.36.11
 )
 
