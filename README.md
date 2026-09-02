@@ -15,6 +15,7 @@ CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for res
 * Azure AI Search
 * Postgres (pgvector)
 * S3 Vectors
+* Amazon DynamoDB
 * FAISS
 * Apache Solr
 * Another Qdrant instance
@@ -503,10 +504,18 @@ Migrate data from an **S3 Vectors** index to **Qdrant**:
 ### 📥 Example
 
 > Important ⚠️:
-> Set your AWS credentials using the AWS CLI's [configure](https://docs.aws.amazon.com/cli/latest/reference/configure/#examples) command or [environment variables](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-envvars.html).
+> Set your AWS credentials and region using the [environment variables](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-envvars.html).
 
 ```bash
-docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration s3 \
+export AWS_ACCESS_KEY_ID=YOUR_ACCESS_KEY_ID
+export AWS_SECRET_ACCESS_KEY=YOUR_SECRET_ACCESS_KEY
+export AWS_DEFAULT_REGION=us-west-2
+
+docker run --net=host --rm -it \
+    -e AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
+    -e AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
+    -e AWS_DEFAULT_REGION="$AWS_DEFAULT_REGION" \
+    registry.cloud.qdrant.io/library/qdrant-migration s3 \
     --s3.bucket 'your-bucket-name' \
     --s3.index 'your-index-name' \
     --qdrant.url 'http://target-hostname:6334' \
@@ -530,6 +539,55 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.collection`   | Target collection name                                        |
 | `--qdrant.api-key`      | Qdrant API key (optional)                                     |
 | `--qdrant.id-field`     | Field storing S3 IDs in Qdrant. Default: `"__id__"`           |
+
+* See [Shared Migration Options](#shared-migration-options) for common migration parameters.
+
+</details>
+
+<details>
+<summary><h3>From Amazon DynamoDB</h3></summary>
+
+Migrate vectors and item attributes from an **Amazon DynamoDB** vector index to **Qdrant**:
+
+### 📥 Example
+
+> Important ⚠️:
+> Set your AWS credentials and region using the [environment variables](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-envvars.html).
+
+```bash
+export AWS_ACCESS_KEY_ID=YOUR_ACCESS_KEY_ID
+export AWS_SECRET_ACCESS_KEY=YOUR_SECRET_ACCESS_KEY
+export AWS_DEFAULT_REGION=us-west-2
+
+docker run --net=host --rm -it \
+    -e AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
+    -e AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
+    -e AWS_DEFAULT_REGION="$AWS_DEFAULT_REGION" \
+    registry.cloud.qdrant.io/library/qdrant-migration dynamodb \
+    --dynamodb.table 'your-table-name' \
+    --dynamodb.index 'your-vector-index-name' \
+    --qdrant.url 'http://target-hostname:6334' \
+    --qdrant.api-key 'optional-qdrant-api-key' \
+    --qdrant.collection 'target-collection' \
+    --migration.batch-size 64
+```
+
+#### DynamoDB Options
+
+| Flag                 | Description                                      |
+| -------------------- | ------------------------------------------------ |
+| `--dynamodb.table`   | DynamoDB table name (required)                   |
+| `--dynamodb.index`   | DynamoDB vector index name (required)            |
+
+#### Qdrant Options
+
+| Flag                    | Description                                                                       |
+| ----------------------- | --------------------------------------------------------------------------------- |
+| `--qdrant.url`          | Qdrant gRPC URL. Default: `"http://localhost:6334"`                              |
+| `--qdrant.collection`   | Target collection name                                                            |
+| `--qdrant.api-key`      | Qdrant API key (optional)                                                         |
+| `--qdrant.id-field`     | Payload field storing the canonical DynamoDB primary key. Default: `"__id__"`   |
+| `--qdrant.vector-name`  | Target vector name. Empty uses Qdrant's unnamed vector                            |
 
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
 
