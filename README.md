@@ -12,6 +12,7 @@ CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for res
 * MongoDB
 * OpenSearch
 * Elasticsearch
+* Azure AI Search
 * Postgres (pgvector)
 * S3 Vectors
 * FAISS
@@ -243,7 +244,7 @@ Migrate data from a **Redis** database to **Qdrant**:
 ### 📥 Example
 
 ```bash
-docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration milvus \
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration redis \
     --redis.index 'index_name' \
     --redis.addr 'source-hostname:6379' \
     --qdrant.url 'http://target-hostname:6334' \
@@ -404,6 +405,46 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.collection` | Target collection name                                         |
 | `--qdrant.api-key`    | Qdrant API key (optional)                                      |
 | `--qdrant.id-field`   | Field storing Elasticsearch IDs in Qdrant. Default: `"__id__"` |
+
+See [Shared Migration Options](#shared-migration-options) for common migration parameters.
+
+</details>
+
+<details>
+<summary><h3>From Azure AI Search</h3></summary>
+
+Migrate data from an **Azure AI Search** index to **Qdrant**:
+
+### 📥 Example
+
+```bash
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration azure \
+    --azure.endpoint 'https://my-service.search.windows.net' \
+    --azure.api-key 'azure-admin-api-key' \
+    --azure.index 'source-index' \
+    --qdrant.url 'http://target-hostname:6334' \
+    --qdrant.api-key 'optional-qdrant-api-key' \
+    --qdrant.collection 'target-collection' \
+    --migration.batch-size 64
+```
+
+#### Azure AI Search Options
+
+| Flag                          | Description                                                                          |
+| ----------------------------- | ------------------------------------------------------------------------------------ |
+| `--azure.endpoint`            | Azure AI Search service endpoint (e.g. `https://myservice.search.windows.net`).      |
+| `--azure.index`               | Azure AI Search index name.                                                          |
+| `--azure.api-key`             | Azure AI Search admin API key.                                                       |
+| `--azure.api-version`         | Azure AI Search REST API version. Default: `"2026-04-01"`                            |
+
+#### Qdrant Options
+
+| Flag                  | Description                                                        |
+| --------------------- | ------------------------------------------------------------------ |
+| `--qdrant.url`        | Qdrant gRPC URL. Default: `"http://localhost:6334"`                |
+| `--qdrant.collection` | Target collection name                                             |
+| `--qdrant.api-key`    | Qdrant API key (optional)                                          |
+| `--qdrant.id-field`   | Field storing Azure AI Search document keys in Qdrant. Default: `"__id__"` |
 
 See [Shared Migration Options](#shared-migration-options) for common migration parameters.
 
