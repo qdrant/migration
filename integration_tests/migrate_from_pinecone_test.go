@@ -239,7 +239,7 @@ func setupContainers(t *testing.T, ctx context.Context) (pHost, pIndexHost, qHos
 	require.NoError(t, err)
 	mappedPort, err := qdrantCont.MappedPort(ctx, qdrantGRPCPort)
 	require.NoError(t, err)
-	qPort = mappedPort.Int()
+	qPort = int(mappedPort.Num())
 
 	return
 }

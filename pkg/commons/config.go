@@ -104,6 +104,13 @@ type PGConfig struct {
 	Columns   []string `help:"Columns to migrate. Must include the key column. Defaults to all columns."`
 }
 
+type AzureSearchConfig struct {
+	Endpoint   string `help:"Azure AI Search service endpoint (e.g., https://myservice.search.windows.net)" required:"true"`
+	Index      string `help:"Azure AI Search index name" required:"true"`
+	APIKey     string `help:"Azure AI Search admin API key" required:"true"`
+	APIVersion string `help:"Azure AI Search REST API version" default:"2026-04-01"`
+}
+
 type S3VectorsConfig struct {
 	Bucket string `help:"S3 Vectors bucket name" required:"true"`
 	Index  string `help:"S3 Vectors index name" required:"true"`

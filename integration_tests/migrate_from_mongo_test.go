@@ -38,7 +38,7 @@ func TestMigrateFromMongo(t *testing.T) {
 	require.NoError(t, err)
 	mappedPort, err := qdrantCont.MappedPort(ctx, qdrantGRPCPort)
 	require.NoError(t, err)
-	qdrantPort := mappedPort.Int()
+	qdrantPort := mappedPort.Num()
 
 	mongoClient, err := mongo.Connect(ctx, options.Client().ApplyURI(fmt.Sprintf("mongodb://%s", mongoHost)))
 	require.NoError(t, err)
@@ -81,7 +81,7 @@ func TestMigrateFromMongo(t *testing.T) {
 
 	qdrantClient, err := qdrant.NewClient(&qdrant.Config{
 		Host:                   qdrantHost,
-		Port:                   qdrantPort,
+		Port:                   int(qdrantPort),
 		APIKey:                 qdrantAPIKey,
 		SkipCompatibilityCheck: true,
 	})
