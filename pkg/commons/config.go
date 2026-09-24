@@ -116,6 +116,11 @@ type S3VectorsConfig struct {
 	Index  string `help:"S3 Vectors index name" required:"true"`
 }
 
+type DynamoDBConfig struct {
+	Table string `help:"DynamoDB table name" required:"true"`
+	Index string `help:"DynamoDB vector index name" required:"true"`
+}
+
 type FaissConfig struct {
 	IndexPath string `help:"Path to the FAISS index file" required:"true"`
 }

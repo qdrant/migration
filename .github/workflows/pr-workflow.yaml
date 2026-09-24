@@ -66,6 +66,8 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
           AWS_S3_VECTOR_BUCKET: ${{ secrets.AWS_S3_VECTOR_BUCKET }}
+          AWS_DYNAMODB_TABLE: ${{ secrets.AWS_DYNAMODB_TABLE }}
+          AWS_DYNAMODB_VECTOR_INDEX: ${{ secrets.AWS_DYNAMODB_VECTOR_INDEX }}
           AZURE_SEARCH_ENDPOINT: ${{ secrets.AZURE_SEARCH_ENDPOINT }}
           AZURE_SEARCH_API_KEY: ${{ secrets.AZURE_SEARCH_API_KEY }}
         run: |
