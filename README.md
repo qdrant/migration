@@ -16,6 +16,7 @@ CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for res
 * Postgres (pgvector)
 * S3 Vectors
 * FAISS
+* LanceDB
 * Apache Solr
 * Another Qdrant instance
 
@@ -572,6 +573,66 @@ docker run --net=host --rm -it \
 | `--qdrant.api-key`         | Qdrant API key (optional)                                                                                        |
 | `--qdrant.distance-metric` | Distance metric for the Qdrant collection. `"cosine"`, `"dot"`, `"manhattan"` or `"euclid"`. Default: `"cosine"` |
 
+
+* See [Shared Migration Options](#shared-migration-options) for common migration parameters.
+
+</details>
+
+<details>
+<summary><h3>From LanceDB</h3></summary>
+
+Migrate data from a **LanceDB** table to **Qdrant**:
+
+The table must have a unique, non-null string or integer ID column and fixed-size floating-point vector columns. Each selected vector column becomes a named Qdrant vector with the same name. Other columns, including the original ID, are retained in the payload; point IDs are deterministic UUIDs.
+
+### 📥 Example
+
+Build the container from this checkout to use the LanceDB adapter:
+
+```bash
+docker build -t qdrant-migration:lancedb .
+docker run --net=host --rm -it \
+    -v /path/to/lancedb:/mnt/lancedb:ro \
+    qdrant-migration:lancedb lancedb \
+    --lancedb.uri '/mnt/lancedb' \
+    --lancedb.table 'documents' \
+    --lancedb.id-column 'id' \
+    --lancedb.vector-columns 'vector' \
+    --qdrant.url 'http://target-hostname:6334' \
+    --qdrant.api-key 'optional-qdrant-api-key' \
+    --qdrant.collection 'target-collection' \
+    --qdrant.distance-metric 'vector=cosine' \
+    --migration.offsets-collection '_lancedb_offsets' \
+    --migration.batch-size 64
+```
+
+#### LanceDB Options
+
+| Flag | Description |
+| ---- | ----------- |
+| `--lancedb.uri` | Local directory, object-store URI, or `db://` Cloud URI (required). |
+| `--lancedb.table` | Source table name (required). |
+| `--lancedb.id-column` | Unique, non-null string or integer ID column (required). |
+| `--lancedb.vector-columns` | Comma-separated dense vector columns. Default: `vector`. |
+| `--lancedb.version` | Table version. Default: `0`, using the saved version on resume or latest on a new run. |
+| `--lancedb.api-key` | LanceDB Cloud API key. Can also be set through `LANCEDB_API_KEY`. |
+| `--lancedb.region` | LanceDB Cloud region. Default: `us-east-1`. |
+| `--lancedb.staging-dir` | Directory for temporary SQLite staging of the full dataset. Default: system temporary directory. |
+
+#### Qdrant Options
+
+| Flag | Description |
+| ---- | ----------- |
+| `--qdrant.url` | Qdrant gRPC URL. Default: `http://localhost:6334`. |
+| `--qdrant.collection` | Target collection name. |
+| `--qdrant.api-key` | Qdrant API key (optional). |
+| `--qdrant.distance-metric` | Vector column-to-distance mappings, e.g. `vector=cosine,image=dot`. Supported metrics: `cosine`, `dot`, `euclid`, `manhattan`. Default: `cosine` for each selected column. |
+
+Migration pins a source version and stages the full dataset before uploading, so allow sufficient temporary disk space. Keep that source version available for resumes. Existing target collections must have matching named vectors, dimensions, and distance metrics. Source indexes are not migrated.
+
+Use a dedicated offsets collection and run one migration per target collection at a time. Rerun the same command to resume; `--migration.restart` resets this migration's checkpoint without deleting existing target points. The adapter verifies migrated IDs, payloads, and vectors before reporting completion.
+
+The global `--skip-tls-verification` flag is unsupported for LanceDB. For a private Qdrant CA, set `GRPC_DEFAULT_SSL_ROOTS_FILE_PATH` to a trusted PEM CA bundle.
 
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
 
