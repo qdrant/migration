@@ -30,6 +30,7 @@ type CLI struct {
 	PG            MigrateFromPGCmd            `cmd:"" name:"pg" help:"Migrate data from a PostgreSQL database to Qdrant."`
 	S3Vectors     MigrateFromS3VectorsCmd     `cmd:"" name:"s3" help:"Migrate data from S3 Vectors to Qdrant."`
 	Faiss         MigrateFromFaissCmd         `cmd:"" help:"Migrate data from a FAISS index to Qdrant."`
+	Lancedb       MigrateFromLanceDBCmd       `cmd:"" name:"lancedb" help:"Migrate a LanceDB table to Qdrant."`
 	Solr          MigrateFromSolrCmd          `cmd:"" help:"Migrate data from an Apache Solr collection to Qdrant."`
 }
 
