@@ -2,7 +2,11 @@ package commons
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -134,4 +138,103 @@ func getOffsetPointId(sourceCollection string) *qdrant.PointId {
 	deterministicUUID := uuid.NewSHA1(uuid.NameSpaceURL, []byte(sourceCollection))
 
 	return qdrant.NewIDUUID(deterministicUUID.String())
+}
+
+// EncodePointID serializes a point ID into a string that keeps its type ("n:<num>" or "u:<uuid>").
+func EncodePointID(id *qdrant.PointId) (string, error) {
+	switch v := id.GetPointIdOptions().(type) {
+	case *qdrant.PointId_Num:
+		return "n:" + strconv.FormatUint(v.Num, 10), nil
+	case *qdrant.PointId_Uuid:
+		return "u:" + v.Uuid, nil
+	default:
+		return "", fmt.Errorf("unsupported point id type: %T", v)
+	}
+}
+
+// DecodePointID is the inverse of EncodePointID.
+func DecodePointID(s string) (*qdrant.PointId, error) {
+	switch {
+	case strings.HasPrefix(s, "n:"):
+		n, err := strconv.ParseUint(strings.TrimPrefix(s, "n:"), 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid numeric point id %q: %w", s, err)
+		}
+		return qdrant.NewIDNum(n), nil
+	case strings.HasPrefix(s, "u:"):
+		return qdrant.NewIDUUID(strings.TrimPrefix(s, "u:")), nil
+	default:
+		return nil, fmt.Errorf("invalid encoded point id %q", s)
+	}
+}
+
+// BoundariesFingerprint returns a short, stable identifier of a set of range boundaries.
+// It is used to namespace per-range offsets, so an offset saved for one set of boundaries
+// can never be applied to a different set (which would silently skip points on resume).
+func BoundariesFingerprint(ids []*qdrant.PointId) (string, error) {
+	h := sha256.New()
+	for _, id := range ids {
+		s, err := EncodePointID(id)
+		if err != nil {
+			return "", err
+		}
+		h.Write([]byte(s))
+		h.Write([]byte{0})
+	}
+	return hex.EncodeToString(h.Sum(nil))[:12], nil
+}
+
+// StoreBoundaries persists the range boundaries used by a parallel migration under the given key.
+func StoreBoundaries(ctx context.Context, migrationOffsetsCollectionName string, targetClient *qdrant.Client, key string, ids []*qdrant.PointId) error {
+	values := make([]any, len(ids))
+	for i, id := range ids {
+		s, err := EncodePointID(id)
+		if err != nil {
+			return err
+		}
+		values[i] = s
+	}
+	_, err := targetClient.Upsert(ctx, &qdrant.UpsertPoints{
+		CollectionName: migrationOffsetsCollectionName,
+		Wait:           qdrant.PtrOf(true),
+		Points: []*qdrant.PointStruct{
+			{
+				Id:      getOffsetPointId(key),
+				Payload: qdrant.NewValueMap(map[string]any{key + "_boundaries": values}),
+				Vectors: qdrant.NewVectorsMap(map[string]*qdrant.Vector{}),
+			},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to store range boundaries: %w", err)
+	}
+	return nil
+}
+
+// GetBoundaries loads range boundaries stored by StoreBoundaries. It returns nil if none were stored.
+func GetBoundaries(ctx context.Context, migrationOffsetsCollectionName string, targetClient *qdrant.Client, key string) ([]*qdrant.PointId, error) {
+	point, err := getOffsetPoint(ctx, migrationOffsetsCollectionName, targetClient, key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get range boundaries: %w", err)
+	}
+	if point == nil {
+		return nil, nil
+	}
+	value, ok := point.Payload[key+"_boundaries"]
+	if !ok {
+		return nil, nil
+	}
+	list := value.GetListValue()
+	if list == nil {
+		return nil, fmt.Errorf("stored range boundaries have invalid type")
+	}
+	ids := make([]*qdrant.PointId, 0, len(list.GetValues()))
+	for _, v := range list.GetValues() {
+		id, err := DecodePointID(v.GetStringValue())
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
 }
