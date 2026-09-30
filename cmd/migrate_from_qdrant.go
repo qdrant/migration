@@ -139,7 +139,7 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 	// fail loudly and keep the offsets collection for investigation instead of reporting success.
 	if targetPointCount < sourcePointCount {
 		return fmt.Errorf("migration finished but the target has fewer points than the source: source had %d at start, target has %d "+
-			"(this can also happen if points were deleted from the source during the migration); offsets collection %q was kept",
+			"(this can also happen if points were deleted from the source during the migration), offsets collection %q was kept",
 			sourcePointCount, targetPointCount, r.Migration.OffsetsCollection)
 	}
 
@@ -520,8 +520,8 @@ func (r *MigrateFromQdrantCmd) resolveRangeBoundaries(ctx context.Context, sourc
 func (r *MigrateFromQdrantCmd) migrateDataParallel(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string, sourcePointCount uint64) error {
 	pterm.Info.Printfln("Using parallel migration with %d workers", r.NumWorkers)
 
-	// Resolve the range boundaries. On resume, the boundaries persisted by the previous run are reused;
-	// re-sampling would produce different ranges and make the stored per-range offsets point at the wrong places.
+	// Resolve the range boundaries. On resume, the boundaries persisted by the previous run are reused.
+	// Re-sampling would produce different ranges and make the stored per-range offsets point at the wrong places.
 	ids, err := r.resolveRangeBoundaries(ctx, sourceClient, sourceCollection, targetClient, sourcePointCount)
 	if err != nil {
 		return err
