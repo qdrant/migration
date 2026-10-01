@@ -29,7 +29,7 @@ require (
 	go.mongodb.org/mongo-driver v1.17.8
 	go.mongodb.org/mongo-driver/v2 v2.8.1
 	google.golang.org/grpc v1.83.2
-	google.golang.org/protobuf v1.36.11
+	google.golang.org/protobuf v1.36.12
 )
 
 require (
