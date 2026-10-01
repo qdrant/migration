@@ -4,3 +4,6 @@ vendor/
 cover.out
 /dist
 .venv/examples/qdrant-to-qdrant/logs/
+__pycache__/
+*.py[cod]
+

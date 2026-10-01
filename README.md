@@ -669,6 +669,15 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 
 NOTE: If the target collection already exists, its vector size and dimensions must match the source. Other settings like replication, shards can differ.
 
+#### Cluster-to-Cluster & Disaster Recovery (DR) Synchronization
+
+When migrating data between multi-node clusters (e.g., from a 3-node primary cluster to a 3-node DR cluster), you **do not** need to migrate each node individually:
+- Specify **one healthy node** (or a load balancer) in the source cluster as `--source.url`. The node acts as a read coordinator and aggregates points across all cluster shards.
+- Specify **one healthy node** (or a load balancer) in the target cluster as `--target.url`. The node acts as a write coordinator and distributes incoming points across the target cluster nodes via Qdrant's internal Raft consensus layer.
+
+For automated multi-collection replication and schema provisioning, see [`examples/qdrant-cluster-to-cluster/`](examples/qdrant-cluster-to-cluster/) and the [`sync_cluster.py`](sync_cluster.py) script.
+
+
 #### Source Qdrant Options
 
 | Flag                  | Description                                                |
