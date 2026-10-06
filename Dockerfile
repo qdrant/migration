@@ -13,7 +13,7 @@ WORKDIR /app
 RUN zypper update -y && \
     CGO_ENABLED=1 go build -ldflags "-X 'main.projectVersion=${VERSION:-0.0.0}' -X 'main.projectBuild=${BUILD:-dev}'" -o bin/qdrant-migration main.go
 
-FROM registry.suse.com/bci/python:3.13 AS runtime
+FROM registry.suse.com/bci/python:3.13.14 AS runtime
 
 COPY requirements.txt /opt/cmd/requirements.txt
 
