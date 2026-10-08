@@ -1,3 +1,5 @@
+//go:build !no_pg
+
 package cmd
 
 import (
@@ -21,6 +23,10 @@ import (
 
 	"github.com/qdrant/migration/pkg/commons"
 )
+
+func init() {
+	registerCommand[MigrateFromPGCmd]("pg", "Migrate data from a PostgreSQL database to Qdrant.")
+}
 
 type MigrateFromPGCmd struct {
 	PG             commons.PGConfig        `embed:"" prefix:"pg."`

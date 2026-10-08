@@ -1,3 +1,5 @@
+//go:build !no_faiss
+
 package cmd
 
 import (
@@ -19,6 +21,10 @@ import (
 )
 
 const PythonScript = "cmd/faiss_to_qdrant.py"
+
+func init() {
+	registerCommand[MigrateFromFaissCmd]("faiss", "Migrate data from a FAISS index to Qdrant.")
+}
 
 type MigrateFromFaissCmd struct {
 	FaissIndex     commons.FaissConfig     `embed:"" prefix:"faiss."`

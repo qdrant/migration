@@ -14,6 +14,8 @@ jobs:
       contents: write
       pull-requests: write
       id-token: write # needed for cosign keyless signing with OIDC
+    outputs:
+      tag: ${{ steps.extract_build_info.outputs.tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -87,3 +89,36 @@ jobs:
           publish: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  Binaries:
+    name: Publish Binaries
+    needs: Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ needs.Release.outputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26'
+          cache: false
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          version: v2.18.2
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          APPLE_CERTIFICATE_P12_FILE: ${{ secrets.APPLE_CERTIFICATE_P12_FILE }}
+          APPLE_CERTIFICATE_P12_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_P12_PASSWORD }}
+          APPLE_NOTARY_ISSUER: ${{ secrets.APPLE_NOTARY_ISSUER }}
+          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          APPLE_NOTARY_KEY: ${{ secrets.APPLE_NOTARY_KEY }}

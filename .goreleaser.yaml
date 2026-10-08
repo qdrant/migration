@@ -1,0 +1,70 @@
+version: 2
+
+project_name: qdrant-migration
+
+builds:
+  - id: qdrant-migration
+    main: .
+    binary: qdrant-migration
+    env:
+      - CGO_ENABLED=0
+    # Chroma needs CGO and FAISS needs Python, so both are only available in the container image.
+    tags:
+      - no_chroma
+      - no_faiss
+    ldflags:
+      - -s -w
+        -X main.projectVersion={{.Tag}}
+        -X main.projectBuild={{.ShortCommit}}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+notarize:
+  macos:
+    - enabled: "{{ not .IsSnapshot }}"
+      ids: [qdrant-migration]
+      sign:
+        certificate: "{{ .Env.APPLE_CERTIFICATE_P12_FILE }}"
+        password: "{{ .Env.APPLE_CERTIFICATE_P12_PASSWORD }}"
+      notarize:
+        issuer_id: "{{ .Env.APPLE_NOTARY_ISSUER }}"
+        key_id: "{{ .Env.APPLE_NOTARY_KEY_ID }}"
+        key: "{{ .Env.APPLE_NOTARY_KEY }}"
+        wait: true
+        timeout: 20m
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "{{ .Binary }}-{{ .Os }}-{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+# Release notes are published by release-drafter.
+changelog:
+  disable: true
+
+release:
+  mode: keep-existing
+  replace_existing_artifacts: true
+
+homebrew_casks:
+  - name: qdrant-migration
+    binaries:
+      - qdrant-migration
+    repository:
+      owner: qdrant
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: https://github.com/qdrant/migration
+    description: Migrate data to Qdrant from other sources
+    license: Apache-2.0
+    skip_upload: auto

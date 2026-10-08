@@ -24,6 +24,10 @@ const (
 	SAMPLE_SIZE_PER_WORKER = 10
 )
 
+func init() {
+	registerCommand[MigrateFromQdrantCmd]("qdrant", "Migrate data from a Qdrant database to Qdrant.")
+}
+
 type MigrateFromQdrantCmd struct {
 	Source               commons.QdrantConfig    `embed:"" prefix:"source."`
 	Target               commons.QdrantConfig    `embed:"" prefix:"target."`
