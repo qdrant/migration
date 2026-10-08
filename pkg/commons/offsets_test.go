@@ -44,3 +44,14 @@ func TestBoundariesFingerprint(t *testing.T) {
 		t.Fatalf("different boundaries must give different fingerprints: %s == %s", fa, fc)
 	}
 }
+
+func TestBoundariesFingerprintIsStable(t *testing.T) {
+	ids := []*qdrant.PointId{qdrant.NewIDNum(1), qdrant.NewIDUUID("0f4a6de3-c18b-5de3-992b-5eb7f5c52b1a")}
+	got, err := BoundariesFingerprint(ids)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "ecdb964d138d" {
+		t.Fatalf("fingerprint changed: got %s", got)
+	}
+}

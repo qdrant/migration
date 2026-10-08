@@ -36,9 +36,10 @@ type MigrateFromPGCmd struct {
 
 // pgRangeSpec defines a key range for a worker to process in parallel migration.
 type pgRangeSpec struct {
-	id       int
-	startKey *string
-	endKey   *string
+	id        int
+	startKey  *string
+	endKey    *string
+	offsetKey string
 }
 
 func (r *MigrateFromPGCmd) Parse() error {
@@ -386,13 +387,19 @@ func (r *MigrateFromPGCmd) createRangesFromSamples(keys []string) []pgRangeSpec 
 	return ranges
 }
 
-// migrateDataParallel performs the migration using multiple workers in parallel.
-func (r *MigrateFromPGCmd) migrateDataParallel(ctx context.Context, sourceConn *pgx.Conn, targetClient *qdrant.Client, sourcePointCount uint64) error {
-	pterm.Info.Printfln("Using parallel migration with %d workers", r.NumWorkers)
+// resolveRangeKeys returns the range boundaries stored by a previous run, or samples and stores new ones.
+func (r *MigrateFromPGCmd) resolveRangeKeys(ctx context.Context, sourceConn *pgx.Conn, targetClient *qdrant.Client, sourcePointCount uint64) ([]string, error) {
+	boundariesKey := fmt.Sprintf("%s-workers-%d-boundaries", r.PG.Table, r.NumWorkers)
 
-	if sourcePointCount == 0 {
-		pterm.Info.Println("Table is empty, nothing to migrate")
-		return nil
+	if !r.Migration.Restart {
+		stored, err := commons.GetBoundaryKeys(ctx, r.Migration.OffsetsCollection, targetClient, boundariesKey)
+		if err != nil {
+			return nil, err
+		}
+		if len(stored) > 0 {
+			pterm.Info.Printfln("Reusing %d stored range boundaries from the previous run", len(stored))
+			return stored, nil
+		}
 	}
 
 	sampleSize := r.NumWorkers * SAMPLE_SIZE_PER_WORKER
@@ -402,10 +409,33 @@ func (r *MigrateFromPGCmd) migrateDataParallel(ctx context.Context, sourceConn *
 
 	keys, err := r.sampleKeyValues(ctx, sourceConn, sampleSize)
 	if err != nil {
-		return fmt.Errorf("failed to sample keys: %w", err)
+		return nil, fmt.Errorf("failed to sample keys: %w", err)
+	}
+	if err := commons.StoreBoundaryKeys(ctx, r.Migration.OffsetsCollection, targetClient, boundariesKey, keys); err != nil {
+		return nil, err
+	}
+	return keys, nil
+}
+
+// migrateDataParallel performs the migration using multiple workers in parallel.
+func (r *MigrateFromPGCmd) migrateDataParallel(ctx context.Context, sourceConn *pgx.Conn, targetClient *qdrant.Client, sourcePointCount uint64) error {
+	pterm.Info.Printfln("Using parallel migration with %d workers", r.NumWorkers)
+
+	if sourcePointCount == 0 {
+		pterm.Info.Println("Table is empty, nothing to migrate")
+		return nil
 	}
 
+	keys, err := r.resolveRangeKeys(ctx, sourceConn, targetClient, sourcePointCount)
+	if err != nil {
+		return err
+	}
+
+	fingerprint := commons.BoundaryKeysFingerprint(keys)
 	ranges := r.createRangesFromSamples(keys)
+	for i := range ranges {
+		ranges[i].offsetKey = fmt.Sprintf("%s-workers-%d-%s-range-%d", r.PG.Table, r.NumWorkers, fingerprint, ranges[i].id)
+	}
 
 	poolConfig, err := pgxpool.ParseConfig(r.PG.Url)
 	if err != nil {
@@ -427,8 +457,7 @@ func (r *MigrateFromPGCmd) migrateDataParallel(ctx context.Context, sourceConn *
 	var totalProcessed uint64
 	if !r.Migration.Restart {
 		for i := range ranges {
-			offsetKey := fmt.Sprintf("%s-workers-%d-range-%d", r.PG.Table, r.NumWorkers, ranges[i].id)
-			_, count, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, offsetKey)
+			_, count, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, ranges[i].offsetKey)
 			if err != nil {
 				return fmt.Errorf("failed to get start offset: %w", err)
 			}
@@ -473,7 +502,7 @@ func (r *MigrateFromPGCmd) migrateDataParallel(ctx context.Context, sourceConn *
 // migrateRange is the function executed by each worker in parallel migration.
 // It queries a specific key range and upserts the rows to the target.
 func (r *MigrateFromPGCmd) migrateRange(ctx context.Context, pool *pgxpool.Pool, targetClient *qdrant.Client, rg pgRangeSpec, bar *pterm.ProgressbarPrinter) error {
-	offsetKey := fmt.Sprintf("%s-workers-%d-range-%d", r.PG.Table, r.NumWorkers, rg.id)
+	offsetKey := rg.offsetKey
 	batchSize := r.Migration.BatchSize
 
 	var lastKey *string

@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"os"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/pgvector/pgvector-go"
@@ -27,7 +29,7 @@ type pgEntry struct {
 	embedding []float32
 }
 
-func testMigrateFromPG(t *testing.T, collectionName string, numWorkers int) {
+func testMigrateFromPG(t *testing.T, collectionName string, numWorkers int, interrupt bool) {
 	ctx := context.Background()
 
 	pgConnStr, qdrantUrl, qdrantHost, qdrantPort := setupPGQdrantContainers(t, ctx)
@@ -46,8 +48,6 @@ func testMigrateFromPG(t *testing.T, collectionName string, numWorkers int) {
 		fmt.Sprintf("--migration.num-workers=%d", numWorkers),
 	}
 
-	runMigrationBinary(t, args)
-
 	client, err := qdrant.NewClient(&qdrant.Config{
 		Host:                   qdrantHost,
 		Port:                   qdrantPort,
@@ -56,6 +56,23 @@ func testMigrateFromPG(t *testing.T, collectionName string, numWorkers int) {
 	})
 	require.NoError(t, err)
 	defer client.Close()
+
+	if interrupt {
+		cmd := migrationBinaryCmd(t, append(args, "--migration.batch-size=1", "--migration.batch-delay=200"))
+		require.NoError(t, cmd.Start())
+		require.Eventually(t, func() bool {
+			count, err := client.Count(ctx, &qdrant.CountPoints{CollectionName: collectionName, Exact: qdrant.PtrOf(true)})
+			return err == nil && count >= uint64(2*numWorkers)
+		}, time.Minute, 50*time.Millisecond)
+		require.NoError(t, cmd.Process.Signal(os.Interrupt))
+		require.Error(t, cmd.Wait())
+
+		count, err := client.Count(ctx, &qdrant.CountPoints{CollectionName: collectionName, Exact: qdrant.PtrOf(true)})
+		require.NoError(t, err)
+		require.Less(t, count, uint64(totalEntries))
+	}
+
+	runMigrationBinary(t, args)
 
 	points, err := client.Scroll(ctx, &qdrant.ScrollPoints{
 		CollectionName: collectionName,
@@ -80,11 +97,15 @@ func testMigrateFromPG(t *testing.T, collectionName string, numWorkers int) {
 }
 
 func TestMigrateFromPG(t *testing.T) {
-	testMigrateFromPG(t, testCollectionName, 1)
+	testMigrateFromPG(t, testCollectionName, 1, false)
 }
 
 func TestMigrateFromPGParallel(t *testing.T) {
-	testMigrateFromPG(t, testCollectionName, 4)
+	testMigrateFromPG(t, testCollectionName, 4, false)
+}
+
+func TestMigrateFromPGParallelResume(t *testing.T) {
+	testMigrateFromPG(t, testCollectionName, 8, true)
 }
 
 func setupPGTable(ctx context.Context, t *testing.T, connStr string) []pgEntry {

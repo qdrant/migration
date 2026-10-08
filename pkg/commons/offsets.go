@@ -172,27 +172,49 @@ func DecodePointID(s string) (*qdrant.PointId, error) {
 // It is used to namespace per-range offsets, so an offset saved for one set of boundaries
 // can never be applied to a different set (which would silently skip points on resume).
 func BoundariesFingerprint(ids []*qdrant.PointId) (string, error) {
+	keys, err := encodePointIDs(ids)
+	if err != nil {
+		return "", err
+	}
+	return BoundaryKeysFingerprint(keys), nil
+}
+
+// BoundaryKeysFingerprint is BoundariesFingerprint for string keys.
+func BoundaryKeysFingerprint(keys []string) string {
 	h := sha256.New()
-	for _, id := range ids {
-		s, err := EncodePointID(id)
-		if err != nil {
-			return "", err
-		}
-		h.Write([]byte(s))
+	for _, k := range keys {
+		h.Write([]byte(k))
 		h.Write([]byte{0})
 	}
-	return hex.EncodeToString(h.Sum(nil))[:12], nil
+	return hex.EncodeToString(h.Sum(nil))[:12]
+}
+
+func encodePointIDs(ids []*qdrant.PointId) ([]string, error) {
+	keys := make([]string, len(ids))
+	for i, id := range ids {
+		s, err := EncodePointID(id)
+		if err != nil {
+			return nil, err
+		}
+		keys[i] = s
+	}
+	return keys, nil
 }
 
 // StoreBoundaries persists the range boundaries used by a parallel migration under the given key.
 func StoreBoundaries(ctx context.Context, migrationOffsetsCollectionName string, targetClient *qdrant.Client, key string, ids []*qdrant.PointId) error {
-	values := make([]any, len(ids))
-	for i, id := range ids {
-		s, err := EncodePointID(id)
-		if err != nil {
-			return err
-		}
-		values[i] = s
+	keys, err := encodePointIDs(ids)
+	if err != nil {
+		return err
+	}
+	return StoreBoundaryKeys(ctx, migrationOffsetsCollectionName, targetClient, key, keys)
+}
+
+// StoreBoundaryKeys is StoreBoundaries for string keys.
+func StoreBoundaryKeys(ctx context.Context, migrationOffsetsCollectionName string, targetClient *qdrant.Client, key string, keys []string) error {
+	values := make([]any, len(keys))
+	for i, k := range keys {
+		values[i] = k
 	}
 	_, err := targetClient.Upsert(ctx, &qdrant.UpsertPoints{
 		CollectionName: migrationOffsetsCollectionName,
@@ -213,6 +235,23 @@ func StoreBoundaries(ctx context.Context, migrationOffsetsCollectionName string,
 
 // GetBoundaries loads range boundaries stored by StoreBoundaries. It returns nil if none were stored.
 func GetBoundaries(ctx context.Context, migrationOffsetsCollectionName string, targetClient *qdrant.Client, key string) ([]*qdrant.PointId, error) {
+	keys, err := GetBoundaryKeys(ctx, migrationOffsetsCollectionName, targetClient, key)
+	if err != nil || keys == nil {
+		return nil, err
+	}
+	ids := make([]*qdrant.PointId, 0, len(keys))
+	for _, k := range keys {
+		id, err := DecodePointID(k)
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
+}
+
+// GetBoundaryKeys loads range boundaries stored by StoreBoundaryKeys. It returns nil if none were stored.
+func GetBoundaryKeys(ctx context.Context, migrationOffsetsCollectionName string, targetClient *qdrant.Client, key string) ([]string, error) {
 	point, err := getOffsetPoint(ctx, migrationOffsetsCollectionName, targetClient, key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get range boundaries: %w", err)
@@ -228,13 +267,9 @@ func GetBoundaries(ctx context.Context, migrationOffsetsCollectionName string, t
 	if list == nil {
 		return nil, fmt.Errorf("stored range boundaries have invalid type")
 	}
-	ids := make([]*qdrant.PointId, 0, len(list.GetValues()))
+	keys := make([]string, 0, len(list.GetValues()))
 	for _, v := range list.GetValues() {
-		id, err := DecodePointID(v.GetStringValue())
-		if err != nil {
-			return nil, err
-		}
-		ids = append(ids, id)
+		keys = append(keys, v.GetStringValue())
 	}
-	return ids, nil
+	return keys, nil
 }
