@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/alecthomas/kong"
+	kongcompletion "github.com/jotaen/kong-completion"
 	"github.com/pterm/pterm"
 )
 
@@ -16,6 +17,8 @@ type Globals struct {
 
 type CLI struct {
 	Globals
+
+	Completion kongcompletion.Completion `cmd:"" help:"Print the shell code for tab completions."`
 }
 
 var commands []func() kong.Option
@@ -38,11 +41,15 @@ func Execute(projectVersion, projectBuild string) {
 	version := fmt.Sprintf("Version: %s, Build: %s", projectVersion, projectBuild)
 	cli := CLI{}
 	options := []kong.Option{
-		kong.Name("migration"),
+		kong.Name("qdrant-migration"),
 		kong.Description("Migrate data to Qdrant from other sources."),
 		kong.Vars{
 			"version": version,
 		},
+		kong.PostBuild(func(k *kong.Kong) error {
+			kongcompletion.Register(k)
+			return nil
+		}),
 	}
 	ctx := kong.Parse(&cli, append(options, commandOptions()...)...)
 

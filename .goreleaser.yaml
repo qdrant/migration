@@ -35,7 +35,7 @@ notarize:
         issuer_id: "{{ .Env.APPLE_NOTARY_ISSUER }}"
         key_id: "{{ .Env.APPLE_NOTARY_KEY_ID }}"
         key: "{{ .Env.APPLE_NOTARY_KEY }}"
-        wait: true
+        wait: false
         timeout: 20m
 
 archives:
@@ -60,6 +60,9 @@ homebrew_casks:
   - name: qdrant-migration
     binaries:
       - qdrant-migration
+    generate_completions_from_executable:
+      args: [completion, -c]
+      shells: [bash, zsh, fish]
     repository:
       owner: qdrant
       name: homebrew-tap
