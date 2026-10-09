@@ -101,6 +101,8 @@ jobs:
           AWS_DYNAMODB_VECTOR_INDEX: ${{ secrets.AWS_DYNAMODB_VECTOR_INDEX }}
           AZURE_SEARCH_ENDPOINT: ${{ secrets.AZURE_SEARCH_ENDPOINT }}
           AZURE_SEARCH_API_KEY: ${{ secrets.AZURE_SEARCH_API_KEY }}
+          TURBOPUFFER_API_KEY: ${{ secrets.TURBOPUFFER_API_KEY }}
+          TURBOPUFFER_REGION: ${{ secrets.TURBOPUFFER_REGION }}
         run: |
           make test_unit
 

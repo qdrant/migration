@@ -27,6 +27,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.44.0
 	github.com/testcontainers/testcontainers-go/modules/opensearch v0.43.0
+	github.com/turbopuffer/turbopuffer-go v1.21.0
 	github.com/weaviate/weaviate v1.38.1
 	github.com/weaviate/weaviate-go-client/v5 v5.7.1
 	go.mongodb.org/mongo-driver v1.17.8
@@ -189,6 +190,7 @@ require (
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.2.0 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
+	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20220101234140-673ab2c3ae75 // indirect
