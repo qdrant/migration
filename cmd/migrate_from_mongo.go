@@ -1,3 +1,5 @@
+//go:build !no_mongodb
+
 package cmd
 
 import (
@@ -19,6 +21,10 @@ import (
 
 	"github.com/qdrant/migration/pkg/commons"
 )
+
+func init() {
+	registerCommand[MigrateFromMongoDBCmd]("mongodb", "Migrate data from a Mongo database to Qdrant.")
+}
 
 type MigrateFromMongoDBCmd struct {
 	MongoDB      commons.MongoDBConfig   `embed:"" prefix:"mongodb."`

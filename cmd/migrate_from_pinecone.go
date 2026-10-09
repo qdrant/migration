@@ -1,3 +1,5 @@
+//go:build !no_pinecone
+
 package cmd
 
 import (
@@ -15,6 +17,10 @@ import (
 
 	"github.com/qdrant/migration/pkg/commons"
 )
+
+func init() {
+	registerCommand[MigrateFromPineconeCmd]("pinecone", "Migrate data from a Pinecone database to Qdrant.")
+}
 
 type MigrateFromPineconeCmd struct {
 	Pinecone     commons.PineconeConfig  `embed:"" prefix:"pinecone."`

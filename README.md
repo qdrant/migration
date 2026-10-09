@@ -24,13 +24,29 @@ CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for res
 
 You can run this tool on any machine with connectivity to both the source and the Qdrant database. For best performance, use a machine with a fast network and minimal latency to both endpoints.
 
-The tool is distributed as a container image, which can be run on any system with Docker, Podman or similar container runtimes. The following examples use Docker.
+The tool is distributed as a container image and as a standalone binary. The binary supports every source except Chroma and FAISS, which are only available in the container image.
+
+### Container Image
+
+The container image can be run on any system with Docker, Podman or similar container runtimes. The examples in this README use Docker.
 
 To get the latest container image run the following command:
 
 ```bash
 docker pull registry.cloud.qdrant.io/library/qdrant-migration
 ```
+
+### Binary
+
+On macOS and Linux, install it with [Homebrew](https://brew.sh):
+
+```bash
+brew install qdrant/tap/qdrant-migration
+```
+
+Or download the archive for your OS and CPU architecture from [GitHub Releases](https://github.com/qdrant/migration/releases), extract it, and place the `qdrant-migration` binary somewhere in your `PATH`.
+
+To use the binary with the examples below, replace `docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration`, along with any `-e` or `-v` options, with `qdrant-migration`. Environment variables, such as AWS credentials, are then read from your shell.
 
 ## How To Migrate?
 
@@ -41,6 +57,8 @@ docker pull registry.cloud.qdrant.io/library/qdrant-migration
 <summary><h3>From Chroma</h3></summary>
 
 Migrate data from a **Chroma** database to **Qdrant**:
+
+> Chroma is only supported by the container image, not by the binary.
 
 ### 📥 Example
 
@@ -597,6 +615,8 @@ docker run --net=host --rm -it \
 <summary><h3>From FAISS</h3></summary>
 
 Migrate data from a **FAISS** index file to **Qdrant**:
+
+> FAISS is only supported by the container image, not by the binary.
 
 ### 📥 Example
 

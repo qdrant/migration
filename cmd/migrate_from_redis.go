@@ -1,3 +1,5 @@
+//go:build !no_redis
+
 package cmd
 
 import (
@@ -19,6 +21,10 @@ import (
 
 	"github.com/qdrant/migration/pkg/commons"
 )
+
+func init() {
+	registerCommand[MigrateFromRedisCmd]("redis", "Migrate data from a Redis database to Qdrant.")
+}
 
 type MigrateFromRedisCmd struct {
 	Redis     commons.RedisConfig     `embed:"" prefix:"redis."`

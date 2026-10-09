@@ -1,3 +1,5 @@
+//go:build !no_azure
+
 package cmd
 
 import (
@@ -23,6 +25,10 @@ import (
 type azureVectorField struct {
 	dimensions uint64
 	distance   qdrant.Distance
+}
+
+func init() {
+	registerCommand[MigrateFromAzureCmd]("azure", "Migrate data from an Azure AI Search index to Qdrant.")
 }
 
 type MigrateFromAzureCmd struct {

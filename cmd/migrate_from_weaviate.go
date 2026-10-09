@@ -1,3 +1,5 @@
+//go:build !no_weaviate
+
 package cmd
 
 import (
@@ -19,6 +21,10 @@ import (
 
 	"github.com/qdrant/migration/pkg/commons"
 )
+
+func init() {
+	registerCommand[MigrateFromWeaviateCmd]("weaviate", "Migrate data from a Weaviate database to Qdrant.")
+}
 
 type MigrateFromWeaviateCmd struct {
 	Weaviate  commons.WeaviateConfig  `embed:"" prefix:"weaviate."`

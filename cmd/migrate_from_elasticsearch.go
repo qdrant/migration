@@ -1,3 +1,5 @@
+//go:build !no_elasticsearch
+
 package cmd
 
 import (
@@ -20,6 +22,10 @@ import (
 
 	"github.com/qdrant/migration/pkg/commons"
 )
+
+func init() {
+	registerCommand[MigrateFromElasticsearchCmd]("elasticsearch", "Migrate data from an Elasticsearch database to Qdrant.")
+}
 
 type MigrateFromElasticsearchCmd struct {
 	Elasticsearch commons.ElasticsearchConfig `embed:"" prefix:"elasticsearch."`

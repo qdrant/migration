@@ -1,3 +1,5 @@
+//go:build !no_s3
+
 package cmd
 
 import (
@@ -18,6 +20,10 @@ import (
 
 	"github.com/qdrant/migration/pkg/commons"
 )
+
+func init() {
+	registerCommand[MigrateFromS3VectorsCmd]("s3", "Migrate data from S3 Vectors to Qdrant.")
+}
 
 type MigrateFromS3VectorsCmd struct {
 	S3        commons.S3VectorsConfig `embed:"" prefix:"s3."`

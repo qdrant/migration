@@ -1,3 +1,5 @@
+//go:build !no_opensearch
+
 package cmd
 
 import (
@@ -19,6 +21,10 @@ import (
 
 	"github.com/qdrant/migration/pkg/commons"
 )
+
+func init() {
+	registerCommand[MigrateFromOpenSearchCmd]("opensearch", "Migrate data from an OpenSearch database to Qdrant.")
+}
 
 type MigrateFromOpenSearchCmd struct {
 	OpenSearch commons.OpenSearchConfig `embed:"" prefix:"opensearch."`

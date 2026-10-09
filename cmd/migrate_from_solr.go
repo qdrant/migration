@@ -1,3 +1,5 @@
+//go:build !no_solr
+
 package cmd
 
 import (
@@ -19,6 +21,10 @@ import (
 
 	"github.com/qdrant/migration/pkg/commons"
 )
+
+func init() {
+	registerCommand[MigrateFromSolrCmd]("solr", "Migrate data from an Apache Solr collection to Qdrant.")
+}
 
 type MigrateFromSolrCmd struct {
 	Solr      commons.SolrConfig      `embed:"" prefix:"solr."`

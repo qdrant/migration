@@ -1,3 +1,5 @@
+//go:build !no_dynamodb
+
 package cmd
 
 import (
@@ -27,6 +29,10 @@ type dynamoDBSource struct {
 	partitionAttribute string
 	dimensions         int64
 	distance           qdrant.Distance
+}
+
+func init() {
+	registerCommand[MigrateFromDynamoDBCmd]("dynamodb", "Migrate data from Amazon DynamoDB to Qdrant.")
 }
 
 type MigrateFromDynamoDBCmd struct {

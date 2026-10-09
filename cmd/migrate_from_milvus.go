@@ -1,3 +1,5 @@
+//go:build !no_milvus
+
 package cmd
 
 import (
@@ -19,6 +21,10 @@ import (
 
 	"github.com/qdrant/migration/pkg/commons"
 )
+
+func init() {
+	registerCommand[MigrateFromMilvusCmd]("milvus", "Migrate data from a Milvus database to Qdrant.")
+}
 
 type MigrateFromMilvusCmd struct {
 	Milvus         commons.MilvusConfig    `embed:"" prefix:"milvus."`

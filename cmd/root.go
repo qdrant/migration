@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/alecthomas/kong"
+	kongcompletion "github.com/jotaen/kong-completion"
 	"github.com/pterm/pterm"
 )
 
@@ -17,32 +18,40 @@ type Globals struct {
 type CLI struct {
 	Globals
 
-	Qdrant        MigrateFromQdrantCmd        `cmd:"" help:"Migrate data from a Qdrant database to Qdrant."`
-	Milvus        MigrateFromMilvusCmd        `cmd:"" help:"Migrate data from a Milvus database to Qdrant."`
-	Pinecone      MigrateFromPineconeCmd      `cmd:"" help:"Migrate data from a Pinecone database to Qdrant."`
-	Chroma        MigrateFromChromaCmd        `cmd:"" help:"Migrate data from a Chroma database to Qdrant."`
-	Weaviate      MigrateFromWeaviateCmd      `cmd:"" help:"Migrate data from a Weaviate database to Qdrant."`
-	Redis         MigrateFromRedisCmd         `cmd:"" help:"Migrate data from a Redis database to Qdrant."`
-	Mongodb       MigrateFromMongoDBCmd       `cmd:"" help:"Migrate data from a Mongo database to Qdrant."`
-	OpenSearch    MigrateFromOpenSearchCmd    `cmd:"" name:"opensearch" help:"Migrate data from an OpenSearch database to Qdrant."`
-	Elasticsearch MigrateFromElasticsearchCmd `cmd:"" help:"Migrate data from an Elasticsearch database to Qdrant."`
-	Azure         MigrateFromAzureCmd         `cmd:"" help:"Migrate data from an Azure AI Search index to Qdrant."`
-	PG            MigrateFromPGCmd            `cmd:"" name:"pg" help:"Migrate data from a PostgreSQL database to Qdrant."`
-	S3Vectors     MigrateFromS3VectorsCmd     `cmd:"" name:"s3" help:"Migrate data from S3 Vectors to Qdrant."`
-	DynamoDB      MigrateFromDynamoDBCmd      `cmd:"" name:"dynamodb" help:"Migrate data from Amazon DynamoDB to Qdrant."`
-	Faiss         MigrateFromFaissCmd         `cmd:"" help:"Migrate data from a FAISS index to Qdrant."`
-	Solr          MigrateFromSolrCmd          `cmd:"" help:"Migrate data from an Apache Solr collection to Qdrant."`
+	Completion kongcompletion.Completion `cmd:"" help:"Print the shell code for tab completions."`
+}
+
+var commands []func() kong.Option
+
+func registerCommand[T any](name, help string) {
+	commands = append(commands, func() kong.Option {
+		return kong.DynamicCommand(name, help, "", new(T))
+	})
+}
+
+func commandOptions() []kong.Option {
+	options := make([]kong.Option, 0, len(commands))
+	for _, newCommand := range commands {
+		options = append(options, newCommand())
+	}
+	return options
 }
 
 func Execute(projectVersion, projectBuild string) {
 	version := fmt.Sprintf("Version: %s, Build: %s", projectVersion, projectBuild)
 	cli := CLI{}
-	ctx := kong.Parse(&cli,
-		kong.Name("migration"),
+	options := []kong.Option{
+		kong.Name("qdrant-migration"),
 		kong.Description("Migrate data to Qdrant from other sources."),
 		kong.Vars{
 			"version": version,
-		})
+		},
+		kong.PostBuild(func(k *kong.Kong) error {
+			kongcompletion.Register(k)
+			return nil
+		}),
+	}
+	ctx := kong.Parse(&cli, append(options, commandOptions()...)...)
 
 	err := ctx.Run(&cli.Globals)
 
@@ -56,7 +65,7 @@ func Execute(projectVersion, projectBuild string) {
 func NewParser(args []string) (*kong.Context, error) {
 	cli := &CLI{}
 
-	parser, err := kong.New(cli, kong.Bind(&cli.Globals))
+	parser, err := kong.New(cli, append([]kong.Option{kong.Bind(&cli.Globals)}, commandOptions()...)...)
 	if err != nil {
 		return nil, err
 	}

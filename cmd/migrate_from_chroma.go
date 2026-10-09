@@ -1,3 +1,5 @@
+//go:build !no_chroma
+
 package cmd
 
 import (
@@ -17,6 +19,10 @@ import (
 
 	"github.com/qdrant/migration/pkg/commons"
 )
+
+func init() {
+	registerCommand[MigrateFromChromaCmd]("chroma", "Migrate data from a Chroma database to Qdrant.")
+}
 
 type MigrateFromChromaCmd struct {
 	Chroma         commons.ChromaConfig    `embed:"" prefix:"chroma."`
