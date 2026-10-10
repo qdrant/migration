@@ -1,0 +1,5 @@
+# Go stdlib CVEs in SUSE's Go 1.26.8 builder. Fixed in Go 1.26.9.
+# Remove once BCI ships it.
+CVE-2026-78667 exp:2026-11-30
+CVE-2026-97031 exp:2026-11-30
+CVE-2026-78669 exp:2026-11-30

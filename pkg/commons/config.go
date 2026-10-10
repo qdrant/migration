@@ -121,6 +121,12 @@ type DynamoDBConfig struct {
 	Index string `help:"DynamoDB vector index name" required:"true"`
 }
 
+type TurbopufferConfig struct {
+	Namespace string `help:"turbopuffer namespace to migrate" required:"true"`
+	APIKey    string `help:"turbopuffer API key" required:"true"`
+	Region    string `help:"turbopuffer region (e.g. 'gcp-us-central1')" required:"true"`
+}
+
 type FaissConfig struct {
 	IndexPath string `help:"Path to the FAISS index file" required:"true"`
 }
