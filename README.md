@@ -516,9 +516,9 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 </details>
 
 <details>
-<summary><h3>From S3 Vectors</h3></summary>
+<summary><h3>From Amazon S3 Vectors</h3></summary>
 
-Migrate data from an **S3 Vectors** index to **Qdrant**:
+Migrate data from an **Amazon S3 Vectors** index to **Qdrant**:
 
 ### 📥 Example
 
