@@ -339,7 +339,7 @@ func (r *MigrateFromPGCmd) sampleKeyValues(ctx context.Context, conn *pgx.Conn, 
 
 	// Sample random keys, but return them sorted by their native column type order.
 	query := fmt.Sprintf(
-		"SELECT %s::text FROM (SELECT %s FROM %s ORDER BY RANDOM() LIMIT $1) sub ORDER BY %s",
+		"SELECT %s::text FROM (SELECT %s FROM %s ORDER BY RANDOM() LIMIT $1) sub ORDER BY sub.%s",
 		keyColIdent, keyColIdent, tableIdent, keyColIdent,
 	)
 	rows, err := conn.Query(ctx, query, sampleSize)
