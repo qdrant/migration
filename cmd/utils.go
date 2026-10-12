@@ -16,6 +16,8 @@ import (
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/qdrant/go-client/qdrant"
+
+	"github.com/qdrant/migration/pkg/commons"
 )
 
 const (
@@ -210,6 +212,49 @@ func upsertWithRetry(ctx context.Context, client *qdrant.Client, req *qdrant.Ups
 	}
 	if err != nil {
 		return fmt.Errorf("failed to insert data into target: %w", err)
+	}
+	return nil
+}
+
+// resolveRangeBoundaries reuses the boundaries stored by an interrupted run, or samples and stores new ones.
+func resolveRangeBoundaries(ctx context.Context, targetClient *qdrant.Client, migration commons.MigrationConfig, boundariesKey string, sample func() ([]*qdrant.PointId, error)) ([]*qdrant.PointId, error) {
+	if !migration.Restart {
+		stored, err := commons.GetBoundaries(ctx, migration.OffsetsCollection, targetClient, boundariesKey)
+		if err != nil {
+			return nil, err
+		}
+		if len(stored) > 0 {
+			pterm.Info.Printfln("Reusing %d stored range boundaries from the previous run", len(stored))
+			return stored, nil
+		}
+	}
+
+	ids, err := sample()
+	if err != nil || len(ids) == 0 {
+		return ids, err
+	}
+	if err := commons.StoreBoundaries(ctx, migration.OffsetsCollection, targetClient, boundariesKey, ids); err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+// verifyTargetCount fails if the target has fewer points than the source had, keeping the offsets for a resume.
+func verifyTargetCount(ctx context.Context, targetClient *qdrant.Client, targetCollection string, sourcePointCount uint64, offsetsCollection string) error {
+	targetPointCount, err := targetClient.Count(ctx, &qdrant.CountPoints{
+		CollectionName: targetCollection,
+		Exact:          qdrant.PtrOf(true),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to count points in target: %w", err)
+	}
+
+	pterm.Info.Printfln("Target collection has %d points\n", targetPointCount)
+
+	if targetPointCount < sourcePointCount {
+		return fmt.Errorf("migration finished but the target has fewer points than the source: source had %d at start, target has %d "+
+			"(this can also happen if records were deleted from the source during the migration, or the source has missing or non-unique IDs), offsets collection %q was kept",
+			sourcePointCount, targetPointCount, offsetsCollection)
 	}
 	return nil
 }
