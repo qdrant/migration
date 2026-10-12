@@ -45,6 +45,10 @@ type pgRangeSpec struct {
 	id       int
 	startKey *string
 	endKey   *string
+	// offsetKey embeds the boundaries fingerprint so offsets only apply to the ranges they were saved for.
+	offsetKey string
+	lastKey   *string
+	count     uint64
 }
 
 func (r *MigrateFromPGCmd) Parse() error {
@@ -110,15 +114,9 @@ func (r *MigrateFromPGCmd) Run(globals *Globals) error {
 		return fmt.Errorf("failed to migrate data: %w", err)
 	}
 
-	targetPointCount, err := targetClient.Count(ctx, &qdrant.CountPoints{
-		CollectionName: r.Qdrant.Collection,
-		Exact:          qdrant.PtrOf(true),
-	})
-	if err != nil {
-		return fmt.Errorf("failed to count points in target: %w", err)
+	if err := verifyTargetCount(ctx, targetClient, r.Qdrant.Collection, sourcePointCount, r.Migration.OffsetsCollection); err != nil {
+		return err
 	}
-
-	pterm.Info.Printfln("Target collection has %d points\n", targetPointCount)
 
 	err = commons.DeleteOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient)
 	if err != nil {
@@ -341,7 +339,7 @@ func (r *MigrateFromPGCmd) sampleKeyValues(ctx context.Context, conn *pgx.Conn, 
 
 	// Sample random keys, but return them sorted by their native column type order.
 	query := fmt.Sprintf(
-		"SELECT %s::text FROM (SELECT %s FROM %s ORDER BY RANDOM() LIMIT $1) sub ORDER BY %s",
+		"SELECT %s::text FROM (SELECT %s FROM %s ORDER BY RANDOM() LIMIT $1) sub ORDER BY sub.%s",
 		keyColIdent, keyColIdent, tableIdent, keyColIdent,
 	)
 	rows, err := conn.Query(ctx, query, sampleSize)
@@ -401,17 +399,40 @@ func (r *MigrateFromPGCmd) migrateDataParallel(ctx context.Context, sourceConn *
 		return nil
 	}
 
-	sampleSize := r.NumWorkers * SAMPLE_SIZE_PER_WORKER
-	if uint64(sampleSize) > sourcePointCount {
-		sampleSize = int(sourcePointCount)
-	}
-
-	keys, err := r.sampleKeyValues(ctx, sourceConn, sampleSize)
+	// Keys are wrapped as UUID point IDs to reuse the boundary helpers, like the per-range offsets.
+	ids, err := resolveRangeBoundaries(ctx, targetClient, r.Migration,
+		fmt.Sprintf("%s-%s-workers-%d-boundaries", r.PG.Table, r.PG.KeyColumn, r.NumWorkers),
+		func() ([]*qdrant.PointId, error) {
+			sampleSize := r.NumWorkers * SAMPLE_SIZE_PER_WORKER
+			if uint64(sampleSize) > sourcePointCount {
+				sampleSize = int(sourcePointCount)
+			}
+			keys, err := r.sampleKeyValues(ctx, sourceConn, sampleSize)
+			if err != nil {
+				return nil, fmt.Errorf("failed to sample keys: %w", err)
+			}
+			ids := make([]*qdrant.PointId, len(keys))
+			for i, key := range keys {
+				ids[i] = qdrant.NewIDUUID(key)
+			}
+			return ids, nil
+		})
 	if err != nil {
-		return fmt.Errorf("failed to sample keys: %w", err)
+		return err
+	}
+	fingerprint, err := commons.BoundariesFingerprint(ids)
+	if err != nil {
+		return err
+	}
+	keys := make([]string, len(ids))
+	for i, id := range ids {
+		keys[i] = id.GetUuid()
 	}
 
 	ranges := r.createRangesFromSamples(keys)
+	for i := range ranges {
+		ranges[i].offsetKey = fmt.Sprintf("%s-%s-workers-%d-%s-range-%d", r.PG.Table, r.PG.KeyColumn, r.NumWorkers, fingerprint, ranges[i].id)
+	}
 
 	poolConfig, err := pgxpool.ParseConfig(r.PG.Url)
 	if err != nil {
@@ -429,15 +450,17 @@ func (r *MigrateFromPGCmd) migrateDataParallel(ctx context.Context, sourceConn *
 	defer pool.Close()
 
 	// If not restarting, load the progress for each range.
-	// The offset key includes NumWorkers, so changing num-workers will start a fresh migration.
 	var totalProcessed uint64
 	if !r.Migration.Restart {
 		for i := range ranges {
-			offsetKey := fmt.Sprintf("%s-workers-%d-range-%d", r.PG.Table, r.NumWorkers, ranges[i].id)
-			_, count, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, offsetKey)
+			offsetID, count, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, ranges[i].offsetKey)
 			if err != nil {
 				return fmt.Errorf("failed to get start offset: %w", err)
 			}
+			if key := offsetID.GetUuid(); key != "" {
+				ranges[i].lastKey = &key
+			}
+			ranges[i].count = count
 			totalProcessed += count
 			if count > 0 {
 				pterm.Info.Printfln("Resuming range %d (already processed %d points)", ranges[i].id, count)
@@ -479,23 +502,10 @@ func (r *MigrateFromPGCmd) migrateDataParallel(ctx context.Context, sourceConn *
 // migrateRange is the function executed by each worker in parallel migration.
 // It queries a specific key range and upserts the rows to the target.
 func (r *MigrateFromPGCmd) migrateRange(ctx context.Context, pool *pgxpool.Pool, targetClient *qdrant.Client, rg pgRangeSpec, bar *pterm.ProgressbarPrinter) error {
-	offsetKey := fmt.Sprintf("%s-workers-%d-range-%d", r.PG.Table, r.NumWorkers, rg.id)
+	offsetKey := rg.offsetKey
 	batchSize := r.Migration.BatchSize
-
-	var lastKey *string
-	var count uint64
-	if !r.Migration.Restart {
-		offsetID, c, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, offsetKey)
-		if err != nil {
-			return fmt.Errorf("failed to get start offset: %w", err)
-		}
-		if offsetID != nil {
-			if uuid := offsetID.GetUuid(); uuid != "" {
-				lastKey = &uuid
-			}
-		}
-		count = c
-	}
+	lastKey := rg.lastKey
+	count := rg.count
 
 	tableIdent := pgx.Identifier{r.PG.Table}.Sanitize()
 	keyColIdent := pgx.Identifier{r.PG.KeyColumn}.Sanitize()

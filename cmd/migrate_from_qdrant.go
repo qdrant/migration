@@ -129,22 +129,8 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 		return fmt.Errorf("failed to migrate data: %w", err)
 	}
 
-	targetPointCount, err := targetClient.Count(ctx, &qdrant.CountPoints{
-		CollectionName: r.Target.Collection,
-		Exact:          qdrant.PtrOf(true),
-	})
-	if err != nil {
-		return fmt.Errorf("failed to count points in target: %w", err)
-	}
-
-	pterm.Info.Printfln("Target collection has %d points\n", targetPointCount)
-
-	// Guard against silent data loss: if the target has fewer points than the source had at the start,
-	// fail loudly and keep the offsets collection for investigation instead of reporting success.
-	if targetPointCount < sourcePointCount {
-		return fmt.Errorf("migration finished but the target has fewer points than the source: source had %d at start, target has %d "+
-			"(this can also happen if points were deleted from the source during the migration), offsets collection %q was kept",
-			sourcePointCount, targetPointCount, r.Migration.OffsetsCollection)
+	if err := verifyTargetCount(ctx, targetClient, r.Target.Collection, sourcePointCount, r.Migration.OffsetsCollection); err != nil {
+		return err
 	}
 
 	err = commons.DeleteOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient)
@@ -490,45 +476,22 @@ func (r *MigrateFromQdrantCmd) migrateDataSequential(ctx context.Context, source
 	return nil
 }
 
-// resolveRangeBoundaries returns the sorted point IDs that split the source collection into worker ranges.
-// The boundaries are sampled randomly, so they are persisted next to the offsets on the first run and reused
-// when resuming. With --migration.restart, fresh boundaries are sampled and persisted, replacing the old ones.
-func (r *MigrateFromQdrantCmd) resolveRangeBoundaries(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, sourcePointCount uint64) ([]*qdrant.PointId, error) {
-	boundariesKey := fmt.Sprintf("%s-workers-%d-boundaries", sourceCollection, r.NumWorkers)
-
-	if !r.Migration.Restart {
-		stored, err := commons.GetBoundaries(ctx, r.Migration.OffsetsCollection, targetClient, boundariesKey)
-		if err != nil {
-			return nil, err
-		}
-		if len(stored) > 0 {
-			pterm.Info.Printfln("Reusing %d stored range boundaries from the previous run", len(stored))
-			return stored, nil
-		}
-	}
-
-	ids, err := r.samplePointIDs(ctx, sourceClient, sourceCollection, sourcePointCount)
-	if err != nil {
-		return nil, err
-	}
-	if len(ids) == 0 {
-		return nil, fmt.Errorf("could not sample any point IDs from source collection %q", sourceCollection)
-	}
-	if err := commons.StoreBoundaries(ctx, r.Migration.OffsetsCollection, targetClient, boundariesKey, ids); err != nil {
-		return nil, err
-	}
-	return ids, nil
-}
-
 // migrateDataParallel performs the migration using multiple workers in parallel.
 func (r *MigrateFromQdrantCmd) migrateDataParallel(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string, sourcePointCount uint64) error {
 	pterm.Info.Printfln("Using parallel migration with %d workers", r.NumWorkers)
 
 	// Resolve the range boundaries. On resume, the boundaries persisted by the previous run are reused.
 	// Re-sampling would produce different ranges and make the stored per-range offsets point at the wrong places.
-	ids, err := r.resolveRangeBoundaries(ctx, sourceClient, sourceCollection, targetClient, sourcePointCount)
+	ids, err := resolveRangeBoundaries(ctx, targetClient, r.Migration,
+		fmt.Sprintf("%s-workers-%d-boundaries", sourceCollection, r.NumWorkers),
+		func() ([]*qdrant.PointId, error) {
+			return r.samplePointIDs(ctx, sourceClient, sourceCollection, sourcePointCount)
+		})
 	if err != nil {
 		return err
+	}
+	if len(ids) == 0 {
+		return fmt.Errorf("could not sample any point IDs from source collection %q", sourceCollection)
 	}
 	fingerprint, err := commons.BoundariesFingerprint(ids)
 	if err != nil {
