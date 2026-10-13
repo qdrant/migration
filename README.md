@@ -14,8 +14,9 @@ CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for res
 * Elasticsearch
 * Azure AI Search
 * Postgres (pgvector)
-* S3 Vectors
+* Amazon S3 Vectors
 * Amazon DynamoDB
+* Turbopuffer
 * FAISS
 * Apache Solr
 * Another Qdrant instance
@@ -515,9 +516,9 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 </details>
 
 <details>
-<summary><h3>From S3 Vectors</h3></summary>
+<summary><h3>From Amazon S3 Vectors</h3></summary>
 
-Migrate data from an **S3 Vectors** index to **Qdrant**:
+Migrate data from an **Amazon S3 Vectors** index to **Qdrant**:
 
 ### 📥 Example
 
@@ -606,6 +607,45 @@ docker run --net=host --rm -it \
 | `--qdrant.api-key`      | Qdrant API key (optional)                                                         |
 | `--qdrant.id-field`     | Payload field storing the canonical DynamoDB primary key. Default: `"__id__"`   |
 | `--qdrant.vector-name`  | Target vector name. Empty uses Qdrant's unnamed vector                            |
+
+* See [Shared Migration Options](#shared-migration-options) for common migration parameters.
+
+</details>
+
+<details>
+<summary><h3>From Turbopuffer</h3></summary>
+
+Migrate vectors and attributes from a **Turbopuffer** namespace to **Qdrant**:
+
+### 📥 Example
+
+```bash
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration turbopuffer \
+    --turbopuffer.namespace 'your-namespace' \
+    --turbopuffer.api-key 'your-turbopuffer-api-key' \
+    --turbopuffer.region 'gcp-us-central1' \
+    --qdrant.url 'http://target-hostname:6334' \
+    --qdrant.api-key 'optional-qdrant-api-key' \
+    --qdrant.collection 'target-collection' \
+    --migration.batch-size 64
+```
+
+#### Turbopuffer Options
+
+| Flag                      | Description                                                    |
+| ------------------------- | -------------------------------------------------------------- |
+| `--turbopuffer.namespace` | Turbopuffer namespace to migrate (required)                    |
+| `--turbopuffer.api-key`   | Turbopuffer API key (required)                                 |
+| `--turbopuffer.region`    | Turbopuffer region, e.g. `gcp-us-central1` (required)          |
+
+#### Qdrant Options
+
+| Flag                  | Description                                                        |
+| --------------------- | ------------------------------------------------------------------ |
+| `--qdrant.url`        | Qdrant gRPC URL. Default: `"http://localhost:6334"`               |
+| `--qdrant.collection` | Target collection name                                             |
+| `--qdrant.api-key`    | Qdrant API key (optional)                                          |
+| `--qdrant.id-field`   | Payload field storing the Turbopuffer document ID. Default: `"__id__"` |
 
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
 
