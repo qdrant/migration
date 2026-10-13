@@ -4,7 +4,9 @@ package cmd
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -132,7 +134,20 @@ func newPythonCmdOutput(ctx context.Context, args ...string) ([]byte, error) {
 	}
 	fullArgs := append([]string{PythonScript}, args...)
 	cmd := exec.CommandContext(ctx, pythonPath, fullArgs...)
-	return cmd.Output()
+	out, err := cmd.Output()
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		return out, pythonError(err, exitErr.Stderr)
+	}
+	return out, err
+}
+
+func pythonError(err error, stderr []byte) error {
+	msg := strings.TrimSpace(string(stderr))
+	if msg == "" {
+		return err
+	}
+	return fmt.Errorf("%w: %s", err, msg)
 }
 
 func newPythonCmd(ctx context.Context, args ...string) (*exec.Cmd, error) {
@@ -231,6 +246,8 @@ func (r *MigrateFromFaissCmd) migrateData(ctx context.Context, targetClient *qdr
 	if err != nil {
 		return err
 	}
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
 		return fmt.Errorf("failed to get stdout pipe: %w", err)
@@ -265,7 +282,7 @@ func (r *MigrateFromFaissCmd) migrateData(ctx context.Context, targetClient *qdr
 	}
 
 	if err := cmd.Wait(); err != nil {
-		return fmt.Errorf("faiss migration failed: %w", err)
+		return fmt.Errorf("faiss migration failed: %w", pythonError(err, stderr.Bytes()))
 	}
 	return nil
 }

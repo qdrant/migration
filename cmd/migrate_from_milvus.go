@@ -240,7 +240,7 @@ func (r *MigrateFromMilvusCmd) migrateData(ctx context.Context, sourceClient *mi
 		if offsetID != nil {
 			switch pkType {
 			case entity.FieldTypeInt64:
-				filter = fmt.Sprintf("%s > %d", pkName, offsetID.GetNum())
+				filter = fmt.Sprintf("%s > %d", pkName, int64(offsetID.GetNum()))
 			case entity.FieldTypeVarChar:
 				filter = fmt.Sprintf("%s > '%s'", pkName, offsetID.GetUuid())
 			}

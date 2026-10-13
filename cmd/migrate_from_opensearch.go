@@ -125,6 +125,10 @@ func (r *MigrateFromOpenSearchCmd) connectToOpenSearch() (*opensearch.Client, er
 		},
 	}
 
+	if r.OpenSearch.APIKey != "" {
+		config.Header = http.Header{"Authorization": []string{"ApiKey " + r.OpenSearch.APIKey}}
+	}
+
 	client, err := opensearch.NewClient(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create OpenSearch client: %w", err)

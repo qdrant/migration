@@ -113,8 +113,12 @@ func (r *MigrateFromChromaCmd) Run(globals *Globals) error {
 func (r *MigrateFromChromaCmd) parseChromaOptions() ([]chroma.ClientOption, error) {
 	clientOptions := []chroma.ClientOption{chroma.WithBaseURL(r.Chroma.Url)}
 
-	if r.Chroma.Database != "" && r.Chroma.Tenant != "" {
-		clientOptions = append(clientOptions, chroma.WithDatabaseAndTenant(r.Chroma.Database, r.Chroma.Tenant))
+	if r.Chroma.Database != "" {
+		tenant := r.Chroma.Tenant
+		if tenant == "" {
+			tenant = chroma.DefaultTenant
+		}
+		clientOptions = append(clientOptions, chroma.WithDatabaseAndTenant(r.Chroma.Database, tenant))
 	} else if r.Chroma.Tenant != "" {
 		clientOptions = append(clientOptions, chroma.WithTenant(r.Chroma.Tenant))
 	}
@@ -147,7 +151,7 @@ func (r *MigrateFromChromaCmd) connectToChroma(ctx context.Context) (chroma.Clie
 		return nil, nil, fmt.Errorf("failed to create Chroma client: %w", err)
 	}
 
-	collection, err := client.GetOrCreateCollection(ctx, r.Chroma.Collection)
+	collection, err := client.GetCollection(ctx, r.Chroma.Collection)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get Chroma collection: %w", err)
 	}
