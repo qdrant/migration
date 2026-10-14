@@ -193,7 +193,7 @@ func (r *MigrateFromSolrCmd) migrateData(ctx context.Context, httpClient *http.C
 		}
 
 		var targetPoints []*qdrant.PointStruct
-		for _, doc := range docs {
+		for i, doc := range docs {
 			docMap, ok := doc.(map[string]any)
 			if !ok {
 				return fmt.Errorf("invalid document format: expected map[string]any, got %T", doc)
@@ -203,7 +203,7 @@ func (r *MigrateFromSolrCmd) migrateData(ctx context.Context, httpClient *http.C
 			if id, exists := docMap["id"]; exists {
 				docID = fmt.Sprintf("%v", id)
 			} else {
-				docID = fmt.Sprintf("doc_%d", offsetCount)
+				docID = fmt.Sprintf("doc_%d", offsetCount+uint64(i))
 			}
 
 			point := &qdrant.PointStruct{}

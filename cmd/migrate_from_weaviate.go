@@ -190,15 +190,20 @@ func (r *MigrateFromWeaviateCmd) getClassSchema(ctx context.Context, client *wea
 }
 
 func (r *MigrateFromWeaviateCmd) countWeaviateObjects(ctx context.Context, client *weaviate.Client) (uint64, error) {
-	result, err := client.GraphQL().Aggregate().
+	query := client.GraphQL().Aggregate().
 		WithClassName(r.Weaviate.ClassName).
 		WithFields(graphql.Field{
 			Name: "meta",
 			Fields: []graphql.Field{
 				{Name: "count"},
 			},
-		}).
-		Do(ctx)
+		})
+
+	if r.Weaviate.Tenant != "" {
+		query = query.WithTenant(r.Weaviate.Tenant)
+	}
+
+	result, err := query.Do(ctx)
 
 	if err != nil {
 		return 0, fmt.Errorf("failed to count objects in Weaviate: %w", err)
