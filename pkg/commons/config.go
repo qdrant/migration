@@ -4,6 +4,7 @@ type QdrantConfig struct {
 	Collection string `help:"Collection name" required:"true"`
 	Url        string `help:"Qdrant gRPC URL" default:"http://localhost:6334"`
 	APIKey     string `help:"API key for authentication"`
+	Serverless bool   `help:"Connect to a Qdrant Serverless space. The connection always uses TLS on port 443."`
 }
 
 type MigrationConfig struct {

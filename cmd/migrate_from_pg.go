@@ -86,13 +86,13 @@ func (r *MigrateFromPGCmd) Run(globals *Globals) error {
 	}
 	defer sourceConn.Close(ctx)
 
-	targetClient, err := connectToQdrant(globals, r.targetHost, r.targetPort, r.Qdrant.APIKey, r.targetTLS, 0)
+	targetClient, err := connectToQdrantOrServerless(globals, r.targetHost, r.targetPort, r.Qdrant.APIKey, r.targetTLS, r.Qdrant.Serverless, 0)
 	if err != nil {
 		return fmt.Errorf("failed to connect to Qdrant target: %w", err)
 	}
 	defer targetClient.Close()
 
-	err = commons.PrepareOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient)
+	err = targetClient.prepareOffsetsCollection(ctx, r.Migration.OffsetsCollection)
 	if err != nil {
 		return fmt.Errorf("failed to prepare migration marker collection: %w", err)
 	}
@@ -118,7 +118,7 @@ func (r *MigrateFromPGCmd) Run(globals *Globals) error {
 		return err
 	}
 
-	err = commons.DeleteOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient)
+	err = targetClient.deleteOffsetsCollection(ctx, r.Migration.OffsetsCollection)
 	if err != nil {
 		return fmt.Errorf("failed to delete migration marker collection: %w", err)
 	}
@@ -192,7 +192,7 @@ func getVectorColumns(ctx context.Context, conn *pgx.Conn, table string) (map[st
 	return vectorMap, nil
 }
 
-func (r *MigrateFromPGCmd) prepareTargetCollection(ctx context.Context, sourceConn *pgx.Conn, targetClient *qdrant.Client) error {
+func (r *MigrateFromPGCmd) prepareTargetCollection(ctx context.Context, sourceConn *pgx.Conn, targetClient *qdrantConnection) error {
 	if !r.Migration.CreateCollection {
 		return nil
 	}
@@ -247,7 +247,7 @@ func (r *MigrateFromPGCmd) prepareTargetCollection(ctx context.Context, sourceCo
 	return nil
 }
 
-func (r *MigrateFromPGCmd) migrateData(ctx context.Context, sourceConn *pgx.Conn, targetClient *qdrant.Client, sourcePointCount uint64) error {
+func (r *MigrateFromPGCmd) migrateData(ctx context.Context, sourceConn *pgx.Conn, targetClient *qdrantConnection, sourcePointCount uint64) error {
 	if r.NumWorkers > 1 {
 		return r.migrateDataParallel(ctx, sourceConn, targetClient, sourcePointCount)
 	}
@@ -255,7 +255,7 @@ func (r *MigrateFromPGCmd) migrateData(ctx context.Context, sourceConn *pgx.Conn
 }
 
 // migrateDataSequential performs the migration using a single worker.
-func (r *MigrateFromPGCmd) migrateDataSequential(ctx context.Context, sourceConn *pgx.Conn, targetClient *qdrant.Client, sourcePointCount uint64) error {
+func (r *MigrateFromPGCmd) migrateDataSequential(ctx context.Context, sourceConn *pgx.Conn, targetClient *qdrantConnection, sourcePointCount uint64) error {
 	batchSize := r.Migration.BatchSize
 
 	offsetCount := uint64(0)
@@ -391,7 +391,7 @@ func (r *MigrateFromPGCmd) createRangesFromSamples(keys []string) []pgRangeSpec 
 }
 
 // migrateDataParallel performs the migration using multiple workers in parallel.
-func (r *MigrateFromPGCmd) migrateDataParallel(ctx context.Context, sourceConn *pgx.Conn, targetClient *qdrant.Client, sourcePointCount uint64) error {
+func (r *MigrateFromPGCmd) migrateDataParallel(ctx context.Context, sourceConn *pgx.Conn, targetClient *qdrantConnection, sourcePointCount uint64) error {
 	pterm.Info.Printfln("Using parallel migration with %d workers", r.NumWorkers)
 
 	if sourcePointCount == 0 {
@@ -501,7 +501,7 @@ func (r *MigrateFromPGCmd) migrateDataParallel(ctx context.Context, sourceConn *
 
 // migrateRange is the function executed by each worker in parallel migration.
 // It queries a specific key range and upserts the rows to the target.
-func (r *MigrateFromPGCmd) migrateRange(ctx context.Context, pool *pgxpool.Pool, targetClient *qdrant.Client, rg pgRangeSpec, bar *pterm.ProgressbarPrinter) error {
+func (r *MigrateFromPGCmd) migrateRange(ctx context.Context, pool *pgxpool.Pool, targetClient *qdrantConnection, rg pgRangeSpec, bar *pterm.ProgressbarPrinter) error {
 	offsetKey := rg.offsetKey
 	batchSize := r.Migration.BatchSize
 	lastKey := rg.lastKey

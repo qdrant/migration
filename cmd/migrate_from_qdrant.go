@@ -13,8 +13,11 @@ import (
 	"time"
 
 	"github.com/pterm/pterm"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/qdrant/go-client/qdrant"
+	"github.com/qdrant/go-client/qdrant/serverless"
 
 	"github.com/qdrant/migration/pkg/commons"
 )
@@ -25,7 +28,7 @@ const (
 )
 
 func init() {
-	registerCommand[MigrateFromQdrantCmd]("qdrant", "Migrate data from a Qdrant database to Qdrant.")
+	registerCommand[MigrateFromQdrantCmd]("qdrant", "Migrate data from a Qdrant database or Qdrant Serverless to Qdrant or Qdrant Serverless.")
 }
 
 type MigrateFromQdrantCmd struct {
@@ -56,12 +59,26 @@ func (r *MigrateFromQdrantCmd) Parse() error {
 	if err != nil {
 		return fmt.Errorf("failed to parse target URL: %w", err)
 	}
+	// The serverless client connects over TLS on port 443 whatever the URL says.
+	// The same port here lets ValidateParsedValues compare the endpoints in use.
+	if r.Source.Serverless {
+		r.sourcePort, r.sourceTLS = DefaultHTTPSPort, true
+	}
+	if r.Target.Serverless {
+		r.targetPort, r.targetTLS = DefaultHTTPSPort, true
+	}
 	return nil
 }
 
 func (r *MigrateFromQdrantCmd) Validate() error {
 	if r.ShardKey != "" && r.ShardKeyField != "" {
 		return fmt.Errorf("target shard-key and shard-key-field cannot be used together")
+	}
+	if r.Target.Serverless && r.routesToTargetShard() {
+		return fmt.Errorf("target shard-key and shard-key-field cannot be used with a Qdrant Serverless target")
+	}
+	if r.Source.Serverless && r.Migration.BatchSize > serverlessMaxLimit {
+		return fmt.Errorf("batch size must be at most %d with a Qdrant Serverless source, got: %d", serverlessMaxLimit, r.Migration.BatchSize)
 	}
 	return validateBatchSize(r.Migration.BatchSize)
 }
@@ -95,19 +112,19 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	sourceClient, err := connectToQdrant(globals, r.sourceHost, r.sourcePort, r.Source.APIKey, r.sourceTLS, r.MaxMessageSize)
+	sourceClient, err := connectToQdrantOrServerless(globals, r.sourceHost, r.sourcePort, r.Source.APIKey, r.sourceTLS, r.Source.Serverless, r.MaxMessageSize)
 	if err != nil {
 		return fmt.Errorf("failed to connect to source: %w", err)
 	}
 	defer sourceClient.Close()
 
-	targetClient, err := connectToQdrant(globals, r.targetHost, r.targetPort, r.Target.APIKey, r.targetTLS, 0)
+	targetClient, err := connectToQdrantOrServerless(globals, r.targetHost, r.targetPort, r.Target.APIKey, r.targetTLS, r.Target.Serverless, 0)
 	if err != nil {
 		return fmt.Errorf("failed to connect to target: %w", err)
 	}
 	defer targetClient.Close()
 
-	if err := commons.PrepareOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient); err != nil {
+	if err := targetClient.prepareOffsetsCollection(ctx, r.Migration.OffsetsCollection); err != nil {
 		return fmt.Errorf("failed to prepare migration marker collection: %w", err)
 	}
 
@@ -123,7 +140,11 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 		return fmt.Errorf("error preparing target collection: %w", err)
 	}
 
-	displayMigrationStart("qdrant", r.Source.Collection, r.Target.Collection)
+	sourceProvider := "qdrant"
+	if r.Source.Serverless {
+		sourceProvider = "qdrant-serverless"
+	}
+	displayMigrationStart(sourceProvider, r.Source.Collection, r.Target.Collection)
 
 	if err := r.migrateData(ctx, sourceClient, r.Source.Collection, targetClient, r.Target.Collection, sourcePointCount); err != nil {
 		return fmt.Errorf("failed to migrate data: %w", err)
@@ -133,7 +154,7 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 		return err
 	}
 
-	err = commons.DeleteOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient)
+	err = targetClient.deleteOffsetsCollection(ctx, r.Migration.OffsetsCollection)
 	if err != nil {
 		return fmt.Errorf("failed to delete migration marker collection: %w", err)
 	}
@@ -143,14 +164,18 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 
 // prepareTargetCollection ensures the target collection exists and is configured correctly.
 // It can create the collection based on the source's schema and create payload indexes.
-func (r *MigrateFromQdrantCmd) prepareTargetCollection(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string) error {
-	sourceCollectionInfo, err := sourceClient.GetCollectionInfo(ctx, sourceCollection)
+func (r *MigrateFromQdrantCmd) prepareTargetCollection(ctx context.Context, sourceClient *qdrantConnection, sourceCollection string, targetClient *qdrantConnection, targetCollection string) error {
+	if targetClient.serverless != nil {
+		return r.prepareServerlessTargetCollection(ctx, sourceClient, sourceCollection, targetClient.serverless, targetCollection)
+	}
+
+	request, payloadSchema, err := clusterSourceConfig(ctx, sourceClient, sourceCollection, targetCollection)
 	if err != nil {
 		return fmt.Errorf("failed to get source collection info: %w", err)
 	}
 
 	if r.Migration.CreateCollection {
-		exists, err := targetClient.CollectionExists(ctx, targetCollection)
+		exists, err := targetClient.cluster.CollectionExists(ctx, targetCollection)
 		if err != nil {
 			return fmt.Errorf("failed to check if collection exists: %w", err)
 		}
@@ -158,30 +183,115 @@ func (r *MigrateFromQdrantCmd) prepareTargetCollection(ctx context.Context, sour
 			fmt.Print("\n")
 			pterm.Info.Printfln("Target collection '%s' already exists. Skipping creation.", targetCollection)
 		} else {
-			params := sourceCollectionInfo.Config.GetParams()
-			shardingMethod := params.ShardingMethod
 			if r.routesToTargetShard() {
-				shardingMethod = qdrant.PtrOf(qdrant.ShardingMethod_Custom)
+				request.ShardingMethod = qdrant.PtrOf(qdrant.ShardingMethod_Custom)
 			}
-			if err := targetClient.CreateCollection(ctx, &qdrant.CreateCollection{
-				CollectionName:         targetCollection,
-				HnswConfig:             sourceCollectionInfo.Config.GetHnswConfig(),
-				WalConfig:              sourceCollectionInfo.Config.GetWalConfig(),
-				OptimizersConfig:       sourceCollectionInfo.Config.GetOptimizerConfig(),
-				ShardNumber:            &params.ShardNumber,
-				OnDiskPayload:          &params.OnDiskPayload,
-				VectorsConfig:          params.VectorsConfig,
-				ReplicationFactor:      params.ReplicationFactor,
-				WriteConsistencyFactor: params.WriteConsistencyFactor,
-				QuantizationConfig:     sourceCollectionInfo.Config.GetQuantizationConfig(),
-				ShardingMethod:         shardingMethod,
-				SparseVectorsConfig:    params.SparseVectorsConfig,
-				StrictModeConfig:       sourceCollectionInfo.Config.GetStrictModeConfig(),
-			}); err != nil {
+			if err := targetClient.cluster.CreateCollection(ctx, request); err != nil {
 				return fmt.Errorf("failed to create target collection: %w", err)
 			}
 		}
 	}
+	return r.ensureTargetPayloadIndexes(ctx, payloadSchema, targetClient.cluster, targetCollection)
+}
+
+// createCollectionFromInfo returns a request that creates a collection with the configuration of a Qdrant cluster collection.
+func createCollectionFromInfo(collection string, info *qdrant.CollectionInfo) *qdrant.CreateCollection {
+	params := info.GetConfig().GetParams()
+	return &qdrant.CreateCollection{
+		CollectionName:         collection,
+		HnswConfig:             info.GetConfig().GetHnswConfig(),
+		WalConfig:              info.GetConfig().GetWalConfig(),
+		OptimizersConfig:       info.GetConfig().GetOptimizerConfig(),
+		ShardNumber:            &params.ShardNumber,
+		OnDiskPayload:          &params.OnDiskPayload, //nolint:staticcheck // Older Qdrant versions report only on_disk_payload.
+		Payload:                params.GetPayload(),
+		VectorsConfig:          params.VectorsConfig,
+		ReplicationFactor:      params.ReplicationFactor,
+		WriteConsistencyFactor: params.WriteConsistencyFactor,
+		QuantizationConfig:     info.GetConfig().GetQuantizationConfig(),
+		ShardingMethod:         params.ShardingMethod,
+		SparseVectorsConfig:    params.SparseVectorsConfig,
+		StrictModeConfig:       info.GetConfig().GetStrictModeConfig(),
+	}
+}
+
+// prepareServerlessTargetCollection creates a serverless collection with the vectors and payload indexes of the source collection.
+// Qdrant Serverless sets payload indexes only when it creates a collection.
+func (r *MigrateFromQdrantCmd) prepareServerlessTargetCollection(ctx context.Context, sourceClient *qdrantConnection, sourceCollection string, targetClient *serverless.Client, targetCollection string) error {
+	sourceConfig, err := serverlessSourceConfig(ctx, sourceClient, sourceCollection)
+	if err != nil {
+		return fmt.Errorf("failed to get source collection info: %w", err)
+	}
+	if !r.EnsurePayloadIndexes {
+		sourceConfig.PayloadIndexes = nil
+	}
+
+	if r.Migration.CreateCollection {
+		created, err := createServerlessCollection(ctx, targetClient, targetCollection, sourceConfig)
+		// Qdrant Serverless rejects payload indexes that it does not support, for example too many of them.
+		if status.Code(err) == codes.InvalidArgument && len(sourceConfig.GetPayloadIndexes()) > 0 {
+			return fmt.Errorf("failed to create target collection: %w. If the error is about the payload indexes, use --target.ensure-payload-indexes=false to create the collection without them", err)
+		}
+		if err != nil {
+			return fmt.Errorf("failed to create target collection: %w", err)
+		}
+		if created {
+			return nil
+		}
+		fmt.Print("\n")
+		pterm.Info.Printfln("Target collection '%s' already exists. Skipping creation.", targetCollection)
+	}
+	if len(sourceConfig.GetPayloadIndexes()) == 0 {
+		return nil
+	}
+
+	targetConfig, err := getServerlessCollectionConfig(ctx, targetClient, targetCollection)
+	if err != nil {
+		return fmt.Errorf("failed to get target collection information: %w", err)
+	}
+	for name := range sourceConfig.GetPayloadIndexes() {
+		if _, ok := targetConfig.GetPayloadIndexes()[name]; !ok {
+			pterm.Warning.Printfln("The target collection has no payload index on '%s'. Qdrant Serverless sets payload indexes only when it creates a collection.", name)
+		}
+	}
+	return nil
+}
+
+// clusterSourceConfig returns a request that creates the source collection on a Qdrant cluster as the target collection,
+// and the payload schema of the source collection.
+func clusterSourceConfig(ctx context.Context, sourceClient *qdrantConnection, sourceCollection, targetCollection string) (*qdrant.CreateCollection, map[string]*qdrant.PayloadSchemaInfo, error) {
+	if sourceClient.serverless != nil {
+		config, err := getServerlessCollectionConfig(ctx, sourceClient.serverless, sourceCollection)
+		if err != nil {
+			return nil, nil, err
+		}
+		request, err := createCollectionFromServerless(targetCollection, config)
+		if err != nil {
+			return nil, nil, err
+		}
+		return request, payloadSchemaFromServerless(config.GetPayloadIndexes()), nil
+	}
+	info, err := sourceClient.cluster.GetCollectionInfo(ctx, sourceCollection)
+	if err != nil {
+		return nil, nil, err
+	}
+	return createCollectionFromInfo(targetCollection, info), info.GetPayloadSchema(), nil
+}
+
+// serverlessSourceConfig returns the configuration of the source collection in the serverless format.
+func serverlessSourceConfig(ctx context.Context, sourceClient *qdrantConnection, sourceCollection string) (*serverless.CollectionConfig, error) {
+	if sourceClient.serverless != nil {
+		return getServerlessCollectionConfig(ctx, sourceClient.serverless, sourceCollection)
+	}
+	info, err := sourceClient.cluster.GetCollectionInfo(ctx, sourceCollection)
+	if err != nil {
+		return nil, err
+	}
+	return serverlessConfigFromCollectionInfo(info)
+}
+
+// ensureTargetPayloadIndexes checks the sharding of a Qdrant cluster target and creates the source payload indexes that the target is missing.
+func (r *MigrateFromQdrantCmd) ensureTargetPayloadIndexes(ctx context.Context, sourcePayloadSchema map[string]*qdrant.PayloadSchemaInfo, targetClient *qdrant.Client, targetCollection string) error {
 	targetCollectionInfo, err := targetClient.GetCollectionInfo(ctx, targetCollection)
 	if err != nil {
 		return fmt.Errorf("failed to get target collection information: %w", err)
@@ -192,7 +302,7 @@ func (r *MigrateFromQdrantCmd) prepareTargetCollection(ctx context.Context, sour
 
 	// If EnsurePayloadIndexes is enabled, create any missing payload indexes on the target.
 	if r.EnsurePayloadIndexes {
-		for name, schemaInfo := range sourceCollectionInfo.GetPayloadSchema() {
+		for name, schemaInfo := range sourcePayloadSchema {
 			fieldType := getFieldType(schemaInfo.GetDataType())
 			if fieldType == nil {
 				continue
@@ -204,7 +314,7 @@ func (r *MigrateFromQdrantCmd) prepareTargetCollection(ctx context.Context, sour
 			}
 
 			if _, err := targetClient.CreateFieldIndex(ctx, &qdrant.CreateFieldIndexCollection{
-				CollectionName:   r.Target.Collection,
+				CollectionName:   targetCollection,
 				FieldName:        name,
 				FieldType:        fieldType,
 				FieldIndexParams: schemaInfo.GetParams(),
@@ -312,6 +422,10 @@ func convertVectors(p *qdrant.RetrievedPoint) *qdrant.Vectors {
 }
 
 func (r *MigrateFromQdrantCmd) targetShardKey(point *qdrant.RetrievedPoint) (*qdrant.ShardKey, error) {
+	// Qdrant Serverless has no shard keys, so the points are written without one.
+	if r.Target.Serverless {
+		return nil, nil
+	}
 	if r.ShardKey != "" {
 		return qdrant.NewShardKeyKeyword(r.ShardKey), nil
 	}
@@ -334,12 +448,15 @@ func (r *MigrateFromQdrantCmd) targetShardKey(point *qdrant.RetrievedPoint) (*qd
 
 // samplePointIDs fetches a random sample of point IDs from the source collection.
 // These IDs are used as boundaries to divide the migration work among parallel workers.
-func (r *MigrateFromQdrantCmd) samplePointIDs(ctx context.Context, client *qdrant.Client, collection string, pointCount uint64) ([]*qdrant.PointId, error) {
+func (r *MigrateFromQdrantCmd) samplePointIDs(ctx context.Context, client qdrantPoints, collection string, pointCount uint64) ([]*qdrant.PointId, error) {
 	// TODO(Anush008): Check if there's a more optimal value for SAMPLE_SIZE_PER_WORKER.
 	sampleSize := r.NumWorkers * SAMPLE_SIZE_PER_WORKER
 	// Don't sample more points than are available in the collection.
 	if uint64(sampleSize) > pointCount {
 		sampleSize = int(pointCount)
+	}
+	if r.Source.Serverless {
+		sampleSize = min(sampleSize, serverlessMaxLimit)
 	}
 
 	points, err := client.Query(ctx, &qdrant.QueryPoints{
@@ -366,7 +483,7 @@ func (r *MigrateFromQdrantCmd) samplePointIDs(ctx context.Context, client *qdran
 
 // processBatch handles the upserting of a batch of points to the target collection.
 // It preserves source sharding or applies the configured target shard key.
-func (r *MigrateFromQdrantCmd) processBatch(ctx context.Context, points []*qdrant.RetrievedPoint, targetClient *qdrant.Client, targetCollection string, shardKeys *sync.Map, wait bool) error {
+func (r *MigrateFromQdrantCmd) processBatch(ctx context.Context, points []*qdrant.RetrievedPoint, targetClient *qdrantConnection, targetCollection string, shardKeys *sync.Map, wait bool) error {
 	// Group points by their shard key.
 	byShardKey := make(map[string][]*qdrant.PointStruct)
 	shardKeyObjs := make(map[string]*qdrant.ShardKey)
@@ -397,7 +514,7 @@ func (r *MigrateFromQdrantCmd) processBatch(ctx context.Context, points []*qdran
 		}
 		if key != "" {
 			if _, ok := shardKeys.Load(key); !ok {
-				err := targetClient.CreateShardKey(ctx, targetCollection, &qdrant.CreateShardKey{ShardKey: shardKeyObjs[key]})
+				err := targetClient.cluster.CreateShardKey(ctx, targetCollection, &qdrant.CreateShardKey{ShardKey: shardKeyObjs[key]})
 				if err != nil && !strings.Contains(err.Error(), "already exists") {
 					return fmt.Errorf("failed to create shard key %s: %w", key, err)
 				}
@@ -413,15 +530,16 @@ func (r *MigrateFromQdrantCmd) processBatch(ctx context.Context, points []*qdran
 }
 
 // migrateData chooses between sequential and parallel migration based on the number of workers.
-func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string, sourcePointCount uint64) error {
-	if r.NumWorkers > 1 {
+func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qdrantConnection, sourceCollection string, targetClient *qdrantConnection, targetCollection string, sourcePointCount uint64) error {
+	// An empty source has no points to sample for the parallel ranges.
+	if r.NumWorkers > 1 && sourcePointCount > 0 {
 		return r.migrateDataParallel(ctx, sourceClient, sourceCollection, targetClient, targetCollection, sourcePointCount)
 	}
 	return r.migrateDataSequential(ctx, sourceClient, sourceCollection, targetClient, targetCollection, sourcePointCount)
 }
 
 // migrateDataSequential performs the migration using a single worker.
-func (r *MigrateFromQdrantCmd) migrateDataSequential(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string, sourcePointCount uint64) error {
+func (r *MigrateFromQdrantCmd) migrateDataSequential(ctx context.Context, sourceClient *qdrantConnection, sourceCollection string, targetClient *qdrantConnection, targetCollection string, sourcePointCount uint64) error {
 	var offset *qdrant.PointId
 	var count uint64
 
@@ -477,7 +595,7 @@ func (r *MigrateFromQdrantCmd) migrateDataSequential(ctx context.Context, source
 }
 
 // migrateDataParallel performs the migration using multiple workers in parallel.
-func (r *MigrateFromQdrantCmd) migrateDataParallel(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string, sourcePointCount uint64) error {
+func (r *MigrateFromQdrantCmd) migrateDataParallel(ctx context.Context, sourceClient *qdrantConnection, sourceCollection string, targetClient *qdrantConnection, targetCollection string, sourcePointCount uint64) error {
 	pterm.Info.Printfln("Using parallel migration with %d workers", r.NumWorkers)
 
 	// Resolve the range boundaries. On resume, the boundaries persisted by the previous run are reused.
@@ -562,7 +680,7 @@ func (r *MigrateFromQdrantCmd) migrateDataParallel(ctx context.Context, sourceCl
 
 // migrateRange is the function executed by each worker in parallel migration.
 // It scrolls through a specific range of points and upserts them to the target.
-func (r *MigrateFromQdrantCmd) migrateRange(ctx context.Context, sourceCollection, targetCollection string, sourceClient, targetClient *qdrant.Client, rg rangeSpec, shardKeys *sync.Map, bar *pterm.ProgressbarPrinter) error {
+func (r *MigrateFromQdrantCmd) migrateRange(ctx context.Context, sourceCollection, targetCollection string, sourceClient, targetClient *qdrantConnection, rg rangeSpec, shardKeys *sync.Map, bar *pterm.ProgressbarPrinter) error {
 	offsetKey := rg.offsetKey
 	offset := rg.start
 	var count uint64
