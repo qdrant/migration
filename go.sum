@@ -479,8 +479,8 @@ github.com/pterm/pterm v0.12.36/go.mod h1:NjiL09hFhT/vWjQHSj1athJpx6H8cjpHXNAK5b
 github.com/pterm/pterm v0.12.40/go.mod h1:ffwPLwlbXxP+rxT0GsgDTzS3y3rmpAO1NMjUkGTYf8s=
 github.com/pterm/pterm v0.12.83 h1:ie+YmGmA727VuhxBlyGr74Ks+7McV6kT99IB8EU80aA=
 github.com/pterm/pterm v0.12.83/go.mod h1:xlgc6bFWyJIMtmLJvGim+L7jhSReilOlOnodeIYe4Tk=
-github.com/qdrant/go-client v1.20.0 h1:cKJvhWnPHemvy06+jpPNGoX5qKp63VHeIn+/bQKqIYE=
-github.com/qdrant/go-client v1.20.0/go.mod h1:ZorGclWceflis4Ddp3EIPhYJTgyAqlNmcl1hoW5iCUE=
+github.com/qdrant/go-client v1.20.1-0.20261023171359-e2df4a8a35b6 h1:hSpX4oVQXN7bfBT7I2lEqGXRBbAFGcMNgRESBfBu6dM=
+github.com/qdrant/go-client v1.20.1-0.20261023171359-e2df4a8a35b6/go.mod h1:ZorGclWceflis4Ddp3EIPhYJTgyAqlNmcl1hoW5iCUE=
 github.com/redis/go-redis/v9 v9.22.0 h1:laDvpYXTJtZLloinw1fA5Kqd6HAEH2XKxOkG/PDq2F0=
 github.com/redis/go-redis/v9 v9.22.0/go.mod h1:y2g0Wj8rQvuK0ELM+oxSudcLtC09JScs98I/X9gRWY4=
 github.com/remeh/sizedwaitgroup v1.0.0 h1:VNGGFwNo/R5+MJBf6yrsr110p0m4/OX4S3DCy7Kyl5E=

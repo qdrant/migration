@@ -75,13 +75,13 @@ func (r *MigrateFromDynamoDBCmd) Run(globals *Globals) error {
 	}
 	sourceClient := dynamodb.NewFromConfig(sdkConfig)
 
-	targetClient, err := connectToQdrant(globals, r.targetHost, r.targetPort, r.Qdrant.APIKey, r.targetTLS, 0)
+	targetClient, err := connectToQdrantOrServerless(globals, r.targetHost, r.targetPort, r.Qdrant.APIKey, r.targetTLS, r.Qdrant.Serverless, 0)
 	if err != nil {
 		return fmt.Errorf("failed to connect to Qdrant target: %w", err)
 	}
 	defer targetClient.Close()
 
-	if err := commons.PrepareOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient); err != nil {
+	if err := targetClient.prepareOffsetsCollection(ctx, r.Migration.OffsetsCollection); err != nil {
 		return fmt.Errorf("failed to prepare migration marker collection: %w", err)
 	}
 
@@ -99,16 +99,14 @@ func (r *MigrateFromDynamoDBCmd) Run(globals *Globals) error {
 		return fmt.Errorf("failed to migrate data: %w", err)
 	}
 
-	targetPointCount, err := targetClient.Count(ctx, &qdrant.CountPoints{
-		CollectionName: r.Qdrant.Collection,
-		Exact:          qdrant.PtrOf(true),
-	})
+	// The source count is unknown, so a Qdrant Serverless target is counted without waiting for lagging writes.
+	targetPointCount, err := targetClient.countPoints(ctx, r.Qdrant.Collection, 0)
 	if err != nil {
 		return fmt.Errorf("failed to count points in target: %w", err)
 	}
 	pterm.Info.Printfln("Target collection has %d points\n", targetPointCount)
 
-	if err := commons.DeleteOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient); err != nil {
+	if err := targetClient.deleteOffsetsCollection(ctx, r.Migration.OffsetsCollection); err != nil {
 		return fmt.Errorf("failed to delete migration marker collection: %w", err)
 	}
 	return nil
@@ -161,7 +159,7 @@ func (r *MigrateFromDynamoDBCmd) describeSource(ctx context.Context, client *dyn
 	return nil, fmt.Errorf("vector index %q not found on DynamoDB table %q", r.DynamoDB.Index, r.DynamoDB.Table)
 }
 
-func (r *MigrateFromDynamoDBCmd) prepareTargetCollection(ctx context.Context, source *dynamoDBSource, targetClient *qdrant.Client) error {
+func (r *MigrateFromDynamoDBCmd) prepareTargetCollection(ctx context.Context, source *dynamoDBSource, targetClient *qdrantConnection) error {
 	if !r.Migration.CreateCollection {
 		return nil
 	}
@@ -189,7 +187,7 @@ func (r *MigrateFromDynamoDBCmd) prepareTargetCollection(ctx context.Context, so
 	return nil
 }
 
-func (r *MigrateFromDynamoDBCmd) migrateData(ctx context.Context, sourceClient *dynamodb.Client, targetClient *qdrant.Client, source *dynamoDBSource) error {
+func (r *MigrateFromDynamoDBCmd) migrateData(ctx context.Context, sourceClient *dynamodb.Client, targetClient *qdrantConnection, source *dynamoDBSource) error {
 	offsetKey := fmt.Sprintf("%s/%s", r.DynamoDB.Table, r.DynamoDB.Index)
 	var startKey map[string]types.AttributeValue
 	offsetCount := uint64(0)

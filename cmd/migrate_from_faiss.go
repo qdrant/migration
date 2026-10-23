@@ -8,10 +8,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -64,13 +66,13 @@ func (r *MigrateFromFaissCmd) Run(globals *Globals) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	targetClient, err := connectToQdrant(globals, r.targetHost, r.targetPort, r.Qdrant.APIKey, r.targetTLS, 0)
+	targetClient, err := connectToQdrantOrServerless(globals, r.targetHost, r.targetPort, r.Qdrant.APIKey, r.targetTLS, r.Qdrant.Serverless, 0)
 	if err != nil {
 		return fmt.Errorf("failed to connect to Qdrant target: %w", err)
 	}
 	defer targetClient.Close()
 
-	err = commons.PrepareOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient)
+	err = targetClient.prepareOffsetsCollection(ctx, r.Migration.OffsetsCollection)
 	if err != nil {
 		return fmt.Errorf("failed to prepare migration marker collection: %w", err)
 	}
@@ -95,17 +97,14 @@ func (r *MigrateFromFaissCmd) Run(globals *Globals) error {
 		return err
 	}
 
-	targetPointCount, err := targetClient.Count(ctx, &qdrant.CountPoints{
-		CollectionName: r.Qdrant.Collection,
-		Exact:          qdrant.PtrOf(true),
-	})
+	targetPointCount, err := targetClient.countPoints(ctx, r.Qdrant.Collection, uint64(total))
 	if err != nil {
 		return fmt.Errorf("failed to count points in target: %w", err)
 	}
 
 	pterm.Info.Printfln("Target collection has %d points\n", targetPointCount)
 
-	err = commons.DeleteOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient)
+	err = targetClient.deleteOffsetsCollection(ctx, r.Migration.OffsetsCollection)
 	if err != nil {
 		return fmt.Errorf("failed to delete migration marker collection: %w", err)
 	}
@@ -185,7 +184,7 @@ func (r *MigrateFromFaissCmd) getFaissTotal(ctx context.Context) (int, error) {
 	return total, nil
 }
 
-func (r *MigrateFromFaissCmd) prepareTargetCollection(ctx context.Context, dim int, targetClient *qdrant.Client) error {
+func (r *MigrateFromFaissCmd) prepareTargetCollection(ctx context.Context, dim int, targetClient *qdrantConnection) error {
 	if !r.Migration.CreateCollection {
 		return nil
 	}
@@ -217,7 +216,7 @@ func (r *MigrateFromFaissCmd) prepareTargetCollection(ctx context.Context, dim i
 	return nil
 }
 
-func (r *MigrateFromFaissCmd) migrateData(ctx context.Context, targetClient *qdrant.Client, total int) error {
+func (r *MigrateFromFaissCmd) migrateData(ctx context.Context, targetClient *qdrantConnection, total int) error {
 	var currentOffset uint64 = 0
 	if !r.Migration.Restart {
 		_, offsetStored, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.FaissIndex.IndexPath)
@@ -230,10 +229,15 @@ func (r *MigrateFromFaissCmd) migrateData(ctx context.Context, targetClient *qdr
 	bar, _ := pterm.DefaultProgressbar.WithTotal(total).Start()
 	displayMigrationProgress(bar, currentOffset)
 
+	qdrantURL := r.Qdrant.Url
+	if r.Qdrant.Serverless {
+		// The Python script writes the points itself, so it gets the endpoint that the serverless client uses.
+		qdrantURL = "https://" + net.JoinHostPort(r.targetHost, strconv.Itoa(DefaultHTTPSPort))
+	}
 	args := []string{
 		"--action", "migrate",
 		"--faiss-index", r.FaissIndex.IndexPath,
-		"--qdrant-url", r.Qdrant.Url,
+		"--qdrant-url", qdrantURL,
 		"--collection", r.Qdrant.Collection,
 		"--batch-size", fmt.Sprintf("%d", r.Migration.BatchSize),
 		"--offset", fmt.Sprintf("%d", currentOffset),
