@@ -203,7 +203,7 @@ func createCollectionFromInfo(collection string, info *qdrant.CollectionInfo) *q
 		WalConfig:              info.GetConfig().GetWalConfig(),
 		OptimizersConfig:       info.GetConfig().GetOptimizerConfig(),
 		ShardNumber:            &params.ShardNumber,
-		OnDiskPayload:          &params.OnDiskPayload, //nolint:staticcheck // Older Qdrant versions report only on_disk_payload.
+		OnDiskPayload:          &params.OnDiskPayload, //nolint:staticcheck // Deprecated, kept for backward compatibility.
 		Payload:                params.GetPayload(),
 		IdTracker:              params.GetIdTracker(),
 		VectorsConfig:          params.VectorsConfig,

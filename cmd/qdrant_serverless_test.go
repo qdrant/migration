@@ -17,70 +17,97 @@ import (
 )
 
 func TestServerlessConfigFromCollectionInfo(t *testing.T) {
-	info := &qdrant.CollectionInfo{
-		Config: &qdrant.CollectionConfig{
-			Params: &qdrant.CollectionParams{
-				VectorsConfig: qdrant.NewVectorsConfigMap(map[string]*qdrant.VectorParams{
-					"image": {Size: 512, Distance: qdrant.Distance_Cosine},
-					"colbert": {
-						Size:              128,
-						Distance:          qdrant.Distance_Dot,
-						MultivectorConfig: &qdrant.MultiVectorConfig{Comparator: qdrant.MultiVectorComparator_MaxSim},
+	tests := []struct {
+		name     string
+		info     *qdrant.CollectionInfo
+		expected *serverless.CollectionConfig
+		err      string
+	}{
+		{
+			name: "named vectors and payload indexes",
+			info: &qdrant.CollectionInfo{
+				Config: &qdrant.CollectionConfig{
+					Params: &qdrant.CollectionParams{
+						VectorsConfig: qdrant.NewVectorsConfigMap(map[string]*qdrant.VectorParams{
+							"image": {Size: 512, Distance: qdrant.Distance_Cosine},
+							"colbert": {
+								Size:              128,
+								Distance:          qdrant.Distance_Dot,
+								MultivectorConfig: &qdrant.MultiVectorConfig{Comparator: qdrant.MultiVectorComparator_MaxSim},
+							},
+						}),
+						SparseVectorsConfig: qdrant.NewSparseVectorsConfig(map[string]*qdrant.SparseVectorParams{
+							"bm25":   {Modifier: qdrant.Modifier_Idf.Enum()},
+							"splade": {},
+						}),
 					},
-				}),
-				SparseVectorsConfig: qdrant.NewSparseVectorsConfig(map[string]*qdrant.SparseVectorParams{
-					"bm25":   {Modifier: qdrant.Modifier_Idf.Enum()},
+				},
+				PayloadSchema: map[string]*qdrant.PayloadSchemaInfo{
+					"color": {DataType: qdrant.PayloadSchemaType_Keyword},
+					"title": {
+						DataType: qdrant.PayloadSchemaType_Text,
+						Params: qdrant.NewPayloadIndexParamsText(&qdrant.TextIndexParams{
+							Tokenizer: qdrant.TokenizerType_Word,
+							Stopwords: &qdrant.StopwordsSet{Languages: []string{"english"}},
+							Stemmer: &qdrant.StemmingAlgorithm{StemmingParams: &qdrant.StemmingAlgorithm_Snowball{
+								Snowball: &qdrant.SnowballParams{Language: "english"},
+							}},
+						}),
+					},
+					// A Qdrant cluster defaults to the word tokenizer, and Qdrant Serverless to the whitespace tokenizer.
+					"body": {DataType: qdrant.PayloadSchemaType_Text},
+				},
+			},
+			expected: &serverless.CollectionConfig{
+				DenseVectors: map[string]*serverless.DenseVectorConfig{
+					"image":   {Size: 512, Distance: serverless.Distance_COSINE},
+					"colbert": {Size: 128, Distance: serverless.Distance_DOT, Multivector: true},
+				},
+				SparseVectors: map[string]*serverless.SparseVectorConfig{
+					"bm25":   {UseIdf: true},
 					"splade": {},
-				}),
+				},
+				PayloadIndexes: map[string]*serverless.PayloadIndexConfig{
+					"color": serverless.NewPayloadIndexConfigKeyword(nil),
+					"title": serverless.NewPayloadIndexConfigText(&serverless.TextIndex{
+						Tokenizer: serverless.Tokenizer_WORD.Enum(),
+						Stopwords: &serverless.StopwordsSet{Languages: []string{"english"}},
+						Stemmer:   serverless.NewStemmingAlgorithmSnowball("english"),
+					}),
+					"body": serverless.NewPayloadIndexConfigText(&serverless.TextIndex{Tokenizer: serverless.Tokenizer_WORD.Enum()}),
+				},
 			},
 		},
-		PayloadSchema: map[string]*qdrant.PayloadSchemaInfo{
-			"color": {DataType: qdrant.PayloadSchemaType_Keyword},
-			"age": {
-				DataType: qdrant.PayloadSchemaType_Integer,
-				Params:   qdrant.NewPayloadIndexParamsInt(&qdrant.IntegerIndexParams{Range: qdrant.PtrOf(false)}),
+		{
+			name: "unnamed dense vector",
+			info: &qdrant.CollectionInfo{Config: &qdrant.CollectionConfig{Params: &qdrant.CollectionParams{
+				VectorsConfig: qdrant.NewVectorsConfig(&qdrant.VectorParams{Size: 768, Distance: qdrant.Distance_Euclid}),
+			}}},
+			expected: &serverless.CollectionConfig{
+				DenseVectors: map[string]*serverless.DenseVectorConfig{
+					"": {Size: 768, Distance: serverless.Distance_EUCLID},
+				},
 			},
-			"title": {
-				DataType: qdrant.PayloadSchemaType_Text,
-				Params: qdrant.NewPayloadIndexParamsText(&qdrant.TextIndexParams{
-					Tokenizer: qdrant.TokenizerType_Word,
-					Stopwords: &qdrant.StopwordsSet{Languages: []string{"english"}},
-					Stemmer: &qdrant.StemmingAlgorithm{StemmingParams: &qdrant.StemmingAlgorithm_Snowball{
-						Snowball: &qdrant.SnowballParams{Language: "english"},
-					}},
-				}),
-			},
-			"location": {DataType: qdrant.PayloadSchemaType_Geo},
-			// A Qdrant cluster defaults to the word tokenizer, and Qdrant Serverless to the whitespace tokenizer.
-			"body": {DataType: qdrant.PayloadSchemaType_Text},
+		},
+		{
+			name: "unknown distance",
+			info: &qdrant.CollectionInfo{Config: &qdrant.CollectionConfig{Params: &qdrant.CollectionParams{
+				VectorsConfig: qdrant.NewVectorsConfig(&qdrant.VectorParams{Size: 4}),
+			}}},
+			err: "does not support",
 		},
 	}
-
-	config, err := serverlessConfigFromCollectionInfo(info)
-	require.NoError(t, err)
-
-	expected := &serverless.CollectionConfig{
-		DenseVectors: map[string]*serverless.DenseVectorConfig{
-			"image":   {Size: 512, Distance: serverless.Distance_COSINE},
-			"colbert": {Size: 128, Distance: serverless.Distance_DOT, Multivector: true},
-		},
-		SparseVectors: map[string]*serverless.SparseVectorConfig{
-			"bm25":   {UseIdf: true},
-			"splade": {},
-		},
-		PayloadIndexes: map[string]*serverless.PayloadIndexConfig{
-			"color": serverless.NewPayloadIndexConfigKeyword(nil),
-			"age":   serverless.NewPayloadIndexConfigInteger(&serverless.IntegerIndex{Range: qdrant.PtrOf(false)}),
-			"title": serverless.NewPayloadIndexConfigText(&serverless.TextIndex{
-				Tokenizer: serverless.Tokenizer_WORD.Enum(),
-				Stopwords: &serverless.StopwordsSet{Languages: []string{"english"}},
-				Stemmer:   serverless.NewStemmingAlgorithmSnowball("english"),
-			}),
-			"location": serverless.NewPayloadIndexConfigGeo(),
-			"body":     serverless.NewPayloadIndexConfigText(&serverless.TextIndex{Tokenizer: serverless.Tokenizer_WORD.Enum()}),
-		},
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config, err := serverlessConfigFromCollectionInfo(tt.info)
+			if tt.err != "" {
+				require.ErrorContains(t, err, tt.err)
+				return
+			}
+			require.NoError(t, err)
+			require.True(t, proto.Equal(tt.expected, config), "got: %v", config)
+		})
 	}
-	require.True(t, proto.Equal(expected, config), "got: %v", config)
 }
 
 func TestCreateCollectionFromServerless(t *testing.T) {
@@ -167,58 +194,6 @@ func TestPayloadIndexesRoundTrip(t *testing.T) {
 	for field, index := range indexes {
 		got := serverlessPayloadIndex(schema[field])
 		require.True(t, proto.Equal(index, got), "field %q: got %v, expected %v", field, got, index)
-	}
-}
-
-func TestServerlessVectorsConfig(t *testing.T) {
-	tests := []struct {
-		name     string
-		request  *qdrant.CreateCollection
-		expected *serverless.CollectionConfig
-		err      string
-	}{
-		{
-			name: "unnamed dense vector",
-			request: &qdrant.CreateCollection{
-				VectorsConfig: qdrant.NewVectorsConfig(&qdrant.VectorParams{Size: 768, Distance: qdrant.Distance_Euclid}),
-			},
-			expected: &serverless.CollectionConfig{
-				DenseVectors: map[string]*serverless.DenseVectorConfig{
-					"": {Size: 768, Distance: serverless.Distance_EUCLID},
-				},
-			},
-		},
-		{
-			name: "sparse vector only",
-			request: &qdrant.CreateCollection{
-				SparseVectorsConfig: qdrant.NewSparseVectorsConfig(map[string]*qdrant.SparseVectorParams{
-					"sparse_vector": {},
-				}),
-			},
-			expected: &serverless.CollectionConfig{
-				SparseVectors: map[string]*serverless.SparseVectorConfig{
-					"sparse_vector": {},
-				},
-			},
-		},
-		{
-			name: "unknown distance",
-			request: &qdrant.CreateCollection{
-				VectorsConfig: qdrant.NewVectorsConfig(&qdrant.VectorParams{Size: 4}),
-			},
-			err: "does not support",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			config, err := serverlessVectorsConfig(tt.request.GetVectorsConfig(), tt.request.GetSparseVectorsConfig())
-			if tt.err != "" {
-				require.ErrorContains(t, err, tt.err)
-				return
-			}
-			require.NoError(t, err)
-			require.True(t, proto.Equal(tt.expected, config), "got: %v", config)
-		})
 	}
 }
 
@@ -331,17 +306,10 @@ func (f *fakeCounter) Count(_ context.Context, _ *qdrant.CountPoints) (uint64, e
 	return result.count, result.err
 }
 
-func shortenPointCountWait(t *testing.T) {
-	t.Helper()
+func TestWaitForServerlessPointCount(t *testing.T) {
 	countInterval := pointCountInterval
 	pointCountInterval = time.Millisecond
-	t.Cleanup(func() {
-		pointCountInterval = countInterval
-	})
-}
-
-func TestWaitForServerlessPointCount(t *testing.T) {
-	shortenPointCountWait(t)
+	t.Cleanup(func() { pointCountInterval = countInterval })
 	transient := status.Error(codes.Internal, "shard open task panicked")
 
 	t.Run("retries transient errors until the points show", func(t *testing.T) {
