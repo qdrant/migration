@@ -169,7 +169,9 @@ func (r *MigrateFromQdrantCmd) prepareTargetCollection(ctx context.Context, sour
 				WalConfig:              sourceCollectionInfo.Config.GetWalConfig(),
 				OptimizersConfig:       sourceCollectionInfo.Config.GetOptimizerConfig(),
 				ShardNumber:            &params.ShardNumber,
-				OnDiskPayload:          &params.OnDiskPayload,
+				OnDiskPayload:          &params.OnDiskPayload, //nolint:staticcheck // Deprecated, kept for backward compatibility.
+				Payload:                params.Payload,
+				IdTracker:              params.IdTracker,
 				VectorsConfig:          params.VectorsConfig,
 				ReplicationFactor:      params.ReplicationFactor,
 				WriteConsistencyFactor: params.WriteConsistencyFactor,
@@ -177,6 +179,7 @@ func (r *MigrateFromQdrantCmd) prepareTargetCollection(ctx context.Context, sour
 				ShardingMethod:         shardingMethod,
 				SparseVectorsConfig:    params.SparseVectorsConfig,
 				StrictModeConfig:       sourceCollectionInfo.Config.GetStrictModeConfig(),
+				Metadata:               sourceCollectionInfo.Config.GetMetadata(),
 			}); err != nil {
 				return fmt.Errorf("failed to create target collection: %w", err)
 			}
