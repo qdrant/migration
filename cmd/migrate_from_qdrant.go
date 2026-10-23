@@ -205,6 +205,7 @@ func createCollectionFromInfo(collection string, info *qdrant.CollectionInfo) *q
 		ShardNumber:            &params.ShardNumber,
 		OnDiskPayload:          &params.OnDiskPayload, //nolint:staticcheck // Older Qdrant versions report only on_disk_payload.
 		Payload:                params.GetPayload(),
+		IdTracker:              params.GetIdTracker(),
 		VectorsConfig:          params.VectorsConfig,
 		ReplicationFactor:      params.ReplicationFactor,
 		WriteConsistencyFactor: params.WriteConsistencyFactor,
@@ -212,6 +213,7 @@ func createCollectionFromInfo(collection string, info *qdrant.CollectionInfo) *q
 		ShardingMethod:         params.ShardingMethod,
 		SparseVectorsConfig:    params.SparseVectorsConfig,
 		StrictModeConfig:       info.GetConfig().GetStrictModeConfig(),
+		Metadata:               info.GetConfig().GetMetadata(),
 	}
 }
 
