@@ -1,18 +1,21 @@
-//go:build !no_chroma
-
 package cmd
 
 import (
+	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
-	chroma "github.com/amikos-tech/chroma-go/pkg/api/v2"
 	"github.com/pterm/pterm"
 
 	"github.com/qdrant/go-client/qdrant"
@@ -29,12 +32,37 @@ type MigrateFromChromaCmd struct {
 	Qdrant         commons.QdrantConfig    `embed:"" prefix:"qdrant."`
 	Migration      commons.MigrationConfig `embed:"" prefix:"migration."`
 	IdField        string                  `prefix:"qdrant." help:"Field storing Chroma IDs in Qdrant." default:"__id__"`
-	DistanceMetric string                  `prefix:"qdrant." enum:"cosine,dot,euclid,manhattan" help:"Distance metric for the Qdrant collection" default:"euclid"`
+	DistanceMetric string                  `prefix:"qdrant." enum:",cosine,dot,euclid,manhattan" help:"Distance metric for the Qdrant collection. Defaults to the space of the Chroma collection." default:""`
 	DocumentField  string                  `prefix:"qdrant." help:"Field storing Chroma documents in Qdrant." default:"document"`
+	UriField       string                  `prefix:"qdrant." help:"Field storing Chroma URIs in Qdrant." default:"uri"`
 
 	targetHost string
 	targetPort int
 	targetTLS  bool
+
+	httpClient *http.Client
+}
+
+type chromaSpaceConfig struct {
+	Space string `json:"space"`
+}
+
+type chromaCollection struct {
+	ID            string         `json:"id"`
+	Dimension     *uint64        `json:"dimension"`
+	Metadata      map[string]any `json:"metadata"`
+	Configuration struct {
+		Hnsw  *chromaSpaceConfig `json:"hnsw"`
+		Spann *chromaSpaceConfig `json:"spann"`
+	} `json:"configuration_json"`
+}
+
+type chromaGetResponse struct {
+	IDs        []string         `json:"ids"`
+	Embeddings [][]float32      `json:"embeddings"`
+	Documents  []*string        `json:"documents"`
+	URIs       []*string        `json:"uris"`
+	Metadatas  []map[string]any `json:"metadatas"`
 }
 
 func (r *MigrateFromChromaCmd) Parse() error {
@@ -44,10 +72,27 @@ func (r *MigrateFromChromaCmd) Parse() error {
 		return fmt.Errorf("failed to parse target URL: %w", err)
 	}
 
+	chromaURL, err := url.Parse(r.Chroma.Url)
+	if err != nil || (chromaURL.Scheme != "http" && chromaURL.Scheme != "https") || chromaURL.Host == "" {
+		return fmt.Errorf("invalid Chroma URL %q, expected http://host:port or https://host:port", r.Chroma.Url)
+	}
+	r.Chroma.Url = strings.TrimRight(r.Chroma.Url, "/")
+
 	return nil
 }
 
 func (r *MigrateFromChromaCmd) Validate() error {
+	switch r.Chroma.AuthType {
+	case "basic":
+		if r.Chroma.Username == "" || r.Chroma.Password == "" {
+			return errors.New("username and password are required for basic authentication")
+		}
+	case "token":
+		if r.Chroma.Token == "" || r.Chroma.TokenHeader == "" {
+			return errors.New("token and token header are required for token authentication")
+		}
+	}
+
 	return validateBatchSize(r.Migration.BatchSize)
 }
 
@@ -59,15 +104,24 @@ func (r *MigrateFromChromaCmd) Run(globals *Globals) error {
 		return fmt.Errorf("failed to parse input: %w", err)
 	}
 
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: globals.SkipTlsVerification}
+	transport.ResponseHeaderTimeout = 60 * time.Second
+	r.httpClient = &http.Client{Transport: transport}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	sourceClient, sourceCollection, err := r.connectToChroma(ctx)
+	var collection chromaCollection
+	err = r.request(ctx, http.MethodGet, r.collectionPath(r.Chroma.Collection), nil, &collection)
 	if err != nil {
-		return fmt.Errorf("failed to connect to Chroma source: %w", err)
+		return fmt.Errorf("failed to get Chroma collection: %w", err)
 	}
-	defer sourceCollection.Close()
-	defer sourceClient.Close()
+
+	if collection.Dimension == nil {
+		pterm.Info.Printfln("Chroma collection '%s' has no records, nothing to migrate.", r.Chroma.Collection)
+		return nil
+	}
 
 	targetClient, err := connectToQdrant(globals, r.targetHost, r.targetPort, r.Qdrant.APIKey, r.targetTLS, 0)
 	if err != nil {
@@ -80,32 +134,28 @@ func (r *MigrateFromChromaCmd) Run(globals *Globals) error {
 		return fmt.Errorf("failed to prepare migration marker collection: %w", err)
 	}
 
-	sourcePointCount, err := r.countChromaVectors(ctx, sourceCollection)
+	var sourcePointCount uint64
+	err = r.request(ctx, http.MethodGet, r.collectionPath(collection.ID)+"/count", nil, &sourcePointCount)
 	if err != nil {
 		return fmt.Errorf("failed to count points in source: %w", err)
 	}
 
-	err = r.prepareTargetCollection(ctx, sourceCollection, targetClient)
+	err = r.prepareTargetCollection(ctx, &collection, targetClient)
 	if err != nil {
 		return fmt.Errorf("error preparing target collection: %w", err)
 	}
 
 	displayMigrationStart("chroma", r.Chroma.Collection, r.Qdrant.Collection)
 
-	err = r.migrateData(ctx, sourceCollection, targetClient, sourcePointCount)
+	err = r.migrateData(ctx, &collection, targetClient, sourcePointCount)
 	if err != nil {
 		return fmt.Errorf("failed to migrate data: %w", err)
 	}
 
-	targetPointCount, err := targetClient.Count(ctx, &qdrant.CountPoints{
-		CollectionName: r.Qdrant.Collection,
-		Exact:          qdrant.PtrOf(true),
-	})
+	err = verifyTargetCount(ctx, targetClient, r.Qdrant.Collection, sourcePointCount, r.Migration.OffsetsCollection)
 	if err != nil {
-		return fmt.Errorf("failed to count points in target: %w", err)
+		return err
 	}
-
-	pterm.Info.Printfln("Target collection has %d points\n", targetPointCount)
 
 	err = commons.DeleteOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient)
 	if err != nil {
@@ -115,65 +165,104 @@ func (r *MigrateFromChromaCmd) Run(globals *Globals) error {
 	return nil
 }
 
-func (r *MigrateFromChromaCmd) parseChromaOptions() ([]chroma.ClientOption, error) {
-	clientOptions := []chroma.ClientOption{chroma.WithBaseURL(r.Chroma.Url)}
+func (r *MigrateFromChromaCmd) collectionPath(collection string) string {
+	return fmt.Sprintf("/api/v2/tenants/%s/databases/%s/collections/%s",
+		url.PathEscape(r.Chroma.Tenant), url.PathEscape(r.Chroma.Database), url.PathEscape(collection))
+}
 
-	if r.Chroma.Database != "" {
-		tenant := r.Chroma.Tenant
-		if tenant == "" {
-			tenant = chroma.DefaultTenant
+// request retries network errors, rate limits, and server errors with exponential backoff.
+func (r *MigrateFromChromaCmd) request(ctx context.Context, method, path string, body, out any) error {
+	var payload []byte
+	if body != nil {
+		var err error
+		payload, err = json.Marshal(body)
+		if err != nil {
+			return fmt.Errorf("failed to marshal request body: %w", err)
 		}
-		clientOptions = append(clientOptions, chroma.WithDatabaseAndTenant(r.Chroma.Database, tenant))
-	} else if r.Chroma.Tenant != "" {
-		clientOptions = append(clientOptions, chroma.WithTenant(r.Chroma.Tenant))
 	}
+
+	var err error
+	for attempt := 0; attempt < maxUpsertRetries; attempt++ {
+		var retryable bool
+		retryable, err = r.requestOnce(ctx, method, path, payload, out)
+		if err == nil || !retryable || ctx.Err() != nil {
+			return err
+		}
+		time.Sleep(baseRetryDelay * time.Duration(1<<attempt))
+	}
+	return err
+}
+
+func (r *MigrateFromChromaCmd) requestOnce(ctx context.Context, method, path string, payload []byte, out any) (bool, error) {
+	req, err := http.NewRequestWithContext(ctx, method, r.Chroma.Url+path, bytes.NewReader(payload))
+	if err != nil {
+		return false, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
 
 	switch r.Chroma.AuthType {
 	case "basic":
-		if r.Chroma.Username == "" || r.Chroma.Password == "" {
-			return nil, errors.New("username and password are required for basic authentication")
-		}
-		authProvider := chroma.NewBasicAuthCredentialsProvider(r.Chroma.Username, r.Chroma.Password)
-		clientOptions = append(clientOptions, chroma.WithAuth(authProvider))
+		req.SetBasicAuth(r.Chroma.Username, r.Chroma.Password)
 	case "token":
-		if r.Chroma.Token == "" {
-			return nil, errors.New("token is required for token authentication")
+		if strings.EqualFold(r.Chroma.TokenHeader, "Authorization") {
+			req.Header.Set("Authorization", "Bearer "+r.Chroma.Token)
+		} else {
+			req.Header.Set(r.Chroma.TokenHeader, r.Chroma.Token)
 		}
-		authProvider := chroma.NewTokenAuthCredentialsProvider(r.Chroma.Token, chroma.TokenTransportHeader(r.Chroma.TokenHeader))
-		clientOptions = append(clientOptions, chroma.WithAuth(authProvider))
 	}
 
-	return clientOptions, nil
-}
-func (r *MigrateFromChromaCmd) connectToChroma(ctx context.Context) (chroma.Client, chroma.Collection, error) {
-	clientOptions, err := r.parseChromaOptions()
+	res, err := r.httpClient.Do(req)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get parse Chroma options: %w", err)
+		return true, fmt.Errorf("request to Chroma failed: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(res.Body)
+		retryable := res.StatusCode == http.StatusTooManyRequests || res.StatusCode >= http.StatusInternalServerError
+		return retryable, fmt.Errorf("request %s %s failed (status %d): %s", method, path, res.StatusCode, respBody)
 	}
 
-	client, err := chroma.NewHTTPClient(clientOptions...)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create Chroma client: %w", err)
+	// UseNumber keeps integer metadata apart from floats.
+	decoder := json.NewDecoder(res.Body)
+	decoder.UseNumber()
+	if err := decoder.Decode(out); err != nil {
+		return false, fmt.Errorf("failed to decode Chroma response: %w", err)
 	}
 
-	collection, err := client.GetCollection(ctx, r.Chroma.Collection)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get Chroma collection: %w", err)
-	}
-
-	return client, collection, nil
-}
-
-func (r *MigrateFromChromaCmd) countChromaVectors(ctx context.Context, collection chroma.Collection) (uint64, error) {
-	count, err := collection.Count(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get collection count: %w", err)
-	}
-
-	return uint64(count), nil
+	return false, nil
 }
 
-func (r *MigrateFromChromaCmd) prepareTargetCollection(ctx context.Context, collection chroma.Collection, targetClient *qdrant.Client) error {
+// space returns the space of the Chroma collection. The legacy "hnsw:space" metadata comes first,
+// because collections created before Chroma 1.0 can have the default space in their configuration.
+func (c *chromaCollection) space() string {
+	if space, ok := c.Metadata["hnsw:space"].(string); ok && space != "" {
+		return space
+	}
+	for _, config := range []*chromaSpaceConfig{c.Configuration.Hnsw, c.Configuration.Spann} {
+		if config != nil && config.Space != "" {
+			return config.Space
+		}
+	}
+	return "l2"
+}
+
+// distance maps the Chroma space to a Qdrant distance.
+// Chroma's "l2" and "ip" order results like Qdrant's Euclid and Dot.
+func (c *chromaCollection) distance() (qdrant.Distance, error) {
+	switch space := c.space(); space {
+	case "l2":
+		return qdrant.Distance_Euclid, nil
+	case "cosine":
+		return qdrant.Distance_Cosine, nil
+	case "ip":
+		return qdrant.Distance_Dot, nil
+	default:
+		return qdrant.Distance_UnknownDistance, fmt.Errorf("unsupported Chroma space %q", space)
+	}
+}
+
+func (r *MigrateFromChromaCmd) prepareTargetCollection(ctx context.Context, collection *chromaCollection, targetClient *qdrant.Client) error {
 	if !r.Migration.CreateCollection {
 		return nil
 	}
@@ -195,11 +284,19 @@ func (r *MigrateFromChromaCmd) prepareTargetCollection(ctx context.Context, coll
 		"manhattan": qdrant.Distance_Manhattan,
 	}
 
+	distance, ok := distanceMapping[r.DistanceMetric]
+	if !ok {
+		distance, err = collection.distance()
+		if err != nil {
+			return err
+		}
+	}
+
 	createReq := &qdrant.CreateCollection{
 		CollectionName: r.Qdrant.Collection,
 		VectorsConfig: qdrant.NewVectorsConfig(&qdrant.VectorParams{
-			Size:     uint64(collection.Dimension()),
-			Distance: distanceMapping[r.DistanceMetric],
+			Size:     *collection.Dimension,
+			Distance: distance,
 		}),
 	}
 
@@ -211,13 +308,13 @@ func (r *MigrateFromChromaCmd) prepareTargetCollection(ctx context.Context, coll
 	return nil
 }
 
-func (r *MigrateFromChromaCmd) migrateData(ctx context.Context, collection chroma.Collection, targetClient *qdrant.Client, sourcePointCount uint64) error {
+func (r *MigrateFromChromaCmd) migrateData(ctx context.Context, collection *chromaCollection, targetClient *qdrant.Client, sourcePointCount uint64) error {
 	batchSize := r.Migration.BatchSize
 
 	var currentOffset uint64 = 0
 
 	if !r.Migration.Restart {
-		_, offsetStored, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.Chroma.Collection)
+		_, offsetStored, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, collection.ID)
 		if err != nil {
 			return fmt.Errorf("failed to get start offset: %w", err)
 		}
@@ -227,62 +324,61 @@ func (r *MigrateFromChromaCmd) migrateData(ctx context.Context, collection chrom
 	bar, _ := pterm.DefaultProgressbar.WithTotal(int(sourcePointCount)).Start()
 	displayMigrationProgress(bar, currentOffset)
 
+	skippedSparseVectors := false
 	for {
-		resp, err := collection.Get(
-			ctx,
-			chroma.WithLimitGet(int(batchSize)),
-			chroma.WithOffsetGet(int(currentOffset)),
-			chroma.WithIncludeGet("metadatas", "documents", "embeddings"),
-		)
+		var resp chromaGetResponse
+		err := r.request(ctx, http.MethodPost, r.collectionPath(collection.ID)+"/get", map[string]any{
+			"limit":   batchSize,
+			"offset":  currentOffset,
+			"include": []string{"documents", "embeddings", "metadatas", "uris"},
+		}, &resp)
 		if err != nil {
 			return fmt.Errorf("failed to get vectors from Chroma: %w", err)
 		}
 
-		count := resp.Count()
+		count := len(resp.IDs)
 		if count == 0 {
 			break
 		}
+		if len(resp.Embeddings) != count || len(resp.Documents) != count || len(resp.URIs) != count || len(resp.Metadatas) != count {
+			return fmt.Errorf("the Chroma response has %d IDs, %d embeddings, %d documents, %d URIs and %d metadatas",
+				count, len(resp.Embeddings), len(resp.Documents), len(resp.URIs), len(resp.Metadatas))
+		}
 
 		targetPoints := make([]*qdrant.PointStruct, 0, count)
-		ids := resp.GetIDs()
-		embeddings := resp.GetEmbeddings()
-		documents := resp.GetDocuments()
-
-		// The Chroma Go client's metadata type, `chroma.DocumentMetadatas`` is restrictive.
-		// So we convert it to a list of generic maps, `[]map[string]any``.
-		// That is later parse into Qdrant payload with `qdrant.NewValueMap(...)``
-		metadatas := resp.GetMetadatas()
-		jsonData, err := json.Marshal(metadatas)
-		if err != nil {
-			return fmt.Errorf("failed to marshal metadata: %w", err)
-		}
-		var metadatasGeneric []map[string]any
-		err = json.Unmarshal(jsonData, &metadatasGeneric)
-		if err != nil {
-			return fmt.Errorf("failed to unmarshal metadata: %w", err)
-		}
-
-		for i := 0; i < count; i++ {
-			id := ids[i]
-			embedding := embeddings[i]
-			metadataValue := metadatasGeneric[i]
-
-			point := &qdrant.PointStruct{
-				Id: arbitraryIDToUUID(string(id)),
+		for i, id := range resp.IDs {
+			payload := make(map[string]any)
+			for key, value := range resp.Metadatas[i] {
+				if key == r.IdField || key == r.DocumentField || key == r.UriField {
+					return fmt.Errorf("metadata key %q of record %q has the name of an ID, document or URI field, set --qdrant.id-field, --qdrant.document-field or --qdrant.uri-field to another name", key, id)
+				}
+				if _, ok := value.(map[string]any); ok {
+					if !skippedSparseVectors {
+						pterm.Warning.Printfln("Skipping sparse vector metadata, such as '%s', because sparse vectors are not migrated", key)
+						skippedSparseVectors = true
+					}
+					continue
+				}
+				payload[key] = convertChromaValue(value)
+			}
+			payload[r.IdField] = id
+			if resp.Documents[i] != nil {
+				payload[r.DocumentField] = *resp.Documents[i]
+			}
+			if resp.URIs[i] != nil {
+				payload[r.UriField] = *resp.URIs[i]
 			}
 
-			point.Vectors = qdrant.NewVectorsDense(embedding.ContentAsFloat32())
-
-			payload := qdrant.NewValueMap(metadataValue)
-			payload[r.IdField] = qdrant.NewValueString(string(id))
-
-			if i < len(documents) && documents[i].ContentString() != "" {
-				payload[r.DocumentField] = qdrant.NewValueString(documents[i].ContentString())
+			qdrantPayload, err := qdrant.TryValueMap(payload)
+			if err != nil {
+				return fmt.Errorf("failed to convert metadata of record %q: %w", id, err)
 			}
 
-			point.Payload = payload
-
-			targetPoints = append(targetPoints, point)
+			targetPoints = append(targetPoints, &qdrant.PointStruct{
+				Id:      arbitraryIDToUUID(id),
+				Vectors: qdrant.NewVectorsDense(resp.Embeddings[i]),
+				Payload: qdrantPayload,
+			})
 		}
 
 		err = upsertWithRetry(ctx, targetClient, &qdrant.UpsertPoints{
@@ -298,7 +394,7 @@ func (r *MigrateFromChromaCmd) migrateData(ctx context.Context, collection chrom
 		// Just a placeholder ID for offset tracking.
 		// We're only using the offset count
 		offsetId := qdrant.NewIDNum(0)
-		err = commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.Chroma.Collection, offsetId, currentOffset)
+		err = commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, collection.ID, offsetId, currentOffset)
 		if err != nil {
 			return fmt.Errorf("failed to store offset: %w", err)
 		}
@@ -313,4 +409,21 @@ func (r *MigrateFromChromaCmd) migrateData(ctx context.Context, collection chrom
 
 	pterm.Success.Printfln("Data migration finished successfully")
 	return nil
+}
+
+// convertChromaValue turns integer JSON numbers into int64 and other numbers into float64.
+func convertChromaValue(value any) any {
+	switch v := value.(type) {
+	case json.Number:
+		if i, err := v.Int64(); err == nil {
+			return i
+		}
+		f, _ := v.Float64()
+		return f
+	case []any:
+		for i, item := range v {
+			v[i] = convertChromaValue(item)
+		}
+	}
+	return value
 }

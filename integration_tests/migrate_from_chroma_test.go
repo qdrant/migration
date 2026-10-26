@@ -1,12 +1,13 @@
 package integrationtests
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"testing"
 
-	chroma "github.com/amikos-tech/chroma-go/pkg/api/v2"
-	"github.com/amikos-tech/chroma-go/pkg/embeddings"
 	"github.com/stretchr/testify/require"
 
 	"github.com/qdrant/go-client/qdrant"
@@ -15,9 +16,26 @@ import (
 const (
 	chromaPort    = "8000"
 	documentField = "document"
+	uriField      = "uri"
 	sourceField   = "source"
-	distance      = "euclid"
+	indexField    = "index"
+	scoreField    = "score"
+	tagsField     = "tags"
 )
+
+func chromaPost(t *testing.T, url string, body, out any) {
+	payload, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	resp, err := http.Post(url, "application/json", bytes.NewReader(payload))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Contains(t, []int{http.StatusOK, http.StatusCreated}, resp.StatusCode)
+
+	if out != nil {
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(out))
+	}
+}
 
 func TestMigrateFromChroma(t *testing.T) {
 	ctx := context.Background()
@@ -45,39 +63,47 @@ func TestMigrateFromChroma(t *testing.T) {
 	qdrantPort, err := qdrantContainer.MappedPort(ctx, qdrantGRPCPort)
 	require.NoError(t, err)
 
-	chromaClient, err := chroma.NewHTTPClient(chroma.WithBaseURL("http://" + chromaHost + ":" + chromaPort.Port()))
-	require.NoError(t, err)
+	chromaURL := fmt.Sprintf("http://%s:%s", chromaHost, chromaPort.Port())
+	collectionsURL := chromaURL + "/api/v2/tenants/default_tenant/databases/default_database/collections"
 
-	collection, err := chromaClient.GetOrCreateCollection(ctx, testCollectionName)
-	require.NoError(t, err)
+	var collection struct {
+		ID string `json:"id"`
+	}
+	chromaPost(t, collectionsURL, map[string]any{
+		"name":          testCollectionName,
+		"configuration": map[string]any{"hnsw": map[string]any{"space": "ip"}},
+	}, &collection)
 
-	testIDs := make([]chroma.DocumentID, totalEntries)
-	testEmbeddings := make([]embeddings.Embedding, totalEntries)
-	testDocuments := make([]string, totalEntries)
-	testMetadatas := make([]chroma.DocumentMetadata, totalEntries)
+	ids := make([]string, totalEntries)
+	vectors := make([][]float32, totalEntries)
+	documents := make([]*string, totalEntries)
+	uris := make([]*string, totalEntries)
+	metadatas := make([]map[string]any, totalEntries)
 
-	for i := 0; i < totalEntries; i++ {
-		testIDs[i] = chroma.DocumentID(fmt.Sprintf("%d", i+1))
-
-		randomVector := randFloat32Values(dimension)
-		testEmbeddings[i] = embeddings.NewEmbeddingFromFloat32(randomVector)
-
-		testDocuments[i] = fmt.Sprintf("test document %d", i+1)
-		meta, err := chroma.NewDocumentMetadataFromMap(map[string]interface{}{
+	for i := range totalEntries {
+		ids[i] = fmt.Sprintf("%d", i+1)
+		vectors[i] = randFloat32Values(dimension)
+		if i%3 != 0 {
+			documents[i] = qdrant.PtrOf(fmt.Sprintf("test document %d", i+1))
+		}
+		if i%2 == 0 {
+			uris[i] = qdrant.PtrOf(fmt.Sprintf("s3://bucket/%d.png", i+1))
+		}
+		metadatas[i] = map[string]any{
 			sourceField: fmt.Sprintf("test%d", i+1),
-		})
-		require.NoError(t, err)
-		testMetadatas[i] = meta
+			indexField:  i,
+			scoreField:  float64(i) + 0.5,
+			tagsField:   []string{"tag", fmt.Sprintf("tag%d", i+1)},
+		}
 	}
 
-	err = collection.Add(
-		ctx,
-		chroma.WithTexts(testDocuments...),
-		chroma.WithIDs(testIDs...),
-		chroma.WithMetadatas(testMetadatas...),
-		chroma.WithEmbeddings(testEmbeddings...),
-	)
-	require.NoError(t, err)
+	chromaPost(t, collectionsURL+"/"+collection.ID+"/add", map[string]any{
+		"ids":        ids,
+		"embeddings": vectors,
+		"documents":  documents,
+		"uris":       uris,
+		"metadatas":  metadatas,
+	}, nil)
 
 	qdrantClient, err := qdrant.NewClient(&qdrant.Config{
 		Host:                   qdrantHost,
@@ -90,55 +116,62 @@ func TestMigrateFromChroma(t *testing.T) {
 
 	args := []string{
 		"chroma",
-		fmt.Sprintf("--chroma.url=http://%s:%s", chromaHost, chromaPort.Port()),
+		fmt.Sprintf("--chroma.url=%s", chromaURL),
 		fmt.Sprintf("--chroma.collection=%s", testCollectionName),
 		fmt.Sprintf("--qdrant.url=http://%s:%s", qdrantHost, qdrantPort.Port()),
 		fmt.Sprintf("--qdrant.api-key=%s", qdrantAPIKey),
 		fmt.Sprintf("--qdrant.collection=%s", testCollectionName),
 		fmt.Sprintf("--qdrant.id-field=%s", idField),
 		fmt.Sprintf("--qdrant.document-field=%s", documentField),
-		fmt.Sprintf("--qdrant.distance-metric=%s", distance),
+		fmt.Sprintf("--qdrant.uri-field=%s", uriField),
 	}
 
 	runMigrationBinary(t, args)
 
+	info, err := qdrantClient.GetCollectionInfo(ctx, testCollectionName)
+	require.NoError(t, err)
+	require.Equal(t, qdrant.Distance_Dot, info.GetConfig().GetParams().GetVectorsConfig().GetParams().GetDistance())
+
 	points, err := qdrantClient.Scroll(ctx, &qdrant.ScrollPoints{
 		CollectionName: testCollectionName,
-		Limit:          qdrant.PtrOf(uint32(len(testIDs))),
+		Limit:          qdrant.PtrOf(uint32(totalEntries)),
 		WithPayload:    qdrant.NewWithPayload(true),
 		WithVectors:    qdrant.NewWithVectors(true),
 	})
 	require.NoError(t, err)
-	require.Len(t, points, len(testIDs))
-
-	expectedPoints := make(map[string]struct {
-		document string
-		source   string
-		vector   []float32
-	})
-	for i, id := range testIDs {
-		source, ok := testMetadatas[i].GetString(sourceField)
-		require.True(t, ok)
-		expectedPoints[string(id)] = struct {
-			document string
-			source   string
-			vector   []float32
-		}{
-			document: testDocuments[i],
-			source:   source,
-			vector:   testEmbeddings[i].ContentAsFloat32(),
-		}
-	}
+	require.Len(t, points, totalEntries)
 
 	for _, point := range points {
 		id := point.Payload[idField].GetStringValue()
-		expected, exists := expectedPoints[id]
-		require.True(t, exists)
+		var i int
+		_, err := fmt.Sscanf(id, "%d", &i)
+		require.NoError(t, err)
+		i--
 
-		require.Equal(t, expected.document, point.Payload[documentField].GetStringValue())
-		require.Equal(t, expected.source, point.Payload[sourceField].GetStringValue())
-
-		vector := point.Vectors.GetVector().GetDenseVector().GetData()
-		require.Equal(t, expected.vector, vector)
+		expectedPayload := map[string]*qdrant.Value{
+			idField:     qdrant.NewValueString(ids[i]),
+			sourceField: qdrant.NewValueString(fmt.Sprintf("test%d", i+1)),
+			indexField:  qdrant.NewValueInt(int64(i)),
+			scoreField:  qdrant.NewValueDouble(float64(i) + 0.5),
+			tagsField:   qdrant.NewValueFromList(qdrant.NewValueString("tag"), qdrant.NewValueString(fmt.Sprintf("tag%d", i+1))),
+		}
+		if documents[i] != nil {
+			expectedPayload[documentField] = qdrant.NewValueString(*documents[i])
+		}
+		if uris[i] != nil {
+			expectedPayload[uriField] = qdrant.NewValueString(*uris[i])
+		}
+		require.Equal(t, expectedPayload, point.Payload)
+		require.Equal(t, vectors[i], point.Vectors.GetVector().GetDenseVector().GetData())
 	}
+
+	count, err := qdrantClient.Count(ctx, &qdrant.CountPoints{
+		CollectionName: testCollectionName,
+		Filter: &qdrant.Filter{
+			Must: []*qdrant.Condition{qdrant.NewMatchInt(indexField, 7)},
+		},
+		Exact: qdrant.PtrOf(true),
+	})
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), count)
 }
