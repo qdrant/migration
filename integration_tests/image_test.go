@@ -37,7 +37,7 @@ func qdrantContainer(ctx context.Context, t *testing.T, apiKey string) testconta
 
 func chromaContainer(ctx context.Context, t *testing.T) testcontainers.Container {
 	req := testcontainers.ContainerRequest{
-		Image:        "chromadb/chroma:1.2.2",
+		Image:        "chromadb/chroma:1.5.9",
 		ExposedPorts: []string{"8000/tcp"},
 		WaitingFor: wait.ForAll(
 			wait.ForListeningPort("8000/tcp").WithStartupTimeout(5 * time.Second),
