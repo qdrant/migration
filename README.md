@@ -71,6 +71,17 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
     --migration.batch-size 64
 ```
 
+For Chroma Cloud, use these Chroma options. Chroma Cloud returns at most 300 records per request, so keep `--migration.batch-size` at 300 or lower.
+
+```bash
+    --chroma.url 'https://api.trychroma.com' \
+    --chroma.tenant 'your-tenant-id' \
+    --chroma.database 'your-database' \
+    --chroma.auth-type token \
+    --chroma.token-header X-Chroma-Token \
+    --chroma.token 'your-api-key'
+```
+
 ### Chroma Options
 
 | Flag                    | Description                                                              |
