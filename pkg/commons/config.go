@@ -32,6 +32,7 @@ type PineconeConfig struct {
 	APIKey      string `required:"true"  help:"Pinecone API key for authentication"`
 	Namespace   string `help:"Namespace of the partition to migrate"`
 	ServiceHost string `help:"Pinecone service host URL. Optional."`
+	Embed       string `help:"For indexes that embed text fields, because Pinecone does not return the vectors it generates: 'none' copies the documents without these vectors, and 'pinecone' embeds the text again with the same model." enum:"none,pinecone" default:"none"`
 }
 
 type ChromaConfig struct {
