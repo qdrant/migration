@@ -143,6 +143,7 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--pinecone.api-key`            | Pinecone API key for authentication.                            |
 | `--pinecone.namespace`          | Namespace of the partition to migrate. Optional.                |
 | `--pinecone.service-host`       | Pinecone service host URL. Optional.                            |
+| `--pinecone.embed`              | For indexes that embed text fields: `none` copies the documents without these vectors, and `pinecone` embeds the text again with the same model. Default: `none` |
 
 #### Qdrant Options
 
