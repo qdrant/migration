@@ -848,11 +848,11 @@ These options apply to all migrations, regardless of the source.
 | `--migration.restart`                | Restart migration without resuming from offset. Default: false       |
 | `--migration.create-collection`      | Create the collection if it doesn't exist. Default: true             |
 | `--migration.offsets-collection`     | Collection to store migration offset. Default: `"_migration_offsets"`|
-| `--migration.batch-delay`            | Upsert delay (in miliseconds) between batches                        |
+| `--migration.batch-delay`            | Upsert delay (in milliseconds) between batches                       |
 
-### TLS Verfication
+### TLS Verification
 
-By default, the migration tool verifies TLS certificates when connecting to source and target databases. This means that the TLS certificates need to be signed by a trusted certificate authority (CA) known to the container image of the mgiration tool, and the hostname in the certificate needs to match the hostname of the database URL. If either of these conditions is not met, the migration will fail with a TLS verification error.
+By default, the migration tool verifies TLS certificates when connecting to source and target databases. This means that the TLS certificates need to be signed by a trusted certificate authority (CA) known to the container image of the migration tool, and the hostname in the certificate needs to match the hostname of the database URL. If either of these conditions is not met, the migration will fail with a TLS verification error.
 
 If you want to skip verification for any reason, you can use the `--skip-tls-verification` flag.
 
