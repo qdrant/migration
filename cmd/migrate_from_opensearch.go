@@ -95,15 +95,9 @@ func (r *MigrateFromOpenSearchCmd) Run(globals *Globals) error {
 		return fmt.Errorf("failed to migrate data: %w", err)
 	}
 
-	targetPointCount, err := targetClient.Count(ctx, &qdrant.CountPoints{
-		CollectionName: r.Qdrant.Collection,
-		Exact:          qdrant.PtrOf(true),
-	})
-	if err != nil {
-		return fmt.Errorf("failed to count points in target: %w", err)
+	if err := verifyTargetCount(ctx, targetClient, r.Qdrant.Collection, uint64(sourcePointCount), r.Migration.OffsetsCollection); err != nil {
+		return err
 	}
-
-	pterm.Info.Printfln("Target collection has %d points\n", targetPointCount)
 
 	err = commons.DeleteOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient)
 	if err != nil {

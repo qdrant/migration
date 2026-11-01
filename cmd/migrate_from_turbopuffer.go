@@ -99,14 +99,9 @@ func (r *MigrateFromTurbopufferCmd) Run(globals *Globals) error {
 		return fmt.Errorf("failed to migrate data: %w", err)
 	}
 
-	targetPointCount, err := targetClient.Count(ctx, &qdrant.CountPoints{
-		CollectionName: r.Qdrant.Collection,
-		Exact:          qdrant.PtrOf(true),
-	})
-	if err != nil {
-		return fmt.Errorf("failed to count points in target: %w", err)
+	if err := verifyTargetCount(ctx, targetClient, r.Qdrant.Collection, sourcePointCount, r.Migration.OffsetsCollection); err != nil {
+		return err
 	}
-	pterm.Info.Printfln("Target collection has %d points\n", targetPointCount)
 
 	if err := commons.DeleteOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient); err != nil {
 		return fmt.Errorf("failed to delete migration marker collection: %w", err)
