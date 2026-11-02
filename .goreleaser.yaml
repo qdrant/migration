@@ -8,9 +8,8 @@ builds:
     binary: qdrant-migration
     env:
       - CGO_ENABLED=0
-    # Chroma needs CGO and FAISS needs Python, so both are only available in the container image.
+    # FAISS needs Python, so it is only available in the container image.
     tags:
-      - no_chroma
       - no_faiss
     ldflags:
       - -s -w

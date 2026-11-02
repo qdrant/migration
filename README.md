@@ -26,7 +26,7 @@ CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for res
 
 You can run this tool on any machine with connectivity to both the source and the Qdrant database. For best performance, use a machine with a fast network and minimal latency to both endpoints.
 
-The tool is distributed as a container image and as a standalone binary. The binary supports every source except Chroma and FAISS, which are only available in the container image.
+The tool is distributed as a container image and as a standalone binary. The binary supports every source except FAISS, which is only available in the container image.
 
 ### Container Image
 
@@ -60,18 +60,27 @@ To use the binary with the examples below, replace `docker run --net=host --rm -
 
 Migrate data from a **Chroma** database to **Qdrant**:
 
-> Chroma is only supported by the container image, not by the binary.
-
 ### 📥 Example
 
 ```bash
 docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration chroma \
-    --chroma.url=http://source-hostname:8000
+    --chroma.url 'http://source-hostname:8000' \
     --chroma.collection 'collection-name' \
     --qdrant.url 'https://example.cloud-region.cloud-provider.cloud.qdrant.io:6334' \
     --qdrant.api-key 'optional-qdrant-api-key' \
     --qdrant.collection 'target-collection' \
     --migration.batch-size 64
+```
+
+For Chroma Cloud, use these Chroma options. Chroma Cloud returns at most 300 records per request, so keep `--migration.batch-size` at 300 or lower.
+
+```bash
+    --chroma.url 'https://api.trychroma.com' \
+    --chroma.tenant 'your-tenant-id' \
+    --chroma.database 'your-database' \
+    --chroma.auth-type token \
+    --chroma.token-header X-Chroma-Token \
+    --chroma.token 'your-api-key'
 ```
 
 ### Chroma Options
@@ -97,8 +106,9 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.api-key`        | Qdrant API key. Optional.                                                                                        |
 | `--qdrant.serverless` | Write to a Qdrant Serverless space. Default: false |
 | `--qdrant.id-field`       | Field storing Chroma IDs in Qdrant. Default: `"__id__"`                                                          |
-| `--qdrant.distance-metric`| Distance metric for the Qdrant collection. `"cosine"`, `"dot"`, `"manhattan"` or `"euclid"`. Default: `"euclid"` |
+| `--qdrant.distance-metric`| Distance metric for the Qdrant collection. `"cosine"`, `"dot"`, `"manhattan"` or `"euclid"`. Default: the space of the Chroma collection |
 | `--qdrant.document-field` | Field storing Chroma documents in Qdrant. Default: `"document"`                                                  |
+| `--qdrant.uri-field`      | Field storing Chroma URIs in Qdrant. Default: `"uri"`                                                            |
 
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
 
