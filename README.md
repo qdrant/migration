@@ -143,6 +143,7 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--pinecone.api-key`            | Pinecone API key for authentication.                            |
 | `--pinecone.namespace`          | Namespace of the partition to migrate. Optional.                |
 | `--pinecone.service-host`       | Pinecone service host URL. Optional.                            |
+| `--pinecone.embed`              | For indexes that embed text fields: `none` copies the documents without these vectors, and `pinecone` embeds the text again with the same model. Default: `none` |
 
 #### Qdrant Options
 
@@ -151,7 +152,7 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.collection`           | Target collection name                                          |
 | `--qdrant.url`                  | Qdrant gRPC URL. Default: `"http://localhost:6334"`             |
 | `--qdrant.api-key`              | Qdrant API key                                                  |
-| `--qdrant.sparse-vector`        | Name of the sparse vector in Qdrant. Default: `"sparse_vector"` |
+| `--qdrant.sparse-vector`        | Name of the sparse vector in Qdrant, for indexes without a document schema. Default: `"sparse_vector"` |
 | `--qdrant.id-field`             | Field storing Pinecone IDs in Qdrant. Default: `"__id__"`       |
 
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
