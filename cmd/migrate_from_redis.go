@@ -73,7 +73,7 @@ func (r *MigrateFromRedisCmd) Run(globals *Globals) error {
 	})
 	defer rdb.Close()
 
-	targetClient, err := connectToQdrant(globals, r.targetHost, r.targetPort, r.Qdrant.APIKey, r.targetTLS, 0)
+	targetClient, err := connectToQdrantOrServerless(globals, r.targetHost, r.targetPort, r.Qdrant.APIKey, r.targetTLS, r.Qdrant.Serverless, 0)
 	if err != nil {
 		return fmt.Errorf("failed to connect to Qdrant target: %w", err)
 	}
@@ -87,7 +87,7 @@ func (r *MigrateFromRedisCmd) Run(globals *Globals) error {
 		return fmt.Errorf("target collection '%s' does not exist in Qdrant", r.Qdrant.Collection)
 	}
 
-	err = commons.PrepareOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient)
+	err = targetClient.prepareOffsetsCollection(ctx, r.Migration.OffsetsCollection)
 	if err != nil {
 		return fmt.Errorf("failed to prepare migration marker collection: %w", err)
 	}
@@ -104,17 +104,14 @@ func (r *MigrateFromRedisCmd) Run(globals *Globals) error {
 		return fmt.Errorf("failed to migrate data: %w", err)
 	}
 
-	targetPointCount, err := targetClient.Count(ctx, &qdrant.CountPoints{
-		CollectionName: r.Qdrant.Collection,
-		Exact:          qdrant.PtrOf(true),
-	})
+	targetPointCount, err := targetClient.countPoints(ctx, r.Qdrant.Collection, sourcePointCount)
 	if err != nil {
 		return fmt.Errorf("failed to count points in target: %w", err)
 	}
 
 	pterm.Info.Printfln("Target collection has %d points\n", targetPointCount)
 
-	err = commons.DeleteOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient)
+	err = targetClient.deleteOffsetsCollection(ctx, r.Migration.OffsetsCollection)
 	if err != nil {
 		return fmt.Errorf("failed to delete migration marker collection: %w", err)
 	}
@@ -132,7 +129,7 @@ func (r *MigrateFromRedisCmd) countRedisDocuments(ctx context.Context, rdb *redi
 	return uint64(info.NumDocs), nil
 }
 
-func (r *MigrateFromRedisCmd) migrateData(ctx context.Context, rdb *redis.Client, targetClient *qdrant.Client, sourcePointCount uint64) error {
+func (r *MigrateFromRedisCmd) migrateData(ctx context.Context, rdb *redis.Client, targetClient *qdrantConnection, sourcePointCount uint64) error {
 	batchSize := r.Migration.BatchSize
 
 	var currentOffset uint64 = 0

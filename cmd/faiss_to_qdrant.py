@@ -1,11 +1,38 @@
 import argparse
 from urllib.parse import urlparse
 import faiss
+import grpc
 import numpy as np
 from qdrant_client import QdrantClient, models
 from tqdm import tqdm
 import sys
+import time
 from typing import Any, List, Tuple
+
+UPSERT_ATTEMPTS = 10
+TEMPORARY_CODES = {
+    grpc.StatusCode.UNAVAILABLE,
+    grpc.StatusCode.RESOURCE_EXHAUSTED,
+    grpc.StatusCode.ABORTED,
+}
+
+
+def is_temporary(error: grpc.RpcError) -> bool:
+    if error.code() in TEMPORARY_CODES:
+        return True
+    return error.code() == grpc.StatusCode.INTERNAL and "RST_STREAM" in (error.details() or "")
+
+
+def upsert_with_retry(client: QdrantClient, collection: str, points: List[models.PointStruct]) -> None:
+    """Retries an upsert that fails with a temporary error, as the Go migrations do. An upsert can run again with the same result."""
+    for attempt in range(UPSERT_ATTEMPTS):
+        try:
+            client.upsert(collection_name=collection, points=points, wait=True)
+            return
+        except grpc.RpcError as error:
+            if not is_temporary(error) or attempt == UPSERT_ATTEMPTS - 1:
+                raise
+            time.sleep(min(0.2 * 2**attempt, 5.0))
 
 
 def get_dim(index_path: str) -> None:
@@ -73,7 +100,7 @@ def migrate(args: argparse.Namespace) -> None:
                 )
                 for i in range(len(ids_page))
             ]
-            client.upsert(collection_name=args.collection, points=points, wait=True)
+            upsert_with_retry(client, args.collection, points)
             pbar.update(len(points))
             # Print new offset to stdout for Go to capture
             print(f"OFFSET:{end}", flush=True)

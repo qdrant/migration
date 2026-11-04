@@ -28,6 +28,31 @@ const (
 )
 
 func connectToQdrant(globals *Globals, host string, port int, apiKey string, useTLS bool, maxMessageSize int) (*qdrant.Client, error) {
+	tlsConfig := tls.Config{
+		InsecureSkipVerify: globals.SkipTlsVerification,
+	}
+
+	client, err := qdrant.NewClient(&qdrant.Config{
+		Host:                   host,
+		Port:                   port,
+		APIKey:                 apiKey,
+		UseTLS:                 useTLS,
+		TLSConfig:              &tlsConfig,
+		GrpcOptions:            grpcDialOptions(globals, maxMessageSize),
+		SkipCompatibilityCheck: true,
+	})
+	if err != nil {
+		if port != 6334 {
+			pterm.Error.Println("The connection to Qdrant failed. Since you specified a port other than 6334, the likely reason is that you did not connect to Qdrant's GRPC endpoint, which defaults to port 6334.")
+		}
+		return nil, fmt.Errorf("failed to create client: %w", err)
+	}
+
+	return client, nil
+}
+
+// grpcDialOptions returns the gRPC options shared by all connections to Qdrant.
+func grpcDialOptions(globals *Globals, maxMessageSize int) []grpc.DialOption {
 	debugLogger := logging.LoggerFunc(func(ctx context.Context, lvl logging.Level, msg string, fields ...any) {
 		pterm.Debug.Printf(msg, fields...)
 	})
@@ -60,27 +85,7 @@ func connectToQdrant(globals *Globals, host string, port int, apiKey string, use
 		))
 	}
 
-	tlsConfig := tls.Config{
-		InsecureSkipVerify: globals.SkipTlsVerification,
-	}
-
-	client, err := qdrant.NewClient(&qdrant.Config{
-		Host:                   host,
-		Port:                   port,
-		APIKey:                 apiKey,
-		UseTLS:                 useTLS,
-		TLSConfig:              &tlsConfig,
-		GrpcOptions:            grpcOptions,
-		SkipCompatibilityCheck: true,
-	})
-	if err != nil {
-		if port != 6334 {
-			pterm.Error.Println("The connection to Qdrant failed. Since you specified a port other than 6334, the likely reason is that you did not connect to Qdrant's GRPC endpoint, which defaults to port 6334.")
-		}
-		return nil, fmt.Errorf("failed to create client: %w", err)
-	}
-
-	return client, nil
+	return grpcOptions
 }
 
 func getPort(u *url.URL) (int, error) {
@@ -196,19 +201,27 @@ func isRetryableError(err error) bool {
 
 // upsertWithRetry performs an upsert operation with retry logic for transient errors.
 // It handles Qdrant's transient consistency errors and HTTP/2 stream resets.
-func upsertWithRetry(ctx context.Context, client *qdrant.Client, req *qdrant.UpsertPoints) error {
+func upsertWithRetry(ctx context.Context, client commons.PointsClient, req *qdrant.UpsertPoints) error {
+	attempts := maxUpsertRetries
+	// The connection to Qdrant Serverless retries its point requests itself.
+	if connection, ok := client.(*qdrantConnection); ok && connection.serverless != nil {
+		attempts = 1
+	}
 	var err error
-	for attempt := 0; attempt < maxUpsertRetries; attempt++ {
+	for attempt := 0; attempt < attempts; attempt++ {
 		_, err = client.Upsert(ctx, req)
 		if err == nil {
 			return nil
 		}
-		if !isRetryableError(err) {
+		if !isRetryableError(err) || attempt == attempts-1 {
 			break
 		}
-		// Exponential backoff: 200ms, 400ms, 800ms, 1600ms, 3200ms
-		delay := baseRetryDelay * time.Duration(1<<attempt)
-		time.Sleep(delay)
+		// Exponential backoff: 200ms, 400ms, 800ms, 1600ms
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("failed to insert data into target: %w", err)
+		case <-time.After(baseRetryDelay * time.Duration(1<<attempt)):
+		}
 	}
 	if err != nil {
 		return fmt.Errorf("failed to insert data into target: %w", err)
@@ -217,7 +230,7 @@ func upsertWithRetry(ctx context.Context, client *qdrant.Client, req *qdrant.Ups
 }
 
 // resolveRangeBoundaries reuses the boundaries stored by an interrupted run, or samples and stores new ones.
-func resolveRangeBoundaries(ctx context.Context, targetClient *qdrant.Client, migration commons.MigrationConfig, boundariesKey string, sample func() ([]*qdrant.PointId, error)) ([]*qdrant.PointId, error) {
+func resolveRangeBoundaries(ctx context.Context, targetClient commons.PointsClient, migration commons.MigrationConfig, boundariesKey string, sample func() ([]*qdrant.PointId, error)) ([]*qdrant.PointId, error) {
 	if !migration.Restart {
 		stored, err := commons.GetBoundaries(ctx, migration.OffsetsCollection, targetClient, boundariesKey)
 		if err != nil {
@@ -239,12 +252,14 @@ func resolveRangeBoundaries(ctx context.Context, targetClient *qdrant.Client, mi
 	return ids, nil
 }
 
+// pointCounter counts points. Both *qdrant.Client and *serverless.Client implement it.
+type pointCounter interface {
+	Count(ctx context.Context, request *qdrant.CountPoints) (uint64, error)
+}
+
 // verifyTargetCount fails if the target has fewer points than the source had, keeping the offsets for a resume.
-func verifyTargetCount(ctx context.Context, targetClient *qdrant.Client, targetCollection string, sourcePointCount uint64, offsetsCollection string) error {
-	targetPointCount, err := targetClient.Count(ctx, &qdrant.CountPoints{
-		CollectionName: targetCollection,
-		Exact:          qdrant.PtrOf(true),
-	})
+func verifyTargetCount(ctx context.Context, targetClient *qdrantConnection, targetCollection string, sourcePointCount uint64, offsetsCollection string) error {
+	targetPointCount, err := targetClient.countPoints(ctx, targetCollection, sourcePointCount)
 	if err != nil {
 		return fmt.Errorf("failed to count points in target: %w", err)
 	}

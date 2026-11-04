@@ -71,13 +71,13 @@ func (r *MigrateFromTurbopufferCmd) Run(globals *Globals) error {
 	sourceClient := turbopuffer.NewClient(option.WithAPIKey(r.Turbopuffer.APIKey), option.WithRegion(r.Turbopuffer.Region))
 	namespace := sourceClient.Namespace(r.Turbopuffer.Namespace)
 
-	targetClient, err := connectToQdrant(globals, r.targetHost, r.targetPort, r.Qdrant.APIKey, r.targetTLS, 0)
+	targetClient, err := connectToQdrantOrServerless(globals, r.targetHost, r.targetPort, r.Qdrant.APIKey, r.targetTLS, r.Qdrant.Serverless, 0)
 	if err != nil {
 		return fmt.Errorf("failed to connect to Qdrant target: %w", err)
 	}
 	defer targetClient.Close()
 
-	if err := commons.PrepareOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient); err != nil {
+	if err := targetClient.prepareOffsetsCollection(ctx, r.Migration.OffsetsCollection); err != nil {
 		return fmt.Errorf("failed to prepare migration marker collection: %w", err)
 	}
 
@@ -99,16 +99,13 @@ func (r *MigrateFromTurbopufferCmd) Run(globals *Globals) error {
 		return fmt.Errorf("failed to migrate data: %w", err)
 	}
 
-	targetPointCount, err := targetClient.Count(ctx, &qdrant.CountPoints{
-		CollectionName: r.Qdrant.Collection,
-		Exact:          qdrant.PtrOf(true),
-	})
+	targetPointCount, err := targetClient.countPoints(ctx, r.Qdrant.Collection, sourcePointCount)
 	if err != nil {
 		return fmt.Errorf("failed to count points in target: %w", err)
 	}
 	pterm.Info.Printfln("Target collection has %d points\n", targetPointCount)
 
-	if err := commons.DeleteOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient); err != nil {
+	if err := targetClient.deleteOffsetsCollection(ctx, r.Migration.OffsetsCollection); err != nil {
 		return fmt.Errorf("failed to delete migration marker collection: %w", err)
 	}
 	return nil
@@ -171,7 +168,7 @@ func (r *MigrateFromTurbopufferCmd) countTurbopufferRows(ctx context.Context, na
 	return response.Aggregations.Count, nil
 }
 
-func (r *MigrateFromTurbopufferCmd) prepareTargetCollection(ctx context.Context, source *turbopufferSource, targetClient *qdrant.Client) error {
+func (r *MigrateFromTurbopufferCmd) prepareTargetCollection(ctx context.Context, source *turbopufferSource, targetClient *qdrantConnection) error {
 	if !r.Migration.CreateCollection {
 		return nil
 	}
@@ -194,7 +191,7 @@ func (r *MigrateFromTurbopufferCmd) prepareTargetCollection(ctx context.Context,
 	return nil
 }
 
-func (r *MigrateFromTurbopufferCmd) migrateData(ctx context.Context, namespace turbopuffer.Namespace, targetClient *qdrant.Client, source *turbopufferSource, sourcePointCount uint64) error {
+func (r *MigrateFromTurbopufferCmd) migrateData(ctx context.Context, namespace turbopuffer.Namespace, targetClient *qdrantConnection, source *turbopufferSource, sourcePointCount uint64) error {
 	offsetKey := "turbopuffer/" + r.Turbopuffer.Namespace
 	var lastID json.RawMessage
 	offsetCount := uint64(0)

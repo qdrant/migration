@@ -135,13 +135,13 @@ func (r *MigrateFromChromaCmd) Run(globals *Globals) error {
 		return nil
 	}
 
-	targetClient, err := connectToQdrant(globals, r.targetHost, r.targetPort, r.Qdrant.APIKey, r.targetTLS, 0)
+	targetClient, err := connectToQdrantOrServerless(globals, r.targetHost, r.targetPort, r.Qdrant.APIKey, r.targetTLS, r.Qdrant.Serverless, 0)
 	if err != nil {
 		return fmt.Errorf("failed to connect to Qdrant target: %w", err)
 	}
 	defer targetClient.Close()
 
-	err = commons.PrepareOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient)
+	err = targetClient.prepareOffsetsCollection(ctx, r.Migration.OffsetsCollection)
 	if err != nil {
 		return fmt.Errorf("failed to prepare migration marker collection: %w", err)
 	}
@@ -169,7 +169,7 @@ func (r *MigrateFromChromaCmd) Run(globals *Globals) error {
 		return err
 	}
 
-	err = commons.DeleteOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient)
+	err = targetClient.deleteOffsetsCollection(ctx, r.Migration.OffsetsCollection)
 	if err != nil {
 		return fmt.Errorf("failed to delete migration marker collection: %w", err)
 	}
@@ -288,7 +288,7 @@ func (c *chromaCollection) sparseVectors() map[string]*qdrant.SparseVectorParams
 	return sparseVectors
 }
 
-func (r *MigrateFromChromaCmd) prepareTargetCollection(ctx context.Context, collection *chromaCollection, targetClient *qdrant.Client) error {
+func (r *MigrateFromChromaCmd) prepareTargetCollection(ctx context.Context, collection *chromaCollection, targetClient *qdrantConnection) error {
 	if !r.Migration.CreateCollection {
 		return nil
 	}
@@ -337,7 +337,7 @@ func (r *MigrateFromChromaCmd) prepareTargetCollection(ctx context.Context, coll
 	return nil
 }
 
-func (r *MigrateFromChromaCmd) migrateData(ctx context.Context, collection *chromaCollection, targetClient *qdrant.Client, sourcePointCount uint64) error {
+func (r *MigrateFromChromaCmd) migrateData(ctx context.Context, collection *chromaCollection, targetClient *qdrantConnection, sourcePointCount uint64) error {
 	batchSize := r.Migration.BatchSize
 	sparseVectors := collection.sparseVectors()
 

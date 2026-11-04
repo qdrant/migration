@@ -14,6 +14,13 @@ import (
 	"github.com/qdrant/go-client/qdrant"
 )
 
+// PointsClient holds the point operations that store and read the migration offsets.
+// Both *qdrant.Client and *serverless.Client implement it.
+type PointsClient interface {
+	Get(ctx context.Context, request *qdrant.GetPoints) ([]*qdrant.RetrievedPoint, error)
+	Upsert(ctx context.Context, request *qdrant.UpsertPoints) (*qdrant.UpdateResult, error)
+}
+
 func PrepareOffsetsCollection(ctx context.Context, migrationOffsetsCollectionName string, targetClient *qdrant.Client) error {
 	migrationOffsetCollectionExists, err := targetClient.CollectionExists(ctx, migrationOffsetsCollectionName)
 	if err != nil {
@@ -40,7 +47,7 @@ func DeleteOffsetsCollection(ctx context.Context, migrationOffsetsCollectionName
 	return targetClient.DeleteCollection(ctx, migrationOffsetsCollectionName)
 }
 
-func GetStartOffset(ctx context.Context, migrationOffsetsCollectionName string, targetClient *qdrant.Client, sourceCollection string) (*qdrant.PointId, uint64, error) {
+func GetStartOffset(ctx context.Context, migrationOffsetsCollectionName string, targetClient PointsClient, sourceCollection string) (*qdrant.PointId, uint64, error) {
 	point, err := getOffsetPoint(ctx, migrationOffsetsCollectionName, targetClient, sourceCollection)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get start offset point: %w", err)
@@ -78,7 +85,9 @@ func GetStartOffset(ctx context.Context, migrationOffsetsCollectionName string, 
 func getOffsetIdAsValue(offset *qdrant.PointId) (interface{}, error) {
 	switch pointID := offset.GetPointIdOptions().(type) {
 	case *qdrant.PointId_Num:
-		return pointID.Num, nil
+		// A payload integer is an int64. IDs above math.MaxInt64 wrap to negative values,
+		// and GetStartOffset converts them back.
+		return int64(pointID.Num), nil
 	case *qdrant.PointId_Uuid:
 		return pointID.Uuid, nil
 	default:
@@ -86,7 +95,7 @@ func getOffsetIdAsValue(offset *qdrant.PointId) (interface{}, error) {
 	}
 }
 
-func StoreStartOffset(ctx context.Context, migrationOffsetsCollectionName string, targetClient *qdrant.Client, sourceCollection string, offset *qdrant.PointId, offsetCount uint64) error {
+func StoreStartOffset(ctx context.Context, migrationOffsetsCollectionName string, targetClient PointsClient, sourceCollection string, offset *qdrant.PointId, offsetCount uint64) error {
 	if offset == nil {
 		return nil
 	}
@@ -118,7 +127,7 @@ func StoreStartOffset(ctx context.Context, migrationOffsetsCollectionName string
 	return nil
 }
 
-func getOffsetPoint(ctx context.Context, migrationOffsetsCollectionName string, targetClient *qdrant.Client, sourceCollection string) (*qdrant.RetrievedPoint, error) {
+func getOffsetPoint(ctx context.Context, migrationOffsetsCollectionName string, targetClient PointsClient, sourceCollection string) (*qdrant.RetrievedPoint, error) {
 	points, err := targetClient.Get(ctx, &qdrant.GetPoints{
 		CollectionName: migrationOffsetsCollectionName,
 		Ids:            []*qdrant.PointId{getOffsetPointId(sourceCollection)},
@@ -185,7 +194,7 @@ func BoundariesFingerprint(ids []*qdrant.PointId) (string, error) {
 }
 
 // StoreBoundaries persists the range boundaries used by a parallel migration under the given key.
-func StoreBoundaries(ctx context.Context, migrationOffsetsCollectionName string, targetClient *qdrant.Client, key string, ids []*qdrant.PointId) error {
+func StoreBoundaries(ctx context.Context, migrationOffsetsCollectionName string, targetClient PointsClient, key string, ids []*qdrant.PointId) error {
 	values := make([]any, len(ids))
 	for i, id := range ids {
 		s, err := EncodePointID(id)
@@ -212,7 +221,7 @@ func StoreBoundaries(ctx context.Context, migrationOffsetsCollectionName string,
 }
 
 // GetBoundaries loads range boundaries stored by StoreBoundaries. It returns nil if none were stored.
-func GetBoundaries(ctx context.Context, migrationOffsetsCollectionName string, targetClient *qdrant.Client, key string) ([]*qdrant.PointId, error) {
+func GetBoundaries(ctx context.Context, migrationOffsetsCollectionName string, targetClient PointsClient, key string) ([]*qdrant.PointId, error) {
 	point, err := getOffsetPoint(ctx, migrationOffsetsCollectionName, targetClient, key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get range boundaries: %w", err)
