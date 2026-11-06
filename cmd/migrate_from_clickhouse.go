@@ -404,7 +404,7 @@ func (r *MigrateFromClickHouseCmd) convertRowsToPoints(batchRows []map[string]an
 // derefValue fully dereferences pointers (including Nullable columns scanned as pointers).
 func derefValue(v any) any {
 	rv := reflect.ValueOf(v)
-	for rv.Kind() == reflect.Ptr {
+	for rv.Kind() == reflect.Pointer {
 		if rv.IsNil() {
 			return nil
 		}
