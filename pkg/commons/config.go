@@ -131,6 +131,18 @@ type FaissConfig struct {
 	IndexPath string `help:"Path to the FAISS index file" required:"true"`
 }
 
+type ClickHouseConfig struct {
+	Addr          string   `help:"ClickHouse address in the format host:port (native protocol)." default:"localhost:9000"`
+	Database      string   `help:"ClickHouse database name." default:"default"`
+	Table         string   `help:"Name of the table containing vector data." required:""`
+	KeyColumn     string   `help:"Column with unique values to be hashed as point IDs in Qdrant." required:""`
+	VectorColumns []string `help:"Array(Float32) columns to migrate as named vectors, comma separated." required:""`
+	Columns       []string `help:"Columns to migrate. Must include the key and vector columns. Defaults to all columns."`
+	Username      string   `help:"ClickHouse username."`
+	Password      string   `help:"ClickHouse password."`
+	Secure        bool     `help:"Enable TLS for the ClickHouse connection." default:"false"`
+}
+
 type SolrConfig struct {
 	Url                string `help:"Solr URL (e.g., http://localhost:8983)" required:""`
 	Collection         string `help:"Solr collection name" required:""`
