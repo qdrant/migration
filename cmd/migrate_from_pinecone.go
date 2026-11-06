@@ -27,7 +27,7 @@ type MigrateFromPineconeCmd struct {
 	Qdrant       commons.QdrantConfig    `embed:"" prefix:"qdrant."`
 	Migration    commons.MigrationConfig `embed:"" prefix:"migration."`
 	IdField      string                  `prefix:"qdrant." help:"Field storing Pinecone IDs in Qdrant." default:"__id__"`
-	SparseVector string                  `prefix:"qdrant." help:"Name of the sparse vector in Qdrant" default:"sparse_vector"`
+	SparseVector string                  `prefix:"qdrant." help:"Name of the sparse vector in Qdrant, for indexes without a document schema" default:"sparse_vector"`
 
 	targetHost string
 	targetPort int
@@ -80,14 +80,29 @@ func (r *MigrateFromPineconeCmd) Run(globals *Globals) error {
 		return fmt.Errorf("failed to count points in source: %w", err)
 	}
 
-	err = r.prepareTargetCollection(ctx, sourceClient, targetClient)
+	// Indexes with a document schema need the documents API.
+	description, err := r.describeIndex(ctx)
+	if err != nil {
+		return err
+	}
+	plan := r.documentPlan(description)
+
+	if plan != nil {
+		err = r.prepareDocumentCollection(ctx, plan, targetClient)
+	} else {
+		err = r.prepareTargetCollection(ctx, sourceClient, targetClient)
+	}
 	if err != nil {
 		return fmt.Errorf("error preparing target collection: %w", err)
 	}
 
-	displayMigrationStart("pinecone", r.Pinecone.IndexHost, r.Qdrant.Collection)
+	displayMigrationStart("pinecone", r.Pinecone.IndexName, r.Qdrant.Collection)
 
-	err = r.migrateData(ctx, sourceIndexConn, targetClient, sourcePointCount)
+	if plan != nil {
+		err = r.migrateDocuments(ctx, plan, targetClient, sourcePointCount)
+	} else {
+		err = r.migrateData(ctx, sourceIndexConn, targetClient, sourcePointCount)
+	}
 	if err != nil {
 		return fmt.Errorf("failed to migrate data: %w", err)
 	}
@@ -136,7 +151,19 @@ func (r *MigrateFromPineconeCmd) countPineconeVectors(ctx context.Context, index
 		return 0, fmt.Errorf("failed to get index statistics: %w", err)
 	}
 
-	return uint64(stats.TotalVectorCount), nil
+	// The gRPC client names the default namespace "".
+	if summary := stats.Namespaces[r.Pinecone.Namespace]; summary != nil {
+		return uint64(summary.VectorCount), nil
+	}
+	return 0, nil
+}
+
+// progressKey identifies the saved progress of one namespace. The default namespace keeps the index host as its key.
+func (r *MigrateFromPineconeCmd) progressKey() string {
+	if r.Pinecone.Namespace == "" {
+		return r.Pinecone.IndexHost
+	}
+	return r.Pinecone.IndexHost + "/" + r.Pinecone.Namespace
 }
 
 func (r *MigrateFromPineconeCmd) prepareTargetCollection(ctx context.Context, sourceClient *pinecone.Client, targetClient *qdrant.Client) error {
@@ -214,7 +241,7 @@ func (r *MigrateFromPineconeCmd) migrateData(ctx context.Context, sourceIndexCon
 	offsetCount := uint64(0)
 
 	if !r.Migration.Restart {
-		id, offsetStored, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.Pinecone.IndexHost)
+		id, offsetStored, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.progressKey())
 		if err != nil {
 			return fmt.Errorf("failed to get start offset: %w", err)
 		}
@@ -299,7 +326,7 @@ func (r *MigrateFromPineconeCmd) migrateData(ctx context.Context, sourceIndexCon
 		if listRes.NextPaginationToken != nil {
 			offsetCount += uint64(len(targetPoints))
 			offsetId = qdrant.NewID(*listRes.NextPaginationToken)
-			err = commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.Pinecone.IndexHost, offsetId, offsetCount)
+			err = commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.progressKey(), offsetId, offsetCount)
 			if err != nil {
 				return fmt.Errorf("failed to store offset: %w", err)
 			}
