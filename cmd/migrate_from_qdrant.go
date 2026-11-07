@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/signal"
@@ -37,6 +39,11 @@ type MigrateFromQdrantCmd struct {
 	ShardKey             string                  `help:"Fixed keyword shard key used for every target upsert" prefix:"target."`
 	ShardKeyField        string                  `help:"Payload field used as the target shard key for each point" prefix:"target."`
 	NumWorkers           int                     `help:"Number of parallel workers for data migration (0 = number of CPU cores)" default:"0" prefix:"migration."`
+	Filter               string                  `help:"Migrate only the source points that match this filter, in the JSON format of the Qdrant REST API" prefix:"source." xor:"source-filter"`
+	FilterFile           *string                 `help:"Path to a JSON file with the filter, instead of --source.filter" prefix:"source." xor:"source-filter" type:"path" placeholder:"PATH"`
+
+	// sourceFilter is the parsed Filter, or nil without one.
+	sourceFilter *qdrant.Filter
 
 	sourceHost string
 	sourcePort int
@@ -63,7 +70,32 @@ func (r *MigrateFromQdrantCmd) Validate() error {
 	if r.ShardKey != "" && r.ShardKeyField != "" {
 		return fmt.Errorf("target shard-key and shard-key-field cannot be used together")
 	}
+	// A filter file is read and parsed even if its path or its content is empty, so that it never migrates all points by mistake.
+	if r.FilterFile != nil {
+		data, err := os.ReadFile(*r.FilterFile)
+		if err != nil {
+			return fmt.Errorf("failed to read the filter file: %w", err)
+		}
+		r.Filter = string(data)
+	}
+	if r.Filter != "" || r.FilterFile != nil {
+		var err error
+		if r.sourceFilter, err = parseFilter(r.Filter); err != nil {
+			return err
+		}
+	}
 	return validateBatchSize(r.Migration.BatchSize)
+}
+
+// offsetsKey identifies the migration of a source collection in the offsets collection.
+// A filtered migration gets its own key, so that it never resumes from the offsets of another migration of the same collection.
+func (r *MigrateFromQdrantCmd) offsetsKey(sourceCollection string) string {
+	if r.Filter == "" {
+		return sourceCollection
+	}
+	// The surrounding whitespace, such as the final newline of a filter file, does not change the key.
+	hash := sha256.Sum256([]byte(strings.TrimSpace(r.Filter)))
+	return sourceCollection + "-filter-" + hex.EncodeToString(hash[:8])
 }
 
 func (r *MigrateFromQdrantCmd) routesToTargetShard() bool {
@@ -113,6 +145,7 @@ func (r *MigrateFromQdrantCmd) Run(globals *Globals) error {
 
 	sourcePointCount, err := sourceClient.Count(ctx, &qdrant.CountPoints{
 		CollectionName: r.Source.Collection,
+		Filter:         r.sourceFilter,
 		Exact:          qdrant.PtrOf(true),
 	})
 	if err != nil {
@@ -348,6 +381,7 @@ func (r *MigrateFromQdrantCmd) samplePointIDs(ctx context.Context, client *qdran
 	points, err := client.Query(ctx, &qdrant.QueryPoints{
 		CollectionName: collection,
 		Query:          qdrant.NewQuerySample(qdrant.Sample_Random),
+		Filter:         r.sourceFilter,
 		Limit:          qdrant.PtrOf(uint64(sampleSize)),
 		WithPayload:    qdrant.NewWithPayload(false),
 		WithVectors:    qdrant.NewWithVectors(false),
@@ -417,7 +451,8 @@ func (r *MigrateFromQdrantCmd) processBatch(ctx context.Context, points []*qdran
 
 // migrateData chooses between sequential and parallel migration based on the number of workers.
 func (r *MigrateFromQdrantCmd) migrateData(ctx context.Context, sourceClient *qdrant.Client, sourceCollection string, targetClient *qdrant.Client, targetCollection string, sourcePointCount uint64) error {
-	if r.NumWorkers > 1 {
+	// No points match, for example a filter with no matches, so there are no points to sample for the parallel ranges.
+	if r.NumWorkers > 1 && sourcePointCount > 0 {
 		return r.migrateDataParallel(ctx, sourceClient, sourceCollection, targetClient, targetCollection, sourcePointCount)
 	}
 	return r.migrateDataSequential(ctx, sourceClient, sourceCollection, targetClient, targetCollection, sourcePointCount)
@@ -431,7 +466,7 @@ func (r *MigrateFromQdrantCmd) migrateDataSequential(ctx context.Context, source
 	// If not restarting, get the last known offset to resume migration.
 	if !r.Migration.Restart {
 		var err error
-		offset, count, err = commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, sourceCollection)
+		offset, count, err = commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.offsetsKey(sourceCollection))
 		if err != nil {
 			return fmt.Errorf("failed to get start offset: %w", err)
 		}
@@ -444,6 +479,7 @@ func (r *MigrateFromQdrantCmd) migrateDataSequential(ctx context.Context, source
 		// Scroll through points from the source collection in batches.
 		resp, err := sourceClient.GetPointsClient().Scroll(ctx, &qdrant.ScrollPoints{
 			CollectionName: sourceCollection,
+			Filter:         r.sourceFilter,
 			Offset:         offset,
 			Limit:          qdrant.PtrOf(uint32(r.Migration.BatchSize)),
 			WithPayload:    qdrant.NewWithPayload(true),
@@ -462,7 +498,7 @@ func (r *MigrateFromQdrantCmd) migrateDataSequential(ctx context.Context, source
 		bar.Add(len(points))
 		offset = resp.GetNextPageOffset()
 
-		if err := commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, sourceCollection, offset, count); err != nil {
+		if err := commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.offsetsKey(sourceCollection), offset, count); err != nil {
 			return fmt.Errorf("failed to store offset: %w", err)
 		}
 		if offset == nil {
@@ -486,7 +522,7 @@ func (r *MigrateFromQdrantCmd) migrateDataParallel(ctx context.Context, sourceCl
 	// Resolve the range boundaries. On resume, the boundaries persisted by the previous run are reused.
 	// Re-sampling would produce different ranges and make the stored per-range offsets point at the wrong places.
 	ids, err := resolveRangeBoundaries(ctx, targetClient, r.Migration,
-		fmt.Sprintf("%s-workers-%d-boundaries", sourceCollection, r.NumWorkers),
+		fmt.Sprintf("%s-workers-%d-boundaries", r.offsetsKey(sourceCollection), r.NumWorkers),
 		func() ([]*qdrant.PointId, error) {
 			return r.samplePointIDs(ctx, sourceClient, sourceCollection, sourcePointCount)
 		})
@@ -503,7 +539,7 @@ func (r *MigrateFromQdrantCmd) migrateDataParallel(ctx context.Context, sourceCl
 	// The offset keys include NumWorkers and the boundaries fingerprint, so changing num-workers
 	// (or the boundaries) starts a fresh migration instead of reusing incompatible offsets.
 	offsetKeyFor := func(rangeID int) string {
-		return fmt.Sprintf("%s-workers-%d-%s-range-%d", sourceCollection, r.NumWorkers, fingerprint, rangeID)
+		return fmt.Sprintf("%s-workers-%d-%s-range-%d", r.offsetsKey(sourceCollection), r.NumWorkers, fingerprint, rangeID)
 	}
 
 	// Create the ranges based on the sorted sampled IDs.
@@ -573,6 +609,7 @@ func (r *MigrateFromQdrantCmd) migrateRange(ctx context.Context, sourceCollectio
 	for { // Loop to scroll through the assigned range.
 		resp, err := sourceClient.GetPointsClient().Scroll(ctx, &qdrant.ScrollPoints{
 			CollectionName: sourceCollection,
+			Filter:         r.sourceFilter,
 			Offset:         offset,
 			Limit:          qdrant.PtrOf(uint32(r.Migration.BatchSize)),
 			WithPayload:    qdrant.NewWithPayload(true),
