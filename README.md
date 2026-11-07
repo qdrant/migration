@@ -795,6 +795,23 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
     --target.shard-key-field 'tenant_tier'
 ```
 
+#### Migrate Part of a Collection
+
+Use `--source.filter` to migrate only the source points that match a [filter](https://qdrant.tech/documentation/concepts/filtering/). The filter uses the JSON format of the Qdrant REST API.
+
+To split a multi-tenant collection into one collection per tenant, run one migration for each tenant:
+
+```bash
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration qdrant \
+    --source.url 'http://source-hostname:6334' \
+    --source.collection 'source-collection' \
+    --source.filter '{"must": [{"key": "tenant", "match": {"value": "acme"}}]}' \
+    --target.url 'https://target-hostname:6334' \
+    --target.collection 'acme'
+```
+
+To read the filter from a JSON file, use `--source.filter-file` instead. With Docker, mount the file into the container.
+
 NOTE: If the target collection already exists, its vector size and dimensions must match the source. Other settings like replication, shards can differ.
 
 #### Source Qdrant Options
@@ -805,6 +822,8 @@ NOTE: If the target collection already exists, its vector size and dimensions mu
 | `--source.url`        | Source gRPC URL. Default: `"http://localhost:6334"`        |
 | `--source.api-key`    | API key for source instance                                |
 | `--source.max-message-size`  | Maximum gRPC message size in bytes (default: `33554432` = 32MB). Increase if you encounter `ResourceExhausted` errors with large batches.|
+| `--source.filter`     | Migrate only the points that match this [filter](https://qdrant.tech/documentation/concepts/filtering/), in the JSON format of the Qdrant REST API |
+| `--source.filter-file` | Path to a JSON file with the filter, instead of `--source.filter` |
 
 #### Target Qdrant Options
 
