@@ -548,6 +548,9 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 
 Each listed vector column is migrated as a [named vector](https://qdrant.tech/documentation/concepts/vectors/#named-vectors) using the column name. All other selected columns are stored in the point payload. The value of `--clickhouse.key-column` is hashed into the Qdrant point ID.
 
+> Important ⚠️:
+> The key column must contain **unique, orderable** values (an integer or string type is recommended). The migration pages through the table with `WHERE key > last ORDER BY key`, so a non-unique key can skip or duplicate rows. Rows whose vector columns are all empty are skipped. If you pass `--clickhouse.columns`, it must include the key column and every vector column.
+
 #### ClickHouse Options
 
 | Flag                          | Description                                                                             |

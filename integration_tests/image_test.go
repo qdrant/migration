@@ -177,6 +177,28 @@ func pgContainer(ctx context.Context, t *testing.T) testcontainers.Container {
 	return container
 }
 
+func clickhouseContainer(ctx context.Context, t *testing.T) testcontainers.Container {
+	req := testcontainers.ContainerRequest{
+		Image:        "clickhouse/clickhouse-server:24.8",
+		ExposedPorts: []string{"9000/tcp", "8123/tcp"},
+		Env: map[string]string{
+			"CLICKHOUSE_USER":                      "default",
+			"CLICKHOUSE_PASSWORD":                  "",
+			"CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT": "1",
+		},
+		WaitingFor: wait.ForAll(
+			wait.ForListeningPort("9000/tcp").WithStartupTimeout(60*time.Second),
+			wait.ForHTTP("/ping").WithPort("8123/tcp").WithStartupTimeout(60*time.Second),
+		),
+	}
+	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	require.NoError(t, err)
+	return container
+}
+
 func solrContainer(ctx context.Context, t *testing.T) testcontainers.Container {
 	req := testcontainers.ContainerRequest{
 		Image:        "solr:9.9",

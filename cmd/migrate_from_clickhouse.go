@@ -6,9 +6,11 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"math"
 	"os"
 	"os/signal"
 	"reflect"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -54,6 +56,24 @@ func (r *MigrateFromClickHouseCmd) Validate() error {
 	if len(r.ClickHouse.VectorColumns) == 0 {
 		return fmt.Errorf("at least one vector column must be specified via --clickhouse.vector-columns")
 	}
+
+	// If an explicit column projection is given, it must contain the key column and
+	// every vector column; otherwise points would silently be stored without vectors.
+	if len(r.ClickHouse.Columns) > 0 {
+		selected := make(map[string]bool, len(r.ClickHouse.Columns))
+		for _, col := range r.ClickHouse.Columns {
+			selected[col] = true
+		}
+		if !selected[r.ClickHouse.KeyColumn] {
+			return fmt.Errorf("--clickhouse.columns must include the key column %q", r.ClickHouse.KeyColumn)
+		}
+		for _, vc := range r.ClickHouse.VectorColumns {
+			if !selected[vc] {
+				return fmt.Errorf("--clickhouse.columns must include the vector column %q", vc)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -97,12 +117,24 @@ func (r *MigrateFromClickHouseCmd) Run(globals *Globals) error {
 
 	displayMigrationStart("clickhouse", r.ClickHouse.Table, r.Qdrant.Collection)
 
-	err = r.migrateData(ctx, sourceConn, targetClient, sourcePointCount)
+	skipped, err := r.migrateData(ctx, sourceConn, targetClient, sourcePointCount)
 	if err != nil {
 		return fmt.Errorf("failed to migrate data: %w", err)
 	}
 
-	if err := verifyTargetCount(ctx, targetClient, r.Qdrant.Collection, sourcePointCount, r.Migration.OffsetsCollection); err != nil {
+	// Rows whose vectors were all empty are not written to Qdrant, so discount them
+	// from the expected target count.
+	expectedCount := sourcePointCount
+	if skipped > expectedCount {
+		expectedCount = 0
+	} else {
+		expectedCount -= skipped
+	}
+	if skipped > 0 {
+		pterm.Info.Printfln("Skipped %d row(s) with no non-empty vector", skipped)
+	}
+
+	if err := verifyTargetCount(ctx, targetClient, r.Qdrant.Collection, expectedCount, r.Migration.OffsetsCollection); err != nil {
 		return err
 	}
 
@@ -163,6 +195,20 @@ func (r *MigrateFromClickHouseCmd) countClickHouseRows(ctx context.Context, conn
 		return 0, fmt.Errorf("failed to count rows: %w", err)
 	}
 	return count, nil
+}
+
+// keyColumnType returns the ClickHouse type name of the key column, used to CAST the
+// resume cursor back to its native type during keyset pagination.
+func (r *MigrateFromClickHouseCmd) keyColumnType(ctx context.Context, conn driver.Conn) (string, error) {
+	var typeName string
+	query := fmt.Sprintf(
+		"SELECT toTypeName(%s) FROM %s LIMIT 1",
+		quoteClickHouseIdent(r.ClickHouse.KeyColumn), r.tableIdentifier(),
+	)
+	if err := conn.QueryRow(ctx, query).Scan(&typeName); err != nil {
+		return "", fmt.Errorf("failed to determine type of key column %q: %w", r.ClickHouse.KeyColumn, err)
+	}
+	return typeName, nil
 }
 
 // selectColumns builds the comma separated list of quoted columns to select, or "*".
@@ -261,71 +307,117 @@ func (r *MigrateFromClickHouseCmd) prepareTargetCollection(ctx context.Context, 
 	return nil
 }
 
-func (r *MigrateFromClickHouseCmd) migrateData(ctx context.Context, conn driver.Conn, targetClient *qdrant.Client, sourcePointCount uint64) error {
+// migrateData streams rows using keyset pagination (WHERE key > lastKey ORDER BY key)
+// and upserts them to Qdrant. It returns the number of rows skipped because they had
+// no non-empty vector.
+func (r *MigrateFromClickHouseCmd) migrateData(ctx context.Context, conn driver.Conn, targetClient *qdrant.Client, sourcePointCount uint64) (uint64, error) {
+	if sourcePointCount == 0 {
+		pterm.Info.Println("Source table is empty, nothing to migrate")
+		return 0, nil
+	}
+
 	batchSize := r.Migration.BatchSize
-	offsetCount := uint64(0)
+	scanned := uint64(0)
+	lastKey := ""
 
 	if !r.Migration.Restart {
-		_, count, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.ClickHouse.Table)
+		id, count, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.ClickHouse.Table)
 		if err != nil {
-			return fmt.Errorf("failed to get start offset: %w", err)
+			return 0, fmt.Errorf("failed to get start offset: %w", err)
 		}
-		offsetCount = count
+		scanned = count
+		if id != nil {
+			lastKey = id.GetUuid()
+		}
+	}
+
+	keyType, err := r.keyColumnType(ctx, conn)
+	if err != nil {
+		return 0, err
 	}
 
 	bar, _ := pterm.DefaultProgressbar.WithTotal(int(sourcePointCount)).Start()
-	displayMigrationProgress(bar, offsetCount)
+	displayMigrationProgress(bar, scanned)
 
 	keyColIdent := quoteClickHouseIdent(r.ClickHouse.KeyColumn)
 	selectColumns := r.selectColumns()
+	var totalSkipped uint64
 
 	for {
-		query := fmt.Sprintf(
-			"SELECT %s FROM %s ORDER BY %s LIMIT ? OFFSET ?",
-			selectColumns, r.tableIdentifier(), keyColIdent,
-		)
+		var query string
+		var args []any
+		if lastKey == "" {
+			query = fmt.Sprintf(
+				"SELECT %s FROM %s ORDER BY %s ASC LIMIT ?",
+				selectColumns, r.tableIdentifier(), keyColIdent,
+			)
+			args = []any{batchSize}
+		} else {
+			// CAST the stored cursor (always a string) back to the key's native type so the
+			// comparison matches the ORDER BY collation and avoids a full re-sort each batch.
+			query = fmt.Sprintf(
+				"SELECT %s FROM %s WHERE %s > CAST(? AS %s) ORDER BY %s ASC LIMIT ?",
+				selectColumns, r.tableIdentifier(), keyColIdent, keyType, keyColIdent,
+			)
+			args = []any{lastKey, batchSize}
+		}
 
-		batchRows, err := r.queryBatch(ctx, conn, query, batchSize, offsetCount)
+		batchRows, err := r.queryBatch(ctx, conn, query, args...)
 		if err != nil {
-			return fmt.Errorf("failed to query ClickHouse: %w", err)
+			return 0, fmt.Errorf("failed to query ClickHouse: %w", err)
 		}
 
 		if len(batchRows) == 0 {
 			break
 		}
 
-		targetPoints, err := r.convertRowsToPoints(batchRows)
+		// Advance the cursor to the last key in the batch before filtering, so skipped
+		// rows don't make us loop forever on the same key.
+		lastRow := batchRows[len(batchRows)-1]
+		nextKey, ok := lastRow[r.ClickHouse.KeyColumn]
+		if !ok {
+			return 0, fmt.Errorf("key column %q not found in result set", r.ClickHouse.KeyColumn)
+		}
+		lastKey = clickhouseKeyToString(nextKey)
+
+		targetPoints, skipped, err := r.convertRowsToPoints(batchRows)
 		if err != nil {
-			return err
+			return 0, err
+		}
+		totalSkipped += skipped
+
+		if len(targetPoints) > 0 {
+			err = upsertWithRetry(ctx, targetClient, &qdrant.UpsertPoints{
+				CollectionName: r.Qdrant.Collection,
+				Points:         targetPoints,
+				Wait:           qdrant.PtrOf(true),
+			})
+			if err != nil {
+				return 0, err
+			}
 		}
 
-		err = upsertWithRetry(ctx, targetClient, &qdrant.UpsertPoints{
-			CollectionName: r.Qdrant.Collection,
-			Points:         targetPoints,
-			Wait:           qdrant.PtrOf(true),
-		})
+		scanned += uint64(len(batchRows))
+		err = commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.ClickHouse.Table, qdrant.NewIDUUID(lastKey), scanned)
 		if err != nil {
-			return err
+			return 0, fmt.Errorf("failed to store offset: %w", err)
 		}
 
-		// Just a placeholder ID. We're only using the offset count.
-		offsetID := qdrant.NewIDNum(0)
-		offsetCount += uint64(len(targetPoints))
-		err = commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.ClickHouse.Table, offsetID, offsetCount)
-		if err != nil {
-			return fmt.Errorf("failed to store offset: %w", err)
-		}
-
-		bar.Add(len(targetPoints))
+		bar.Add(len(batchRows))
 
 		// Apply batch delay if configured (helps with rate limiting).
 		if r.Migration.BatchDelay > 0 {
 			time.Sleep(time.Duration(r.Migration.BatchDelay) * time.Millisecond)
 		}
+
+		// A short batch means we've reached the end of the table.
+		if len(batchRows) < batchSize {
+			break
+		}
 	}
 
 	pterm.Success.Printfln("Data migration finished successfully")
-	return nil
+	return totalSkipped, nil
 }
 
 // queryBatch executes the query and dynamically scans each row into a map keyed by column name.
@@ -364,33 +456,49 @@ func (r *MigrateFromClickHouseCmd) queryBatch(ctx context.Context, conn driver.C
 	return batchRows, nil
 }
 
-func (r *MigrateFromClickHouseCmd) convertRowsToPoints(batchRows []map[string]any) ([]*qdrant.PointStruct, error) {
+// convertRowsToPoints converts ClickHouse rows into Qdrant points. Rows whose configured
+// vector columns are all empty are skipped (Qdrant would otherwise reject the whole batch),
+// and the number of skipped rows is returned.
+func (r *MigrateFromClickHouseCmd) convertRowsToPoints(batchRows []map[string]any) ([]*qdrant.PointStruct, uint64, error) {
 	vectorSet := r.vectorColumnSet()
 
 	targetPoints := make([]*qdrant.PointStruct, 0, len(batchRows))
+	var skipped uint64
 	for _, row := range batchRows {
 		point := &qdrant.PointStruct{}
 		vectors := make(map[string]*qdrant.Vector)
 		payload := make(map[string]any)
+		idSet := false
 
 		for col, val := range row {
 			if col == r.ClickHouse.KeyColumn {
-				point.Id = arbitraryIDToUUID(keyToString(val))
+				point.Id = arbitraryIDToUUID(clickhouseKeyToString(val))
+				idSet = true
 			}
 
 			if vectorSet[col] {
 				vec, err := toFloat32Slice(val)
 				if err != nil {
-					return nil, fmt.Errorf("failed to convert column %q to a vector: %w", col, err)
+					return nil, 0, fmt.Errorf("failed to convert column %q to a vector: %w", col, err)
+				}
+				// Skip empty vectors; a zero-length vector doesn't match the collection
+				// dimension and would make Qdrant reject the entire batch.
+				if len(vec) == 0 {
+					continue
 				}
 				vectors[col] = qdrant.NewVector(vec...)
 			} else {
-				payload[col] = sanitizeValue(val)
+				payload[col] = clickhouseSanitizeValue(val)
 			}
 		}
 
-		if point.Id == nil {
-			return nil, fmt.Errorf("key column %q not found in result set", r.ClickHouse.KeyColumn)
+		if !idSet {
+			return nil, 0, fmt.Errorf("key column %q not found in result set", r.ClickHouse.KeyColumn)
+		}
+
+		if len(vectors) == 0 {
+			skipped++
+			continue
 		}
 
 		point.Vectors = qdrant.NewVectorsMap(vectors)
@@ -398,7 +506,7 @@ func (r *MigrateFromClickHouseCmd) convertRowsToPoints(batchRows []map[string]an
 		targetPoints = append(targetPoints, point)
 	}
 
-	return targetPoints, nil
+	return targetPoints, skipped, nil
 }
 
 // derefValue fully dereferences pointers (including Nullable columns scanned as pointers).
@@ -416,9 +524,90 @@ func derefValue(v any) any {
 	return rv.Interface()
 }
 
+// clickhouseKeyToString renders a key column value as a string for use as a Qdrant point ID
+// and as the keyset-pagination cursor.
+func clickhouseKeyToString(val any) string {
+	switch v := val.(type) {
+	case nil:
+		return ""
+	case string:
+		return v
+	case []byte:
+		return string(v)
+	default:
+		return fmt.Sprint(v)
+	}
+}
+
+// clickhouseSanitizeValue converts a ClickHouse-driver value into a type that
+// qdrant.NewValueMap can represent. Unlike the Postgres helper, it understands the
+// concrete Go types the ClickHouse driver returns: small/unsigned integers are widened
+// to int64, uint64 values that overflow int64 are stored as strings (go-client cannot
+// represent them), and arrays/maps of any element type are converted recursively.
+func clickhouseSanitizeValue(val any) any {
+	switch v := val.(type) {
+	case nil, bool, string, []byte, float32, float64, int64:
+		return v
+	case int:
+		return int64(v)
+	case int8:
+		return int64(v)
+	case int16:
+		return int64(v)
+	case int32:
+		return int64(v)
+	case uint8:
+		return int64(v)
+	case uint16:
+		return int64(v)
+	case uint32:
+		return int64(v)
+	case uint:
+		if uint64(v) > math.MaxInt64 {
+			return strconv.FormatUint(uint64(v), 10)
+		}
+		return int64(v)
+	case uint64:
+		if v > math.MaxInt64 {
+			return strconv.FormatUint(v, 10)
+		}
+		return int64(v)
+	case time.Time:
+		return v.Format(time.RFC3339)
+	}
+
+	rv := reflect.ValueOf(val)
+	switch rv.Kind() {
+	case reflect.Pointer:
+		if rv.IsNil() {
+			return nil
+		}
+		return clickhouseSanitizeValue(rv.Elem().Interface())
+	case reflect.Slice, reflect.Array:
+		n := rv.Len()
+		out := make([]any, n)
+		for i := 0; i < n; i++ {
+			out[i] = clickhouseSanitizeValue(rv.Index(i).Interface())
+		}
+		return out
+	case reflect.Map:
+		out := make(map[string]any, rv.Len())
+		for _, k := range rv.MapKeys() {
+			out[fmt.Sprint(k.Interface())] = clickhouseSanitizeValue(rv.MapIndex(k).Interface())
+		}
+		return out
+	default:
+		// Fallback for types like big.Int, decimal.Decimal, net.IP, uuid.UUID, etc.
+		return fmt.Sprint(val)
+	}
+}
+
 // toFloat32Slice converts a ClickHouse array value into a []float32 vector.
+// A nil value yields an empty slice so the caller can treat it as an empty vector.
 func toFloat32Slice(val any) ([]float32, error) {
 	switch v := val.(type) {
+	case nil:
+		return nil, nil
 	case []float32:
 		return v, nil
 	case []float64:
