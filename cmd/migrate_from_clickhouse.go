@@ -117,24 +117,12 @@ func (r *MigrateFromClickHouseCmd) Run(globals *Globals) error {
 
 	displayMigrationStart("clickhouse", r.ClickHouse.Table, r.Qdrant.Collection)
 
-	skipped, err := r.migrateData(ctx, sourceConn, targetClient, sourcePointCount)
+	err = r.migrateData(ctx, sourceConn, targetClient, sourcePointCount)
 	if err != nil {
 		return fmt.Errorf("failed to migrate data: %w", err)
 	}
 
-	// Rows whose vectors were all empty are not written to Qdrant, so discount them
-	// from the expected target count.
-	expectedCount := sourcePointCount
-	if skipped > expectedCount {
-		expectedCount = 0
-	} else {
-		expectedCount -= skipped
-	}
-	if skipped > 0 {
-		pterm.Info.Printfln("Skipped %d row(s) with no non-empty vector", skipped)
-	}
-
-	if err := verifyTargetCount(ctx, targetClient, r.Qdrant.Collection, expectedCount, r.Migration.OffsetsCollection); err != nil {
+	if err := verifyTargetCount(ctx, targetClient, r.Qdrant.Collection, sourcePointCount, r.Migration.OffsetsCollection); err != nil {
 		return err
 	}
 
@@ -308,12 +296,11 @@ func (r *MigrateFromClickHouseCmd) prepareTargetCollection(ctx context.Context, 
 }
 
 // migrateData streams rows using keyset pagination (WHERE key > lastKey ORDER BY key)
-// and upserts them to Qdrant. It returns the number of rows skipped because they had
-// no non-empty vector.
-func (r *MigrateFromClickHouseCmd) migrateData(ctx context.Context, conn driver.Conn, targetClient *qdrant.Client, sourcePointCount uint64) (uint64, error) {
+// and upserts them to Qdrant.
+func (r *MigrateFromClickHouseCmd) migrateData(ctx context.Context, conn driver.Conn, targetClient *qdrant.Client, sourcePointCount uint64) error {
 	if sourcePointCount == 0 {
 		pterm.Info.Println("Source table is empty, nothing to migrate")
-		return 0, nil
+		return nil
 	}
 
 	batchSize := r.Migration.BatchSize
@@ -323,7 +310,7 @@ func (r *MigrateFromClickHouseCmd) migrateData(ctx context.Context, conn driver.
 	if !r.Migration.Restart {
 		id, count, err := commons.GetStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.ClickHouse.Table)
 		if err != nil {
-			return 0, fmt.Errorf("failed to get start offset: %w", err)
+			return fmt.Errorf("failed to get start offset: %w", err)
 		}
 		scanned = count
 		if id != nil {
@@ -333,7 +320,7 @@ func (r *MigrateFromClickHouseCmd) migrateData(ctx context.Context, conn driver.
 
 	keyType, err := r.keyColumnType(ctx, conn)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
 	bar, _ := pterm.DefaultProgressbar.WithTotal(int(sourcePointCount)).Start()
@@ -341,7 +328,6 @@ func (r *MigrateFromClickHouseCmd) migrateData(ctx context.Context, conn driver.
 
 	keyColIdent := quoteClickHouseIdent(r.ClickHouse.KeyColumn)
 	selectColumns := r.selectColumns()
-	var totalSkipped uint64
 
 	for {
 		var query string
@@ -364,27 +350,25 @@ func (r *MigrateFromClickHouseCmd) migrateData(ctx context.Context, conn driver.
 
 		batchRows, err := r.queryBatch(ctx, conn, query, args...)
 		if err != nil {
-			return 0, fmt.Errorf("failed to query ClickHouse: %w", err)
+			return fmt.Errorf("failed to query ClickHouse: %w", err)
 		}
 
 		if len(batchRows) == 0 {
 			break
 		}
 
-		// Advance the cursor to the last key in the batch before filtering, so skipped
-		// rows don't make us loop forever on the same key.
+		// Advance the cursor to the last key in the batch so we never loop on the same key.
 		lastRow := batchRows[len(batchRows)-1]
 		nextKey, ok := lastRow[r.ClickHouse.KeyColumn]
 		if !ok {
-			return 0, fmt.Errorf("key column %q not found in result set", r.ClickHouse.KeyColumn)
+			return fmt.Errorf("key column %q not found in result set", r.ClickHouse.KeyColumn)
 		}
 		lastKey = clickhouseKeyToString(nextKey)
 
-		targetPoints, skipped, err := r.convertRowsToPoints(batchRows)
+		targetPoints, err := r.convertRowsToPoints(batchRows)
 		if err != nil {
-			return 0, err
+			return err
 		}
-		totalSkipped += skipped
 
 		if len(targetPoints) > 0 {
 			err = upsertWithRetry(ctx, targetClient, &qdrant.UpsertPoints{
@@ -393,14 +377,14 @@ func (r *MigrateFromClickHouseCmd) migrateData(ctx context.Context, conn driver.
 				Wait:           qdrant.PtrOf(true),
 			})
 			if err != nil {
-				return 0, err
+				return err
 			}
 		}
 
 		scanned += uint64(len(batchRows))
 		err = commons.StoreStartOffset(ctx, r.Migration.OffsetsCollection, targetClient, r.ClickHouse.Table, qdrant.NewIDUUID(lastKey), scanned)
 		if err != nil {
-			return 0, fmt.Errorf("failed to store offset: %w", err)
+			return fmt.Errorf("failed to store offset: %w", err)
 		}
 
 		bar.Add(len(batchRows))
@@ -417,7 +401,7 @@ func (r *MigrateFromClickHouseCmd) migrateData(ctx context.Context, conn driver.
 	}
 
 	pterm.Success.Printfln("Data migration finished successfully")
-	return totalSkipped, nil
+	return nil
 }
 
 // queryBatch executes the query and dynamically scans each row into a map keyed by column name.
@@ -456,14 +440,13 @@ func (r *MigrateFromClickHouseCmd) queryBatch(ctx context.Context, conn driver.C
 	return batchRows, nil
 }
 
-// convertRowsToPoints converts ClickHouse rows into Qdrant points. Rows whose configured
-// vector columns are all empty are skipped (Qdrant would otherwise reject the whole batch),
-// and the number of skipped rows is returned.
-func (r *MigrateFromClickHouseCmd) convertRowsToPoints(batchRows []map[string]any) ([]*qdrant.PointStruct, uint64, error) {
+// convertRowsToPoints converts ClickHouse rows into Qdrant points. Consistent with the
+// pgvector and Milvus sources, a row whose configured vector columns are all empty is still
+// written as a point (with its payload and no named vectors) rather than being dropped.
+func (r *MigrateFromClickHouseCmd) convertRowsToPoints(batchRows []map[string]any) ([]*qdrant.PointStruct, error) {
 	vectorSet := r.vectorColumnSet()
 
 	targetPoints := make([]*qdrant.PointStruct, 0, len(batchRows))
-	var skipped uint64
 	for _, row := range batchRows {
 		point := &qdrant.PointStruct{}
 		vectors := make(map[string]*qdrant.Vector)
@@ -479,10 +462,10 @@ func (r *MigrateFromClickHouseCmd) convertRowsToPoints(batchRows []map[string]an
 			if vectorSet[col] {
 				vec, err := toFloat32Slice(val)
 				if err != nil {
-					return nil, 0, fmt.Errorf("failed to convert column %q to a vector: %w", col, err)
+					return nil, fmt.Errorf("failed to convert column %q to a vector: %w", col, err)
 				}
-				// Skip empty vectors; a zero-length vector doesn't match the collection
-				// dimension and would make Qdrant reject the entire batch.
+				// An empty/missing vector is simply left out of the named-vector map; like
+				// pgvector and Milvus the point is still written, just without that vector.
 				if len(vec) == 0 {
 					continue
 				}
@@ -493,12 +476,7 @@ func (r *MigrateFromClickHouseCmd) convertRowsToPoints(batchRows []map[string]an
 		}
 
 		if !idSet {
-			return nil, 0, fmt.Errorf("key column %q not found in result set", r.ClickHouse.KeyColumn)
-		}
-
-		if len(vectors) == 0 {
-			skipped++
-			continue
+			return nil, fmt.Errorf("key column %q not found in result set", r.ClickHouse.KeyColumn)
 		}
 
 		point.Vectors = qdrant.NewVectorsMap(vectors)
@@ -506,7 +484,7 @@ func (r *MigrateFromClickHouseCmd) convertRowsToPoints(batchRows []map[string]an
 		targetPoints = append(targetPoints, point)
 	}
 
-	return targetPoints, skipped, nil
+	return targetPoints, nil
 }
 
 // derefValue fully dereferences pointers (including Nullable columns scanned as pointers).
