@@ -85,11 +85,11 @@ func connectToQdrant(globals *Globals, host string, port int, apiKey string, use
 
 func getPort(u *url.URL) (int, error) {
 	if u.Port() != "" {
-		sourcePort, err := strconv.Atoi(u.Port())
+		port, err := strconv.Atoi(u.Port())
 		if err != nil {
-			return 0, fmt.Errorf("failed to parse source port: %w", err)
+			return 0, fmt.Errorf("failed to parse port: %w", err)
 		}
-		return sourcePort, nil
+		return port, nil
 	} else if u.Scheme == HTTPS {
 		return DefaultHTTPSPort, nil
 	}
@@ -107,7 +107,7 @@ func parseQdrantUrl(urlStr string) (host string, port int, tls bool, err error) 
 	tls = parsedUrl.Scheme == HTTPS
 	port, err = getPort(parsedUrl)
 	if err != nil {
-		return "", 0, false, fmt.Errorf("failed to parse port: %w", err)
+		return "", 0, false, err
 	}
 
 	return host, port, tls, nil
