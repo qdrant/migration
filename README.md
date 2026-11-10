@@ -14,6 +14,7 @@ CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for res
 * Elasticsearch
 * Azure AI Search
 * Postgres (pgvector)
+* ClickHouse
 * Amazon S3 Vectors
 * Amazon DynamoDB
 * Turbopuffer
@@ -520,6 +521,58 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | Flag                      | Description                                                     |
 | ------------------------- | --------------------------------------------------------------- |
 | `--migration.num-workers` | Number of parallel workers to use. Default: Number of CPU cores |
+
+* See [Shared Migration Options](#shared-migration-options) for common migration parameters.
+
+</details>
+
+<details>
+<summary><h3>From ClickHouse</h3></summary>
+
+Migrate vectors stored in **ClickHouse** `Array(Float32)` columns, along with their row attributes, to **Qdrant**:
+
+### 📥 Example
+
+```bash
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration clickhouse \
+    --clickhouse.addr 'source-hostname:9000' \
+    --clickhouse.database 'default' \
+    --clickhouse.table 'documents' \
+    --clickhouse.key-column 'id' \
+    --clickhouse.vector-columns 'embedding' \
+    --qdrant.url 'http://target-hostname:6334' \
+    --qdrant.api-key 'optional-qdrant-api-key' \
+    --qdrant.collection 'target-collection' \
+    --migration.batch-size 64
+```
+
+Each listed vector column is migrated as a [named vector](https://qdrant.tech/documentation/concepts/vectors/#named-vectors) using the column name. All other selected columns are stored in the point payload. The value of `--clickhouse.key-column` is hashed into the Qdrant point ID.
+
+> Important ⚠️:
+> The key column must contain **unique, orderable** values (an integer or string type is recommended). The migration pages through the table with `WHERE key > last ORDER BY key`, so a non-unique key can skip or duplicate rows. Rows whose vector columns are all empty are still migrated (as points carrying only their payload), consistent with the pgvector and Milvus sources. If you pass `--clickhouse.columns`, it must include the key column and every vector column.
+
+#### ClickHouse Options
+
+| Flag                          | Description                                                                             |
+| ----------------------------- | --------------------------------------------------------------------------------------- |
+| `--clickhouse.addr`           | ClickHouse address in the format `host:port` (native protocol). Default: `localhost:9000` |
+| `--clickhouse.database`       | ClickHouse database name. Default: `default`                                            |
+| `--clickhouse.table`          | Table containing vector data. **(required)**                                            |
+| `--clickhouse.key-column`     | Column with unique values hashed into Qdrant point IDs. **(required)**                  |
+| `--clickhouse.vector-columns` | `Array(Float32)` columns to migrate as named vectors, comma separated. **(required)**   |
+| `--clickhouse.columns`        | Columns to migrate. Must include the key and vector columns. Defaults to all columns.   |
+| `--clickhouse.username`       | ClickHouse username. Optional.                                                          |
+| `--clickhouse.password`       | ClickHouse password. Optional.                                                          |
+| `--clickhouse.secure`         | Enable TLS for the ClickHouse connection. Default: `false`                              |
+
+#### Qdrant Options
+
+| Flag                       | Description                                                                                                   |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `--qdrant.url`             | Qdrant gRPC URL. Default: `"http://localhost:6334"`                                                           |
+| `--qdrant.collection`      | Target collection name                                                                                        |
+| `--qdrant.api-key`         | Qdrant API key (optional)                                                                                     |
+| `--qdrant.distance-metric` | Map of vector names to distance metrics (`"cosine"`, `"dot"`, `"euclid"`, `"manhattan"`). Default: `"cosine"` |
 
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
 
