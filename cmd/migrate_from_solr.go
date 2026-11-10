@@ -64,13 +64,13 @@ func (r *MigrateFromSolrCmd) Run(globals *Globals) error {
 
 	httpClient := r.createHTTPClient()
 
-	targetClient, err := connectToQdrant(globals, r.targetHost, r.targetPort, r.Qdrant.APIKey, r.targetTLS, 0)
+	targetClient, err := connectToQdrantOrServerless(globals, r.targetHost, r.targetPort, r.Qdrant.APIKey, r.targetTLS, r.Qdrant.Serverless, 0)
 	if err != nil {
 		return fmt.Errorf("failed to connect to Qdrant target: %w", err)
 	}
 	defer targetClient.Close()
 
-	err = commons.PrepareOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient)
+	err = targetClient.prepareOffsetsCollection(ctx, r.Migration.OffsetsCollection)
 	if err != nil {
 		return fmt.Errorf("failed to prepare migration marker collection: %w", err)
 	}
@@ -87,17 +87,14 @@ func (r *MigrateFromSolrCmd) Run(globals *Globals) error {
 		return fmt.Errorf("failed to migrate data: %w", err)
 	}
 
-	targetPointCount, err := targetClient.Count(ctx, &qdrant.CountPoints{
-		CollectionName: r.Qdrant.Collection,
-		Exact:          qdrant.PtrOf(true),
-	})
+	targetPointCount, err := targetClient.countPoints(ctx, r.Qdrant.Collection, uint64(max(sourcePointCount, 0)))
 	if err != nil {
 		return fmt.Errorf("failed to count points in target: %w", err)
 	}
 
 	pterm.Info.Printfln("Target collection has %d points\n", targetPointCount)
 
-	err = commons.DeleteOffsetsCollection(ctx, r.Migration.OffsetsCollection, targetClient)
+	err = targetClient.deleteOffsetsCollection(ctx, r.Migration.OffsetsCollection)
 	if err != nil {
 		return fmt.Errorf("failed to delete migration marker collection: %w", err)
 	}
@@ -162,7 +159,7 @@ func (r *MigrateFromSolrCmd) countSolrDocuments(ctx context.Context, client *htt
 	return int64(numFound), nil
 }
 
-func (r *MigrateFromSolrCmd) migrateData(ctx context.Context, httpClient *http.Client, targetClient *qdrant.Client, sourcePointCount int64) error {
+func (r *MigrateFromSolrCmd) migrateData(ctx context.Context, httpClient *http.Client, targetClient *qdrantConnection, sourcePointCount int64) error {
 	batchSize := r.Migration.BatchSize
 
 	offsetCount := uint64(0)

@@ -1,6 +1,6 @@
 # ⛟ Migration → Qdrant
 
-CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for resumable transfers in case of interruptions.
+CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for resumable transfers in case of interruptions. Every source can write to a Qdrant cluster or to a Qdrant Serverless space.
 
 ## Supported Sources
 
@@ -20,6 +20,7 @@ CLI tool for migrating data to [Qdrant](http://qdrant.tech) with support for res
 * FAISS
 * Apache Solr
 * Another Qdrant instance
+* Qdrant Serverless
 
 ## Installation
 
@@ -103,6 +104,7 @@ For Chroma Cloud, use these Chroma options. Chroma Cloud returns at most 300 rec
 | `--qdrant.collection`     | Target collection name.                                                                                          |
 | `--qdrant.url`            | Qdrant gRPC URL. Default: `"http://localhost:6334"`                                                              |
 | `--qdrant.api-key`        | Qdrant API key. Optional.                                                                                        |
+| `--qdrant.serverless` | Write to a Qdrant Serverless space. Default: false |
 | `--qdrant.id-field`       | Field storing Chroma IDs in Qdrant. Default: `"__id__"`                                                          |
 | `--qdrant.distance-metric`| Distance metric for the Qdrant collection. `"cosine"`, `"dot"`, `"manhattan"` or `"euclid"`. Default: the space of the Chroma collection |
 | `--qdrant.document-field` | Field storing Chroma documents in Qdrant. Default: `"document"`                                                  |
@@ -151,6 +153,7 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.collection`           | Target collection name                                          |
 | `--qdrant.url`                  | Qdrant gRPC URL. Default: `"http://localhost:6334"`             |
 | `--qdrant.api-key`              | Qdrant API key                                                  |
+| `--qdrant.serverless` | Write to a Qdrant Serverless space. Default: false |
 | `--qdrant.sparse-vector`        | Name of the sparse vector in Qdrant. Default: `"sparse_vector"` |
 | `--qdrant.id-field`             | Field storing Pinecone IDs in Qdrant. Default: `"__id__"`       |
 
@@ -199,6 +202,7 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.url`             | Qdrant gRPC URL. Default: `"http://localhost:6334"`                                                              |
 | `--qdrant.collection`      | Target collection name                                                                                           |
 | `--qdrant.api-key`         | Qdrant API key                                                                                                   |
+| `--qdrant.serverless` | Write to a Qdrant Serverless space. Default: false |
 | `--qdrant.distance-metric` | Map of vector names to distance metrics (`"cosine"`,`"dot"`,`"euclid"`,`"manhattan"`). Default: `"cosine"`       |
 
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
@@ -255,6 +259,7 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.url`          | Qdrant gRPC URL. Default: `"http://localhost:6334"`                                                              |
 | `--qdrant.collection`   | Target collection name                                                                                           |
 | `--qdrant.api-key`      | Qdrant API key                                                                                                   |
+| `--qdrant.serverless` | Write to a Qdrant Serverless space. Default: false |
 
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
 
@@ -302,6 +307,7 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.url`                  | Qdrant gRPC URL. Default: `"http://localhost:6334"`             |
 | `--qdrant.collection`           | Target collection name                                          |
 | `--qdrant.api-key`              | Qdrant API key                                                  |
+| `--qdrant.serverless` | Write to a Qdrant Serverless space. Default: false |
 | `--qdrant.id-field`             | Field storing Redis IDs in Qdrant. Default: `"__id__"`         |
 
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
@@ -346,6 +352,7 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.url`        | Qdrant gRPC URL. Default: `"http://localhost:6334"`      |
 | `--qdrant.collection` | Target collection name                                   |
 | `--qdrant.api-key`    | Qdrant API key (optional)                                |
+| `--qdrant.serverless` | Write to a Qdrant Serverless space. Default: false |
 | `--qdrant.id-field`   | Field storing MongoDB IDs in Qdrant. Default: `"__id__"` |
 
 See [Shared Migration Options](#shared-migration-options) for common migration parameters.
@@ -390,6 +397,7 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.url`        | Qdrant gRPC URL. Default: `"http://localhost:6334"`         |
 | `--qdrant.collection` | Target collection name                                      |
 | `--qdrant.api-key`    | Qdrant API key (optional)                                   |
+| `--qdrant.serverless` | Write to a Qdrant Serverless space. Default: false |
 | `--qdrant.id-field`   | Field storing OpenSearch IDs in Qdrant. Default: `"__id__"` |
 
 See [Shared Migration Options](#shared-migration-options) for common migration parameters.
@@ -434,6 +442,7 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.url`        | Qdrant gRPC URL. Default: `"http://localhost:6334"`            |
 | `--qdrant.collection` | Target collection name                                         |
 | `--qdrant.api-key`    | Qdrant API key (optional)                                      |
+| `--qdrant.serverless` | Write to a Qdrant Serverless space. Default: false |
 | `--qdrant.id-field`   | Field storing Elasticsearch IDs in Qdrant. Default: `"__id__"` |
 
 See [Shared Migration Options](#shared-migration-options) for common migration parameters.
@@ -474,6 +483,7 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.url`        | Qdrant gRPC URL. Default: `"http://localhost:6334"`                |
 | `--qdrant.collection` | Target collection name                                             |
 | `--qdrant.api-key`    | Qdrant API key (optional)                                          |
+| `--qdrant.serverless` | Write to a Qdrant Serverless space. Default: false |
 | `--qdrant.id-field`   | Field storing Azure AI Search document keys in Qdrant. Default: `"__id__"` |
 
 See [Shared Migration Options](#shared-migration-options) for common migration parameters.
@@ -513,6 +523,7 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.collection`      | Target collection name                                                                                              |
 | `--qdrant.url`             | Qdrant gRPC URL. Default: `http://localhost:6334`                                                                   |
 | `--qdrant.api-key`         | Qdrant API key (optional)                                                                                           |
+| `--qdrant.serverless` | Write to a Qdrant Serverless space. Default: false |
 | `--qdrant.distance-metric` | Map of vector names to distance metrics (`"cosine"`, `"dot"`, `"euclid"`, `"manhattan"`). Default: `"cosine"`       |
 
 #### Additional Options
@@ -567,6 +578,7 @@ docker run --net=host --rm -it \
 | `--qdrant.url`          | Qdrant gRPC URL. Default: `"http://localhost:6334"`           |
 | `--qdrant.collection`   | Target collection name                                        |
 | `--qdrant.api-key`      | Qdrant API key (optional)                                     |
+| `--qdrant.serverless` | Write to a Qdrant Serverless space. Default: false |
 | `--qdrant.id-field`     | Field storing S3 IDs in Qdrant. Default: `"__id__"`           |
 
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
@@ -615,6 +627,7 @@ docker run --net=host --rm -it \
 | `--qdrant.url`          | Qdrant gRPC URL. Default: `"http://localhost:6334"`                              |
 | `--qdrant.collection`   | Target collection name                                                            |
 | `--qdrant.api-key`      | Qdrant API key (optional)                                                         |
+| `--qdrant.serverless` | Write to a Qdrant Serverless space. Default: false |
 | `--qdrant.id-field`     | Payload field storing the canonical DynamoDB primary key. Default: `"__id__"`   |
 | `--qdrant.vector-name`  | Target vector name. Empty uses Qdrant's unnamed vector                            |
 
@@ -655,6 +668,7 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.url`        | Qdrant gRPC URL. Default: `"http://localhost:6334"`               |
 | `--qdrant.collection` | Target collection name                                             |
 | `--qdrant.api-key`    | Qdrant API key (optional)                                          |
+| `--qdrant.serverless` | Write to a Qdrant Serverless space. Default: false |
 | `--qdrant.id-field`   | Payload field storing the Turbopuffer document ID. Default: `"__id__"` |
 
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
@@ -698,6 +712,7 @@ docker run --net=host --rm -it \
 | `--qdrant.url`             | Qdrant gRPC URL. Default: `"http://localhost:6334"`                                                              |
 | `--qdrant.collection`      | Target collection name                                                                                           |
 | `--qdrant.api-key`         | Qdrant API key (optional)                                                                                        |
+| `--qdrant.serverless` | Write to a Qdrant Serverless space. Default: false |
 | `--qdrant.distance-metric` | Distance metric for the Qdrant collection. `"cosine"`, `"dot"`, `"manhattan"` or `"euclid"`. Default: `"cosine"` |
 
 
@@ -744,6 +759,7 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 | `--qdrant.url`        | Qdrant gRPC URL. Default: `"http://localhost:6334"`         |
 | `--qdrant.collection` | Target collection name                                      |
 | `--qdrant.api-key`    | Qdrant API key (optional)                                   |
+| `--qdrant.serverless` | Write to a Qdrant Serverless space. Default: false |
 | `--qdrant.id-field`   | Field storing Solr IDs in Qdrant. Default: `"__id__"`      |
 
 * See [Shared Migration Options](#shared-migration-options) for common migration parameters.
@@ -753,7 +769,7 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 <details>
 <summary><h3>From Another Qdrant Instance</h3></summary>
 
-Migrate data from one **Qdrant** instance to another.
+Migrate data from one **Qdrant** instance to another. The source and the target can each be a Qdrant cluster or a Qdrant Serverless space.
 
 ### 📥 Example
 
@@ -805,6 +821,7 @@ NOTE: If the target collection already exists, its vector size and dimensions mu
 | `--source.url`        | Source gRPC URL. Default: `"http://localhost:6334"`        |
 | `--source.api-key`    | API key for source instance                                |
 | `--source.max-message-size`  | Maximum gRPC message size in bytes (default: `33554432` = 32MB). Increase if you encounter `ResourceExhausted` errors with large batches.|
+| `--source.serverless` | Read from a Qdrant Serverless space. Default: false |
 
 #### Target Qdrant Options
 
@@ -816,6 +833,7 @@ NOTE: If the target collection already exists, its vector size and dimensions mu
 | `--target.ensure-payload-indexes` | Ensure payload indexes exist. Default: true         |
 | `--target.shard-key`              | Fixed keyword shard key used for every target upsert |
 | `--target.shard-key-field`        | Payload field used as each point's target shard key  |
+| `--target.serverless`             | Write to a Qdrant Serverless space. Default: false |
 
 #### Additional Options
 
