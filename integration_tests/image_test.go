@@ -75,27 +75,6 @@ func weaviateContainer(ctx context.Context, t *testing.T) testcontainers.Contain
 	return container
 }
 
-func pineconeContainer(ctx context.Context, t *testing.T) testcontainers.Container {
-
-	req := testcontainers.ContainerRequest{
-		Image:        "ghcr.io/pinecone-io/pinecone-local:v1.0.0.rc0",
-		ExposedPorts: []string{"5081/tcp", "5082/tcp"},
-		Env: map[string]string{
-			"PORT": "5081",
-		},
-		WaitingFor: wait.ForAll(wait.ForListeningPort("5081/tcp").WithStartupTimeout(30*time.Second),
-			wait.ForListeningPort("5082/tcp").WithStartupTimeout(30*time.Second)),
-	}
-
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	require.NoError(t, err)
-
-	return container
-}
-
 func redisContainer(ctx context.Context, t *testing.T) testcontainers.Container {
 	req := testcontainers.ContainerRequest{
 		Image:        "redis/redis-stack:7.4.0-v8",
