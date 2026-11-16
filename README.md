@@ -812,6 +812,20 @@ docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration
 
 To read the filter from a JSON file, use `--source.filter-file` instead. With Docker, mount the file into the container.
 
+#### Split a Collection by a Payload Field
+
+Use a `{field}` placeholder in `--target.collection` to write each point to the collection for its value of that payload field:
+
+```bash
+docker run --net=host --rm -it registry.cloud.qdrant.io/library/qdrant-migration qdrant \
+    --source.url 'http://source-hostname:6334' \
+    --source.collection 'source-collection' \
+    --target.url 'https://target-hostname:6334' \
+    --target.collection 'org-{tenant_id}'
+```
+
+A point with `"tenant_id": "acme"` goes to `org-acme`. The tool creates each collection with the configuration of the source collection.
+
 NOTE: If the target collection already exists, its vector size and dimensions must match the source. Other settings like replication, shards can differ.
 
 #### Source Qdrant Options
@@ -829,7 +843,7 @@ NOTE: If the target collection already exists, its vector size and dimensions mu
 
 | Flag                              | Description                                         |
 | --------------------------------- | --------------------------------------------------- |
-| `--target.collection`             | Target collection name                              |
+| `--target.collection`             | Target collection name. Use `{field}` to split by a payload field |
 | `--target.url`                    | Target gRPC URL. Default: `"http://localhost:6334"` |
 | `--target.api-key`                | API key for target instance                         |
 | `--target.ensure-payload-indexes` | Ensure payload indexes exist. Default: true         |
