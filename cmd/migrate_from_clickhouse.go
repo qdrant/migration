@@ -5,6 +5,7 @@ package cmd
 import (
 	"context"
 	"crypto/tls"
+	"encoding"
 	"fmt"
 	"math"
 	"os"
@@ -521,7 +522,8 @@ func clickhouseKeyToString(val any) string {
 // qdrant.NewValueMap can represent. Unlike the Postgres helper, it understands the
 // concrete Go types the ClickHouse driver returns: small/unsigned integers are widened
 // to int64, uint64 values that overflow int64 are stored as strings (go-client cannot
-// represent them), and arrays/maps of any element type are converted recursively.
+// represent them), types with an explicit string form (uuid.UUID, net.IP, big.Int, ...)
+// are rendered via that form, and arrays/maps of any element type are converted recursively.
 func clickhouseSanitizeValue(val any) any {
 	switch v := val.(type) {
 	case nil, bool, string, []byte, float32, float64, int64:
@@ -554,6 +556,14 @@ func clickhouseSanitizeValue(val any) any {
 		return v.Format(time.RFC3339)
 	}
 
+	// Types with an explicit textual representation (uuid.UUID, net.IP, big.Int,
+	// decimal.Decimal, ...) must be rendered via that string form before the generic
+	// reflect handling below, otherwise e.g. net.IP (a []byte) and uuid.UUID (a byte
+	// array) would be exploded into a list of numbers.
+	if s, ok := clickhouseStringForm(val); ok {
+		return s
+	}
+
 	rv := reflect.ValueOf(val)
 	switch rv.Kind() {
 	case reflect.Pointer:
@@ -575,9 +585,42 @@ func clickhouseSanitizeValue(val any) any {
 		}
 		return out
 	default:
-		// Fallback for types like big.Int, decimal.Decimal, net.IP, uuid.UUID, etc.
+		// Fallback for any remaining unknown type with no string form.
 		return fmt.Sprint(val)
 	}
+}
+
+// clickhouseStringForm returns an explicit textual representation for values that provide
+// one (via fmt.Stringer or encoding.TextMarshaler), including types whose method set is on
+// the pointer receiver only (e.g. *big.Int). It reports false for everything else so the
+// caller can fall back to the generic reflect-based handling.
+func clickhouseStringForm(val any) (string, bool) {
+	switch s := val.(type) {
+	case fmt.Stringer:
+		return s.String(), true
+	case encoding.TextMarshaler:
+		if b, err := s.MarshalText(); err == nil {
+			return string(b), true
+		}
+	}
+
+	// Probe an addressable copy to catch String()/MarshalText() declared on the pointer
+	// receiver only (e.g. *big.Int after a Nullable pointer has been dereferenced).
+	rv := reflect.ValueOf(val)
+	if rv.IsValid() && rv.Kind() != reflect.Pointer {
+		ptr := reflect.New(rv.Type())
+		ptr.Elem().Set(rv)
+		switch s := ptr.Interface().(type) {
+		case fmt.Stringer:
+			return s.String(), true
+		case encoding.TextMarshaler:
+			if b, err := s.MarshalText(); err == nil {
+				return string(b), true
+			}
+		}
+	}
+
+	return "", false
 }
 
 // toFloat32Slice converts a ClickHouse array value into a []float32 vector.
