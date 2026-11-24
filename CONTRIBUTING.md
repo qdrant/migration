@@ -46,6 +46,14 @@ pre-commit install-hooks
 
 ## Releasing a new version
 
-To release a new version create and push a release branch that follows the pattern `release/vX.Y.Z`. The release branch should be created from the `main` branch, or from the latest release branch in case of a hot fix.
+To release a new version, create and push a tag named `vX.Y.Z` (for example `v1.2.3`, no leading zeros) on the commit to release:
 
-A GitHub Action will then create a new release, build the binaries, push the Docker image to the registry, and create a Git tag.
+```bash
+git checkout main && git pull
+git tag vX.Y.Z
+git push origin vX.Y.Z
+```
+
+Releases are normally tagged on `main`. For a hot fix, create a branch from the previous release tag, `git cherry-pick -x` the fix from `main`, and tag the head of that branch.
+
+Pushing the tag starts the release GitHub Action. It checks the tag name, builds and signs the Docker image and pushes it to the registry, publishes the release notes, and builds the binaries. Only people allowed to create `v*` tags can release.
