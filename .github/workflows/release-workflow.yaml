@@ -20,11 +20,51 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Require the release commit to be on main
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin refs/heads/main
+          main=$(git rev-parse --verify "refs/remotes/origin/main^{commit}")
+          picked_from_main() {
+            local commit=$1 merges parent source tree want
+            merges=$(git rev-list --no-walk --count --min-parents=2 "$commit") || return 1
+            [ "$merges" = 0 ] || return 1
+            parent=$(git rev-parse --verify --quiet "$commit^") || return 1
+            source=$(git log -1 --format=%B "$commit" | sed -n 's/^(cherry picked from commit \([0-9a-f]\{40\}\))$/\1/p' | tail -n 1) || return 1
+            [ -n "$source" ] || return 1
+            git merge-base --is-ancestor "$source" "$main" || return 1
+            tree=$(git --attr-source="$parent" merge-tree --write-tree --no-messages --merge-base="$source^" "$parent" "$source") || return 1
+            want=$(git rev-parse --verify "$commit^{tree}") || return 1
+            [ "$tree" = "$want" ]
+          }
+          on_main=0
+          git merge-base --is-ancestor HEAD "$main" || on_main=$?
+          if [ "$on_main" != 0 ]; then
+            [ "$on_main" = 1 ]
+            commits=$(git rev-list "$main..HEAD")
+            [ -n "$commits" ]
+            rejected=""
+            for commit in $commits; do
+              picked_from_main "$commit" || rejected="$rejected $(git rev-parse --short "$commit")"
+            done
+            if [ -n "$rejected" ]; then
+              echo "::error::$(git rev-parse --short HEAD) has commits that are not on main:$rejected. Releases are cut from main, hotfixes use git cherry-pick -x of commits already on main, without changes"
+              exit 1
+            fi
+          fi
 
       - name: Extract build info
         id: extract_build_info
         run: |
-          echo "tag=${GITHUB_REF##*/}" >> $GITHUB_OUTPUT
+          tag="${GITHUB_REF##*/}"
+          if [[ ! "${tag}" =~ ^v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "Release ref must end in a semver version, got: ${tag}" >&2
+            exit 1
+          fi
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
           echo "commit_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
       - name: Set up QEMU
@@ -77,8 +117,10 @@ jobs:
       - name: Tag Release
         shell: bash
         run: |
-          git tag ${{ steps.extract_build_info.outputs.tag }}
-          git push origin ${{ steps.extract_build_info.outputs.tag }}
+          git tag "${RELEASE_TAG}"
+          git push origin "${RELEASE_TAG}"
+        env:
+          RELEASE_TAG: ${{ steps.extract_build_info.outputs.tag }}
 
       - name: Publish Release Notes
         uses: release-drafter/release-drafter@978bb0b30c5ee8cdd332ced253758157150d43f0 # v7.10.0
@@ -92,6 +134,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   Binaries:
+    environment: release
     name: Publish Binaries
     needs: Release
     runs-on: ubuntu-latest
