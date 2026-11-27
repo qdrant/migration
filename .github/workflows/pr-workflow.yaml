@@ -103,6 +103,7 @@ jobs:
           AZURE_SEARCH_API_KEY: ${{ secrets.AZURE_SEARCH_API_KEY }}
           TURBOPUFFER_API_KEY: ${{ secrets.TURBOPUFFER_API_KEY }}
           TURBOPUFFER_REGION: ${{ secrets.TURBOPUFFER_REGION }}
+          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
         run: |
           make test_unit
 
